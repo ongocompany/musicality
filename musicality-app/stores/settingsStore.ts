@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { DanceStyle } from '../utils/beatCounter';
+import { CueType } from '../types/cue';
 
 interface SettingsState {
   // Dance style (global setting)
@@ -15,6 +16,14 @@ interface SettingsState {
   downbeatOffsets: Record<string, number>;
   setDownbeatOffset: (trackId: string, beatIndex: number) => void;
   clearDownbeatOffset: (trackId: string) => void;
+
+  // Cue sound settings
+  cueType: CueType;
+  setCueType: (type: CueType) => void;
+  cueVolume: number;       // 0.0 ~ 1.0
+  setCueVolume: (vol: number) => void;
+  cueEnabled: boolean;
+  toggleCue: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -34,4 +43,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       const { [trackId]: _, ...rest } = state.downbeatOffsets;
       return { downbeatOffsets: rest };
     }),
+
+  cueType: 'off',
+  setCueType: (type) => set({ cueType: type, cueEnabled: type !== 'off' }),
+  cueVolume: 0.7,
+  setCueVolume: (vol) => set({ cueVolume: Math.max(0, Math.min(1, vol)) }),
+  cueEnabled: false,
+  toggleCue: () => set((state) => ({ cueEnabled: !state.cueEnabled })),
 }));

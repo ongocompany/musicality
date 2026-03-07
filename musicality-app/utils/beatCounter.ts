@@ -1,6 +1,8 @@
 // Beat counting engine for Latin dance (Bachata / Salsa)
 // Pure functions — no React or store dependencies
 
+import { Section } from '../types/analysis';
+
 export type DanceStyle = 'bachata' | 'salsa-on1' | 'salsa-on2';
 export type BeatType = 'step' | 'tap' | 'pause';
 
@@ -56,17 +58,25 @@ export function findNearestBeatIndex(positionMs: number, beats: number[]): numbe
 
 /**
  * Determine the beat index that corresponds to "beat 1" of the dance phrase.
- * If user provided an offset, use that. Otherwise derive from downbeats[].
+ * Priority: 1) user manual offset, 2) derecho start from sections, 3) first downbeat.
  */
 export function computeReferenceIndex(
   beats: number[],
   downbeats: number[],
   offsetBeatIndex: number | null,
+  sections?: Section[],
 ): number {
+  // 1. User override always wins
   if (offsetBeatIndex !== null) return offsetBeatIndex;
-  if (downbeats.length === 0 || beats.length === 0) return 0;
 
-  // Find beat index closest to first downbeat
+  // 2. If sections available, use derecho start
+  if (sections && sections.length > 0) {
+    const derechoIdx = findDerechoStartBeatIndex(beats, sections);
+    if (derechoIdx !== null) return derechoIdx;
+  }
+
+  // 3. Fallback: first downbeat
+  if (downbeats.length === 0 || beats.length === 0) return 0;
   return findNearestBeatIndex(downbeats[0] * 1000, beats);
 }
 
@@ -106,13 +116,14 @@ export function getCountInfo(
   downbeats: number[],
   offsetBeatIndex: number | null,
   style: DanceStyle,
+  sections?: Section[],
 ): CountInfo | null {
   if (beats.length === 0) return null;
 
   const currentIdx = findCurrentBeatIndex(positionMs, beats);
   if (currentIdx < 0) return null;
 
-  const refIdx = computeReferenceIndex(beats, downbeats, offsetBeatIndex);
+  const refIdx = computeReferenceIndex(beats, downbeats, offsetBeatIndex, sections);
 
   // count = distance from reference, modulo 8, 1-indexed
   const diff = currentIdx - refIdx;
@@ -124,4 +135,33 @@ export function getCountInfo(
     beatType: getBeatType(count, style),
     beatIndex: currentIdx,
   };
+}
+
+/**
+ * Find the current section at a given position.
+ */
+export function findCurrentSection(
+  positionMs: number,
+  sections: Section[],
+): Section | null {
+  const posSec = positionMs / 1000;
+  for (const section of sections) {
+    if (posSec >= section.startTime && posSec < section.endTime) {
+      return section;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find the beat index where "derecho" starts (first danceable section).
+ * Returns null if no derecho section found.
+ */
+export function findDerechoStartBeatIndex(
+  beats: number[],
+  sections: Section[],
+): number | null {
+  const derecho = sections.find((s) => s.label === 'derecho');
+  if (!derecho || beats.length === 0) return null;
+  return findNearestBeatIndex(derecho.startTime * 1000, beats);
 }

@@ -1,6 +1,7 @@
 import { View, StyleSheet, GestureResponderEvent, LayoutChangeEvent } from 'react-native';
 import { useRef, useState, useCallback } from 'react';
-import { Colors } from '../../constants/theme';
+import { Colors, SectionColors } from '../../constants/theme';
+import { Section } from '../../types/analysis';
 
 interface SeekBarProps {
   value: number;
@@ -11,6 +12,8 @@ interface SeekBarProps {
   loopStart?: number | null;
   loopEnd?: number | null;
   loopEnabled?: boolean;
+  sections?: Section[];
+  durationSec?: number;  // duration in seconds for section boundary calculation
 }
 
 export function SeekBar({
@@ -22,6 +25,8 @@ export function SeekBar({
   loopStart,
   loopEnd,
   loopEnabled,
+  sections,
+  durationSec,
 }: SeekBarProps) {
   const [width, setWidth] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -100,6 +105,19 @@ export function SeekBar({
       {/* Invisible hit area — catches all touches so locationX stays consistent */}
       <View style={StyleSheet.absoluteFill} pointerEvents="box-only" />
       <View style={styles.track}>
+        {/* Section boundary markers */}
+        {sections && durationSec && durationSec > 0 && sections.map((section, idx) => {
+          if (idx === 0) return null; // skip first boundary (start of track)
+          const boundaryPct = (section.startTime / durationSec) * 100;
+          const color = SectionColors[section.label] || Colors.textMuted;
+          return (
+            <View
+              key={`boundary-${idx}`}
+              style={[styles.sectionBoundary, { left: `${boundaryPct}%`, backgroundColor: color }]}
+              pointerEvents="none"
+            />
+          );
+        })}
         {/* Loop region highlight */}
         {loopEnabled && loopStartPct != null && loopEndPct != null && (
           <View
@@ -132,6 +150,14 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   fill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 2 },
+  sectionBoundary: {
+    position: 'absolute',
+    top: -2,
+    width: 1.5,
+    height: 8,
+    borderRadius: 1,
+    zIndex: 2,
+  },
   loopRegion: {
     position: 'absolute',
     top: -4,

@@ -17,6 +17,15 @@ export const Colors = {
   tapAccent: '#FF9800',
 };
 
+export const SectionColors: Record<string, string> = {
+  intro:   '#4FC3F7',  // light blue
+  derecho: '#66BB6A',  // green
+  majao:   '#FFA726',  // orange
+  mambo:   '#EF5350',  // red
+  bridge:  '#AB47BC',  // purple
+  outro:   '#78909C',  // blue-grey
+};
+
 export const Spacing = {
   xs: 4,
   sm: 8,

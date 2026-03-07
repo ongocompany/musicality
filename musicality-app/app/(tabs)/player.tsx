@@ -2,12 +2,14 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Scr
 import { Ionicons } from '@expo/vector-icons';
 import { SeekBar } from '../../components/ui/SeekBar';
 import { CountDisplay } from '../../components/ui/CountDisplay';
+import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useAudioPlayer } from '../../hooks/useAudioPlayer';
+import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
-import { getCountInfo, findNearestBeatIndex } from '../../utils/beatCounter';
-import { Colors, Spacing, FontSize } from '../../constants/theme';
+import { getCountInfo, findNearestBeatIndex, findCurrentSection } from '../../utils/beatCounter';
+import { Colors, SectionColors, Spacing, FontSize } from '../../constants/theme';
 
 const RATES = [0.5, 0.75, 1.0, 1.25, 1.5];
 
@@ -37,8 +39,11 @@ export default function PlayerScreen() {
     setTrackAnalysis,
   } = usePlayerStore();
   const { togglePlay, seekTo } = useAudioPlayer();
+  useCuePlayer(); // fires cue sounds on each beat
 
   const danceStyle = useSettingsStore((s) => s.danceStyle);
+  const cueEnabled = useSettingsStore((s) => s.cueEnabled);
+  const toggleCue = useSettingsStore((s) => s.toggleCue);
   const lookAheadMs = useSettingsStore((s) => s.lookAheadMs);
   const downbeatOffsets = useSettingsStore((s) => s.downbeatOffsets);
   const setDownbeatOffset = useSettingsStore((s) => s.setDownbeatOffset);
@@ -48,7 +53,12 @@ export default function PlayerScreen() {
   const analysis = currentTrack?.analysis;
   const offsetBeatIndex = currentTrack ? (downbeatOffsets[currentTrack.id] ?? null) : null;
   const countInfo = analysis
-    ? getCountInfo(position + lookAheadMs, analysis.beats, analysis.downbeats, offsetBeatIndex, danceStyle)
+    ? getCountInfo(position + lookAheadMs, analysis.beats, analysis.downbeats, offsetBeatIndex, danceStyle, analysis.sections)
+    : null;
+
+  // Current section for badge display
+  const currentSection = analysis?.sections
+    ? findCurrentSection(position, analysis.sections)
     : null;
 
   const handleNowIsOne = () => {
@@ -120,6 +130,11 @@ export default function PlayerScreen() {
       {/* Count Display */}
       {currentTrack.analysisStatus === 'done' && (
         <View style={styles.countSection}>
+          {currentSection && (
+            <View style={[styles.sectionBadge, { backgroundColor: SectionColors[currentSection.label] || Colors.textMuted }]}>
+              <Text style={styles.sectionBadgeText}>{currentSection.label.toUpperCase()}</Text>
+            </View>
+          )}
           <CountDisplay countInfo={countInfo} hasAnalysis={!!analysis} />
           <TouchableOpacity style={styles.nowIsOneButton} onPress={handleNowIsOne}>
             <Ionicons name="locate-outline" size={18} color={Colors.tapAccent} />
@@ -139,11 +154,21 @@ export default function PlayerScreen() {
           loopStart={loopStart}
           loopEnd={loopEnd}
           loopEnabled={loopEnabled}
+          sections={analysis?.sections}
+          durationSec={analysis?.duration}
         />
         <View style={styles.timeRow}>
           <Text style={styles.timeText}>{formatTime(position)}</Text>
           <Text style={styles.timeText}>{formatTime(duration)}</Text>
         </View>
+        {/* Section Timeline */}
+        {analysis?.sections && analysis.sections.length > 0 && (
+          <SectionTimeline
+            sections={analysis.sections}
+            duration={analysis.duration}
+            currentTimeMs={position}
+          />
+        )}
       </View>
 
       {/* Transport Controls */}
@@ -156,6 +181,14 @@ export default function PlayerScreen() {
         </TouchableOpacity>
         <TouchableOpacity onPress={() => seekTo(Math.min(duration, position + 10000))}>
           <Ionicons name="play-forward" size={32} color={Colors.text} />
+        </TouchableOpacity>
+        {/* Cue toggle */}
+        <TouchableOpacity onPress={toggleCue} style={styles.cueToggle}>
+          <Ionicons
+            name={cueEnabled ? 'volume-high' : 'volume-mute'}
+            size={24}
+            color={cueEnabled ? Colors.accent : Colors.textMuted}
+          />
         </TouchableOpacity>
       </View>
 
@@ -265,6 +298,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: Spacing.lg,
   },
+  sectionBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginBottom: Spacing.xs,
+  },
+  sectionBadgeText: {
+    color: Colors.text,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
   nowIsOneButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -301,6 +346,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  cueToggle: {
+    position: 'absolute',
+    right: 0,
+    padding: Spacing.sm,
   },
 
   speedSection: { marginTop: Spacing.xl },

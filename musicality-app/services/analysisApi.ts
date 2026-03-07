@@ -68,6 +68,12 @@ export async function analyzeTrack(
       duration: data.duration,
       beatsPerBar: data.beats_per_bar,
       confidence: data.confidence,
+      sections: data.sections?.map((s: any) => ({
+        label: s.label,
+        startTime: s.start_time,
+        endTime: s.end_time,
+        confidence: s.confidence,
+      })),
     };
   } finally {
     clearTimeout(timeout);

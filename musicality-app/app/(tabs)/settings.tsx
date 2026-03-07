@@ -6,11 +6,12 @@ import { checkServerHealth } from '../../services/analysisApi';
 import { API_BASE_URL } from '../../constants/config';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { DanceStyle } from '../../utils/beatCounter';
+import { CueType, CUE_TYPE_LABELS } from '../../types/cue';
 
 const LOOK_AHEAD_STEP = 25; // ms per tap
 
 export default function SettingsScreen() {
-  const { danceStyle, setDanceStyle, lookAheadMs, setLookAheadMs } = useSettingsStore();
+  const { danceStyle, setDanceStyle, lookAheadMs, setLookAheadMs, cueType, setCueType, cueVolume, setCueVolume } = useSettingsStore();
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -51,7 +52,7 @@ export default function SettingsScreen() {
         <View style={styles.row}>
           <Ionicons name="information-circle-outline" size={20} color={Colors.textSecondary} />
           <Text style={styles.label}>Version</Text>
-          <Text style={styles.value}>1.0.0 (M2)</Text>
+          <Text style={styles.value}>1.0.0 (M3)</Text>
         </View>
       </View>
 
@@ -108,13 +109,49 @@ export default function SettingsScreen() {
         </Text>
       </View>
 
-      {/* Coming Soon */}
+      {/* Cue Sounds */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Coming Soon</Text>
-        <View style={styles.row}>
-          <Ionicons name="notifications-outline" size={20} color={Colors.textMuted} />
-          <Text style={styles.comingSoon}>Cue Sounds</Text>
-        </View>
+        <Text style={styles.sectionTitle}>Cue Sounds</Text>
+        {(Object.keys(CUE_TYPE_LABELS) as CueType[]).map((type) => (
+          <TouchableOpacity
+            key={type}
+            style={[styles.row, cueType === type && styles.rowActive]}
+            onPress={() => setCueType(type)}
+          >
+            <Ionicons
+              name={cueType === type ? 'radio-button-on' : 'radio-button-off'}
+              size={20}
+              color={cueType === type ? Colors.primary : Colors.textSecondary}
+            />
+            <Text style={[styles.label, cueType === type && styles.labelActive]}>
+              {CUE_TYPE_LABELS[type]}
+            </Text>
+          </TouchableOpacity>
+        ))}
+        {/* Volume control (only show when cue is not off) */}
+        {cueType !== 'off' && (
+          <>
+            <View style={styles.row}>
+              <Ionicons name="volume-medium-outline" size={20} color={Colors.textSecondary} />
+              <Text style={styles.label}>Volume</Text>
+              <View style={styles.lookAheadControls}>
+                <TouchableOpacity
+                  style={styles.lookAheadBtn}
+                  onPress={() => setCueVolume(cueVolume - 0.1)}
+                >
+                  <Ionicons name="remove" size={18} color={Colors.text} />
+                </TouchableOpacity>
+                <Text style={styles.lookAheadValue}>{Math.round(cueVolume * 100)}%</Text>
+                <TouchableOpacity
+                  style={styles.lookAheadBtn}
+                  onPress={() => setCueVolume(cueVolume + 0.1)}
+                >
+                  <Ionicons name="add" size={18} color={Colors.text} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </>
+        )}
       </View>
     </View>
   );
