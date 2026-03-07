@@ -7,8 +7,10 @@ import { API_BASE_URL } from '../../constants/config';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { DanceStyle } from '../../utils/beatCounter';
 
+const LOOK_AHEAD_STEP = 25; // ms per tap
+
 export default function SettingsScreen() {
-  const { danceStyle, setDanceStyle } = useSettingsStore();
+  const { danceStyle, setDanceStyle, lookAheadMs, setLookAheadMs } = useSettingsStore();
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -79,6 +81,33 @@ export default function SettingsScreen() {
         ))}
       </View>
 
+      {/* Count Timing */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Count Timing</Text>
+        <View style={styles.row}>
+          <Ionicons name="timer-outline" size={20} color={Colors.textSecondary} />
+          <Text style={styles.label}>Look-ahead</Text>
+          <View style={styles.lookAheadControls}>
+            <TouchableOpacity
+              style={styles.lookAheadBtn}
+              onPress={() => setLookAheadMs(lookAheadMs - LOOK_AHEAD_STEP)}
+            >
+              <Ionicons name="remove" size={18} color={Colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.lookAheadValue}>{lookAheadMs}ms</Text>
+            <TouchableOpacity
+              style={styles.lookAheadBtn}
+              onPress={() => setLookAheadMs(lookAheadMs + LOOK_AHEAD_STEP)}
+            >
+              <Ionicons name="add" size={18} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <Text style={styles.lookAheadHint}>
+          카운트가 느리면 ↑, 빠르면 ↓ (0~300ms)
+        </Text>
+      </View>
+
       {/* Coming Soon */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Coming Soon</Text>
@@ -119,5 +148,33 @@ const styles = StyleSheet.create({
   styleDesc: {
     color: Colors.textMuted,
     fontSize: FontSize.sm,
+  },
+  lookAheadControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  lookAheadBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  lookAheadValue: {
+    color: Colors.text,
+    fontSize: FontSize.md,
+    fontWeight: '700',
+    minWidth: 56,
+    textAlign: 'center',
+  },
+  lookAheadHint: {
+    color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    marginTop: Spacing.xs,
+    paddingLeft: Spacing.xl + Spacing.md,
   },
 });

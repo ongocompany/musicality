@@ -39,14 +39,16 @@ export default function PlayerScreen() {
   const { togglePlay, seekTo } = useAudioPlayer();
 
   const danceStyle = useSettingsStore((s) => s.danceStyle);
+  const lookAheadMs = useSettingsStore((s) => s.lookAheadMs);
   const downbeatOffsets = useSettingsStore((s) => s.downbeatOffsets);
   const setDownbeatOffset = useSettingsStore((s) => s.setDownbeatOffset);
 
   // Compute current count from position + analysis data
+  // Apply lookAheadMs to compensate for audio output latency
   const analysis = currentTrack?.analysis;
   const offsetBeatIndex = currentTrack ? (downbeatOffsets[currentTrack.id] ?? null) : null;
   const countInfo = analysis
-    ? getCountInfo(position, analysis.beats, analysis.downbeats, offsetBeatIndex, danceStyle)
+    ? getCountInfo(position + lookAheadMs, analysis.beats, analysis.downbeats, offsetBeatIndex, danceStyle)
     : null;
 
   const handleNowIsOne = () => {

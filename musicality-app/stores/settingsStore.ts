@@ -6,6 +6,10 @@ interface SettingsState {
   danceStyle: DanceStyle;
   setDanceStyle: (style: DanceStyle) => void;
 
+  // Look-ahead offset to compensate audio output latency (ms)
+  lookAheadMs: number;
+  setLookAheadMs: (ms: number) => void;
+
   // Per-track downbeat offset corrections
   // Key: track.id, Value: beat index in beats[] that user marked as "1"
   downbeatOffsets: Record<string, number>;
@@ -16,6 +20,9 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>((set) => ({
   danceStyle: 'bachata',
   setDanceStyle: (style) => set({ danceStyle: style }),
+
+  lookAheadMs: 150,
+  setLookAheadMs: (ms) => set({ lookAheadMs: Math.max(0, Math.min(300, ms)) }),
 
   downbeatOffsets: {},
   setDownbeatOffset: (trackId, beatIndex) =>
