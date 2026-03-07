@@ -62,8 +62,9 @@ def analyze_audio(audio_path: str) -> AnalysisResult:
 
     # 6. Structure analysis (section detection)
     beats_list = [round(float(b), 3) for b in beats]
+    downbeats_list = [round(d, 3) for d in downbeats]
     try:
-        sections = analyze_structure(audio_path, duration, beats_list)
+        sections = analyze_structure(audio_path, duration, beats_list, downbeats_list)
     except Exception:
         sections = []  # graceful degradation — beats still work without sections
 
