@@ -44,7 +44,34 @@ Latin dance (Bachata/Salsa) auto-count & choreography cue practice player app.
 - On2: 1,2,3,(pause4),5,6,7,(pause8) - break on 2
 - BPM range: 150-220 (typical)
 
+## Milestones
+
+### Completed
+- **M0**: Project scaffolding + audio player
+- **M1**: Beat analysis pipeline (FastAPI + Madmom + client integration)
+- **M2**: Count display + "지금이 1" downbeat correction
+- **M3**: Music structure analysis + section display + cue system (client-side)
+
+### In Progress (main branch)
+- **M3.5**: Structure analysis algorithm improvement
+  - Beat-synchronous features (v2.1)
+  - Classification tuning (derecho/majao/mambo accuracy)
+  - Multi-song batch testing & rule refinement
+  - Goal: reliable intro→derecho boundary for auto-count start
+
+### Planned (separate branches)
+- **M-labeling** (`feature/labeling-tool`): Section labeling tool for algorithm training
+  - App UI: labeling mode (tap to mark section boundaries during playback)
+  - Server: labeled data storage + analysis accuracy comparison
+  - Semi-automatic: analyzer suggests → user corrects → data accumulates
+  - NOT consumer-facing — internal tool for algorithm improvement
+- **M4**: Cue system (sound assets + cue playback hook)
+- **M5**: YouTube overlay mode (tap tempo + manual sync)
+
 ## Development Notes
 - Use `--legacy-peer-deps` for npm install (react-dom peer dep conflict)
 - Custom SeekBar uses pageX coordinates (not locationX) to avoid jumping
 - expo-av seek operations wrapped in try-catch for "Seeking interrupted" errors
+- Server: Python FastAPI + uvicorn on jinserver (ssh jinwoo@jinserver, port 3900)
+- Structure analyzer: `server/services/structure_analyzer.py` (v2.1 beat-sync)
+- Test samples in `samples/` folder, copy to `/tmp/` for curl testing (avoid Korean filenames)
