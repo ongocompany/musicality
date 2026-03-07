@@ -4,6 +4,7 @@ from madmom.features.beats import RNNBeatProcessor, DBNBeatTrackingProcessor
 from madmom.features.downbeats import RNNDownBeatProcessor, DBNDownBeatTrackingProcessor
 
 from models.schemas import AnalysisResult
+from services.structure_analyzer import analyze_structure
 
 
 def analyze_audio(audio_path: str) -> AnalysisResult:
@@ -59,13 +60,21 @@ def analyze_audio(audio_path: str) -> AnalysisResult:
     # 5. Calculate confidence based on beat regularity
     confidence = _calculate_confidence(beats, tempo)
 
+    # 6. Structure analysis (section detection)
+    beats_list = [round(float(b), 3) for b in beats]
+    try:
+        sections = analyze_structure(audio_path, duration, beats_list)
+    except Exception:
+        sections = []  # graceful degradation — beats still work without sections
+
     return AnalysisResult(
         bpm=round(tempo, 1),
-        beats=[round(float(b), 3) for b in beats],
+        beats=beats_list,
         downbeats=[round(d, 3) for d in downbeats],
         duration=round(duration, 3),
         beats_per_bar=beats_per_bar,
         confidence=round(confidence, 2),
+        sections=sections,
     )
 
 
