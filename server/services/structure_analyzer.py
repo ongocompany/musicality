@@ -537,6 +537,7 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
         seg_scores["outro"] = outro_score
 
         # ── Mambo score ──
+        # Mambo = SHORT high-energy peak (brass solo), NOT the main body
         mambo_score = (
             s["rms_n"] * 0.25 +
             s["centroid_n"] * 0.2 +
@@ -546,6 +547,12 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
         )
         if i == 0 or i == n - 1:
             mambo_score *= 0.4
+        # Duration penalty: mambo is typically 15-40s, NOT the longest section
+        seg_ratio = s["duration"] / duration
+        if seg_ratio > 0.25:
+            mambo_score *= 0.3  # heavy penalty for long segments
+        elif seg_ratio > 0.15:
+            mambo_score *= 0.7  # moderate penalty
         seg_scores["mambo"] = mambo_score
 
         # ── Majao score ──
@@ -630,6 +637,72 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
             if idx != best_mambo:
                 labels[idx] = "derecho"
                 confidences[idx] = 0.4
+
+    # Mambo can't be the longest section — that's the main body (derecho)
+    mambo_indices = [i for i in range(n) if labels[i] == "mambo"]
+    if mambo_indices:
+        longest_idx = max(range(n), key=lambda i: segments[i]["duration"])
+        for idx in mambo_indices:
+            if idx == longest_idx:
+                labels[idx] = "derecho"
+                confidences[idx] = 0.5
+
+    # ── Short segment merge pass ──
+    # Segments < 10s are noise — absorb into neighbors
+    MIN_SECTION_DURATION = 10.0
+    merged_segments = []
+    merged_labels = []
+    merged_confidences = []
+
+    for i in range(n):
+        seg = segments[i]
+
+        if seg["duration"] < MIN_SECTION_DURATION and n > 2:
+            # Decide which neighbor to merge into
+            if i == 0:
+                # First segment too short → absorb into next
+                continue  # skip, next segment will start from 0
+            elif i == n - 1:
+                # Last segment too short → extend previous segment's end
+                if merged_segments:
+                    merged_segments[-1]["end"] = seg["end"]
+                    merged_segments[-1]["duration"] = round(
+                        merged_segments[-1]["end"] - merged_segments[-1]["start"], 3
+                    )
+                continue
+            else:
+                # Middle segment too short → merge into previous
+                if merged_segments:
+                    merged_segments[-1]["end"] = seg["end"]
+                    merged_segments[-1]["duration"] = round(
+                        merged_segments[-1]["end"] - merged_segments[-1]["start"], 3
+                    )
+                continue
+        else:
+            merged_segments.append(dict(seg))  # copy
+            merged_labels.append(labels[i])
+            merged_confidences.append(confidences[i])
+
+    # Handle edge case: first segment was skipped (too short)
+    if merged_segments and merged_segments[0]["start"] != 0.0:
+        merged_segments[0]["start"] = 0.0
+        merged_segments[0]["duration"] = round(
+            merged_segments[0]["end"] - merged_segments[0]["start"], 3
+        )
+
+    # Use merged data if we have valid segments
+    if merged_segments:
+        segments = merged_segments
+        labels = merged_labels
+        confidences = merged_confidences
+        n = len(segments)
+
+    # ── Final outro enforcement ──
+    # If last segment has declining energy compared to previous, mark as outro
+    if n >= 2 and labels[-1] != "outro":
+        if segments[-1]["rms"] < segments[-2]["rms"] * 0.85:
+            labels[-1] = "outro"
+            confidences[-1] = 0.7
 
     # Build result
     sections = []
