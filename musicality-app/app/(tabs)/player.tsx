@@ -1,9 +1,12 @@
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SeekBar } from '../../components/ui/SeekBar';
+import { CountDisplay } from '../../components/ui/CountDisplay';
 import { usePlayerStore } from '../../stores/playerStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { useAudioPlayer } from '../../hooks/useAudioPlayer';
 import { analyzeTrack } from '../../services/analysisApi';
+import { getCountInfo, findNearestBeatIndex } from '../../utils/beatCounter';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 
 const RATES = [0.5, 0.75, 1.0, 1.25, 1.5];
@@ -35,6 +38,25 @@ export default function PlayerScreen() {
   } = usePlayerStore();
   const { togglePlay, seekTo } = useAudioPlayer();
 
+  const danceStyle = useSettingsStore((s) => s.danceStyle);
+  const downbeatOffsets = useSettingsStore((s) => s.downbeatOffsets);
+  const setDownbeatOffset = useSettingsStore((s) => s.setDownbeatOffset);
+
+  // Compute current count from position + analysis data
+  const analysis = currentTrack?.analysis;
+  const offsetBeatIndex = currentTrack ? (downbeatOffsets[currentTrack.id] ?? null) : null;
+  const countInfo = analysis
+    ? getCountInfo(position, analysis.beats, analysis.downbeats, offsetBeatIndex, danceStyle)
+    : null;
+
+  const handleNowIsOne = () => {
+    if (!currentTrack || !analysis) return;
+    const nearestIdx = findNearestBeatIndex(position, analysis.beats);
+    if (nearestIdx >= 0) {
+      setDownbeatOffset(currentTrack.id, nearestIdx);
+    }
+  };
+
   const handleAnalyze = async () => {
     if (!currentTrack || currentTrack.analysisStatus === 'analyzing') return;
     setTrackAnalysisStatus(currentTrack.id, 'analyzing');
@@ -60,7 +82,7 @@ export default function PlayerScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       {/* Track Info */}
       <View style={styles.trackHeader}>
         <Ionicons name="musical-notes" size={40} color={Colors.primary} />
@@ -92,6 +114,17 @@ export default function PlayerScreen() {
           </View>
         )}
       </View>
+
+      {/* Count Display */}
+      {currentTrack.analysisStatus === 'done' && (
+        <View style={styles.countSection}>
+          <CountDisplay countInfo={countInfo} hasAnalysis={!!analysis} />
+          <TouchableOpacity style={styles.nowIsOneButton} onPress={handleNowIsOne}>
+            <Ionicons name="locate-outline" size={18} color={Colors.tapAccent} />
+            <Text style={styles.nowIsOneText}>지금이 1</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Seek Bar */}
       <View style={styles.seekSection}>
@@ -188,12 +221,13 @@ export default function PlayerScreen() {
           </Text>
         )}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, padding: Spacing.lg },
+  container: { flex: 1, backgroundColor: Colors.background },
+  contentContainer: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm },
   emptyTitle: { color: Colors.text, fontSize: FontSize.xl, fontWeight: '600', marginTop: Spacing.md },
   emptySubtitle: { color: Colors.textSecondary, fontSize: FontSize.md },
@@ -224,6 +258,28 @@ const styles = StyleSheet.create({
   analyzeBtnText: { color: Colors.primary, fontSize: FontSize.sm, fontWeight: '600' },
   analyzingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   analyzingText: { color: Colors.primary, fontSize: FontSize.sm },
+
+  countSection: {
+    alignItems: 'center',
+    marginTop: Spacing.lg,
+  },
+  nowIsOneButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.surfaceLight,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.tapAccent,
+    marginTop: Spacing.sm,
+  },
+  nowIsOneText: {
+    color: Colors.tapAccent,
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+  },
 
   seekSection: { marginTop: Spacing.xl },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.xs },

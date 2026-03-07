@@ -158,7 +158,75 @@ musicality-app/ (추가/수정)
 
 ---
 
-### 다음 마일스톤: M2 (카운트 표시 + "지금이 1" 보정)
-- 비트맵 기반 실시간 카운트 표시 (1-8)
-- 바차타/살사 모드 전환
-- 수동 다운비트 보정 UI
+### 서버 포트 변경
+- 8000 → 3900 (다른 프로젝트와 충돌 방지)
+- `server/main.py`, `musicality-app/constants/config.ts` 수정
+
+---
+
+## 2026-03-07 | M2: 카운트 표시 + "지금이 1" 보정
+
+### 완료 작업
+
+#### 1. 비트 카운팅 엔진 (`utils/beatCounter.ts`)
+- 순수 함수 모듈 (React 의존성 없음)
+- 타입: `DanceStyle`, `BeatType`, `CountInfo`
+- `findCurrentBeatIndex()` — 이진탐색 O(log n)으로 현재 비트 찾기
+- `findNearestBeatIndex()` — 가장 가까운 비트 스냅 (보정용)
+- `computeReferenceIndex()` — 다운비트/오프셋 기반 "비트 1" 기준점
+- `getBeatType()` — 댄스 스타일별 비트 타입 결정
+- `getCountInfo()` — 메인 진입점, position → CountInfo 변환
+- 카운트 공식: `((currentIdx - refIdx) % 8 + 8) % 8 + 1`
+
+#### 2. 설정 스토어 (`stores/settingsStore.ts`)
+- Zustand 스토어 (playerStore 패턴)
+- `danceStyle: DanceStyle` (기본값 'bachata')
+- `downbeatOffsets: Record<string, number>` — 트랙별 다운비트 보정 인덱스
+- `setDanceStyle`, `setDownbeatOffset`, `clearDownbeatOffset`
+
+#### 3. 카운트 표시 컴포넌트 (`components/ui/CountDisplay.tsx`)
+- 큰 숫자 72px (fontWeight 800, fontVariant tabular-nums)
+- 비트 타입 라벨: "STEP" / "TAP" / "PAUSE"
+- 색상: step = #BB86FC (보라), tap/pause = #FF9800 (주황)
+- 분석 없으면 "--" + 안내 메시지 표시
+
+#### 4. Settings 탭 수정
+- 댄스 스타일 라디오 버튼 선택기 (기존 Coming Soon → 활성)
+- Bachata ("1-2-3-TAP-5-6-7-TAP"), Salsa On1, Salsa On2
+- 버전 "1.0.0 (M2)" 업데이트
+
+#### 5. Player 탭 수정
+- CountDisplay + "지금이 1" 버튼 통합 (트랙헤더 ↔ SeekBar 사이)
+- `getCountInfo()` 매 렌더 호출 (50ms 주기, O(log n) — 성능 OK)
+- "지금이 1": `findNearestBeatIndex` → `setDownbeatOffset`
+- ScrollView로 컨텐츠 래핑
+
+### 생성된 파일
+
+```
+musicality-app/ (추가/수정)
+├── utils/
+│   └── beatCounter.ts            # 신규 — 비트 카운팅 순수 함수
+├── stores/
+│   └── settingsStore.ts          # 신규 — 댄스 스타일 + 오프셋 스토어
+├── components/ui/
+│   └── CountDisplay.tsx          # 신규 — 카운트 시각화 컴포넌트
+├── app/(tabs)/
+│   ├── player.tsx                # 수정 — CountDisplay + 지금이 1
+│   └── settings.tsx              # 수정 — 댄스 스타일 선택기
+└── constants/
+    └── theme.ts                  # 수정 — beatPulse, tapAccent 색상 추가
+```
+
+### 기술 결정 사항
+- **이진탐색**: 비트 배열에서 O(log n) 탐색, 50ms 업데이트 주기에서 성능 문제 없음
+- **순수 함수 분리**: beatCounter.ts에 React 의존성 없는 유틸리티로 분리 → 테스트 용이
+- **8카운트 모듈러**: `((idx - ref) % 8 + 8) % 8 + 1` — 음수 인덱스도 정상 처리
+- **트랙별 오프셋**: downbeatOffsets를 트랙 ID 키로 관리, 각 곡마다 독립 보정
+
+---
+
+### 다음 마일스톤: M3 (큐 시스템)
+- 비트별 클릭음/비프음 재생
+- TTS 음성 카운트
+- 큐 볼륨 조절 + 타입 선택 UI

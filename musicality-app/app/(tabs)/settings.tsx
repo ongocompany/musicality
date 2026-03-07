@@ -4,8 +4,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 import { checkServerHealth } from '../../services/analysisApi';
 import { API_BASE_URL } from '../../constants/config';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { DanceStyle } from '../../utils/beatCounter';
 
 export default function SettingsScreen() {
+  const { danceStyle, setDanceStyle } = useSettingsStore();
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -46,20 +49,39 @@ export default function SettingsScreen() {
         <View style={styles.row}>
           <Ionicons name="information-circle-outline" size={20} color={Colors.textSecondary} />
           <Text style={styles.label}>Version</Text>
-          <Text style={styles.value}>1.0.0 (M1)</Text>
+          <Text style={styles.value}>1.0.0 (M2)</Text>
         </View>
       </View>
 
+      {/* Dance Style */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Dance Style</Text>
+        {([
+          { key: 'bachata' as DanceStyle, label: 'Bachata', desc: '1-2-3-TAP-5-6-7-TAP' },
+          { key: 'salsa-on1' as DanceStyle, label: 'Salsa On1', desc: '1-2-3-pause-5-6-7-pause' },
+          { key: 'salsa-on2' as DanceStyle, label: 'Salsa On2', desc: '1-2-3-pause-5-6-7-pause' },
+        ]).map((item) => (
+          <TouchableOpacity
+            key={item.key}
+            style={[styles.row, danceStyle === item.key && styles.rowActive]}
+            onPress={() => setDanceStyle(item.key)}
+          >
+            <Ionicons
+              name={danceStyle === item.key ? 'radio-button-on' : 'radio-button-off'}
+              size={20}
+              color={danceStyle === item.key ? Colors.primary : Colors.textSecondary}
+            />
+            <Text style={[styles.label, danceStyle === item.key && styles.labelActive]}>
+              {item.label}
+            </Text>
+            <Text style={styles.styleDesc}>{item.desc}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Coming Soon */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Coming Soon</Text>
-        <View style={styles.row}>
-          <Ionicons name="fitness-outline" size={20} color={Colors.textMuted} />
-          <Text style={styles.comingSoon}>Dance Style (Bachata / Salsa)</Text>
-        </View>
-        <View style={styles.row}>
-          <Ionicons name="pulse-outline" size={20} color={Colors.textMuted} />
-          <Text style={styles.comingSoon}>Count Visualization</Text>
-        </View>
         <View style={styles.row}>
           <Ionicons name="notifications-outline" size={20} color={Colors.textMuted} />
           <Text style={styles.comingSoon}>Cue Sounds</Text>
@@ -86,4 +108,16 @@ const styles = StyleSheet.create({
   },
   statusOnline: { backgroundColor: '#4CAF50' },
   statusOffline: { backgroundColor: Colors.error },
+  rowActive: {
+    backgroundColor: Colors.surfaceLight,
+    borderBottomColor: Colors.primary,
+  },
+  labelActive: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  styleDesc: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+  },
 });
