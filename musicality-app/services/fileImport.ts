@@ -38,6 +38,7 @@ export async function pickAudioFile(): Promise<Track | null> {
     fileSize: asset.size ?? 0,
     format: getFormat(asset.mimeType, asset.name),
     importedAt: Date.now(),
+    analysisStatus: 'idle',
   };
 
   return track;

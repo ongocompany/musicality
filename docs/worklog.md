@@ -92,7 +92,73 @@ musicality-app/
 
 ---
 
-### 다음 마일스톤: M1 (비트 분석 파이프라인)
-- Python FastAPI 서버 구축
-- Madmom + Librosa 비트/다운비트 감지
-- 클라이언트 ↔ 서버 분석 요청/응답 연동
+## 2026-03-07 | M1: 비트 분석 파이프라인
+
+### 완료 작업
+
+#### 1. Python FastAPI 서버 (`server/`)
+- FastAPI 앱 + CORS + `/health` 헬스체크
+- `POST /analyze` 엔드포인트: 파일 업로드 → 분석 → JSON 응답
+- 파일 타입 검증 (mp3, wav, flac, m4a, aac, ogg), 100MB 제한
+- 임시파일 자동 정리
+
+#### 2. 비트 분석 엔진 (`server/services/beat_analyzer.py`)
+- Madmom RNNBeatProcessor + DBNBeatTrackingProcessor (비트 감지)
+- Madmom RNNDownBeatProcessor + DBNDownBeatTrackingProcessor (다운비트 감지)
+- Librosa BPM 추정 + duration 계산
+- 비트 규칙성 기반 confidence 점수 산출
+- 다운비트 감지 실패 시 fallback (매 4번째 비트)
+
+#### 3. 응답 스키마 (`server/models/schemas.py`)
+- AnalysisResult: bpm, beats[], downbeats[], duration, beats_per_bar, confidence
+
+#### 4. 클라이언트 분석 서비스
+- `services/analysisApi.ts`: analyzeTrack(), checkServerHealth()
+- `constants/config.ts`: API_BASE_URL, ANALYSIS_TIMEOUT_MS
+- `types/analysis.ts`: AnalysisResult, AnalysisStatus 타입
+- `types/track.ts`: analysis, analysisStatus 필드 추가
+
+#### 5. Store 확장
+- setTrackAnalysisStatus(): 분석 상태 변경 (idle/analyzing/done/error)
+- setTrackAnalysis(): 분석 결과 저장 (tracks[] + currentTrack 동시 업데이트)
+
+#### 6. UI 변경
+- **Library 탭**: 분석 상태 배지 (BPM/로딩/에러), 분석 버튼 (analytics 아이콘)
+- **Player 탭**: "Analyze Beats" 버튼, BPM 배지 + confidence 표시, 분석중 로딩
+- **Settings 탭**: 서버 연결 상태 (온라인/오프라인), 서버 URL 표시, 새로고침 버튼
+
+### 생성된 파일
+
+```
+server/
+├── main.py                    # FastAPI 앱
+├── routers/
+│   ├── __init__.py
+│   └── analysis.py            # /analyze 엔드포인트
+├── services/
+│   ├── __init__.py
+│   └── beat_analyzer.py       # Madmom + Librosa 분석
+├── models/
+│   ├── __init__.py
+│   └── schemas.py             # Pydantic 스키마
+├── requirements.txt
+├── .env.example
+└── README.md
+
+musicality-app/ (추가/수정)
+├── services/analysisApi.ts    # 신규
+├── types/analysis.ts          # 신규
+└── constants/config.ts        # 신규
+```
+
+### 서버 배포 환경
+- **서버**: jinwoo@jinserver (Ubuntu, Tailscale)
+- **실행**: `uvicorn main:app --host 0.0.0.0 --port 8000`
+- **의존성**: madmom, librosa, fastapi, uvicorn, python-multipart
+
+---
+
+### 다음 마일스톤: M2 (카운트 표시 + "지금이 1" 보정)
+- 비트맵 기반 실시간 카운트 표시 (1-8)
+- 바차타/살사 모드 전환
+- 수동 다운비트 보정 UI

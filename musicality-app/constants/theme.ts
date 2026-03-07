@@ -6,6 +6,8 @@ export const Colors = {
   primaryDark: '#9C64E8',
   accent: '#03DAC6',
   error: '#CF6679',
+  warning: '#FFC107',
+  success: '#4CAF50',
   text: '#FFFFFF',
   textSecondary: '#B0B0B0',
   textMuted: '#666666',

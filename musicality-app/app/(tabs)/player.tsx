@@ -1,8 +1,9 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SeekBar } from '../../components/ui/SeekBar';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useAudioPlayer } from '../../hooks/useAudioPlayer';
+import { analyzeTrack } from '../../services/analysisApi';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 
 const RATES = [0.5, 0.75, 1.0, 1.25, 1.5];
@@ -29,8 +30,22 @@ export default function PlayerScreen() {
     setLoopEnd,
     clearLoop,
     setIsSeeking,
+    setTrackAnalysisStatus,
+    setTrackAnalysis,
   } = usePlayerStore();
   const { togglePlay, seekTo } = useAudioPlayer();
+
+  const handleAnalyze = async () => {
+    if (!currentTrack || currentTrack.analysisStatus === 'analyzing') return;
+    setTrackAnalysisStatus(currentTrack.id, 'analyzing');
+    try {
+      const result = await analyzeTrack(currentTrack.uri, currentTrack.title, currentTrack.format);
+      setTrackAnalysis(currentTrack.id, result);
+    } catch (e: any) {
+      setTrackAnalysisStatus(currentTrack.id, 'error');
+      Alert.alert('Analysis Failed', e.message || 'Could not connect to analysis server.');
+    }
+  };
 
   if (!currentTrack) {
     return (
@@ -50,7 +65,32 @@ export default function PlayerScreen() {
       <View style={styles.trackHeader}>
         <Ionicons name="musical-notes" size={40} color={Colors.primary} />
         <Text style={styles.trackTitle} numberOfLines={2}>{currentTrack.title}</Text>
-        <Text style={styles.trackFormat}>{currentTrack.format.toUpperCase()}</Text>
+        <View style={styles.trackMetaRow}>
+          <Text style={styles.trackFormat}>{currentTrack.format.toUpperCase()}</Text>
+          {currentTrack.analysis && (
+            <View style={styles.bpmBadge}>
+              <Text style={styles.bpmText}>{Math.round(currentTrack.analysis.bpm)} BPM</Text>
+            </View>
+          )}
+          {currentTrack.analysis && (
+            <Text style={styles.confidenceText}>
+              {Math.round(currentTrack.analysis.confidence * 100)}%
+            </Text>
+          )}
+        </View>
+        {/* Analyze Button */}
+        {(!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
+          <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyze}>
+            <Ionicons name="analytics-outline" size={18} color={Colors.text} />
+            <Text style={styles.analyzeBtnText}>Analyze Beats</Text>
+          </TouchableOpacity>
+        )}
+        {currentTrack.analysisStatus === 'analyzing' && (
+          <View style={styles.analyzingRow}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+            <Text style={styles.analyzingText}>Analyzing...</Text>
+          </View>
+        )}
       </View>
 
       {/* Seek Bar */}
@@ -160,7 +200,30 @@ const styles = StyleSheet.create({
 
   trackHeader: { alignItems: 'center', marginTop: Spacing.xl, gap: Spacing.sm },
   trackTitle: { color: Colors.text, fontSize: FontSize.xxl, fontWeight: '700', textAlign: 'center' },
+  trackMetaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   trackFormat: { color: Colors.textSecondary, fontSize: FontSize.sm },
+  bpmBadge: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  bpmText: { color: Colors.text, fontSize: FontSize.sm, fontWeight: '700' },
+  confidenceText: { color: Colors.textMuted, fontSize: FontSize.xs },
+  analyzeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.surfaceLight,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  analyzeBtnText: { color: Colors.primary, fontSize: FontSize.sm, fontWeight: '600' },
+  analyzingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  analyzingText: { color: Colors.primary, fontSize: FontSize.sm },
 
   seekSection: { marginTop: Spacing.xl },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.xs },

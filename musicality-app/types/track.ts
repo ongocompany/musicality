@@ -1,3 +1,5 @@
+import { AnalysisResult, AnalysisStatus } from './analysis';
+
 export interface Track {
   id: string;
   title: string;
@@ -6,4 +8,6 @@ export interface Track {
   format: string;
   duration?: number;
   importedAt: number; // timestamp ms
+  analysis?: AnalysisResult;
+  analysisStatus: AnalysisStatus;
 }

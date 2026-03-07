@@ -1,8 +1,9 @@
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { usePlayerStore } from '../../stores/playerStore';
 import { pickAudioFile } from '../../services/fileImport';
+import { analyzeTrack } from '../../services/analysisApi';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 import { Track } from '../../types/track';
 
@@ -12,7 +13,42 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function TrackItem({ track, onPress, onDelete }: { track: Track; onPress: () => void; onDelete: () => void }) {
+function AnalysisBadge({ track }: { track: Track }) {
+  switch (track.analysisStatus) {
+    case 'done':
+      return (
+        <View style={[styles.badge, styles.badgeDone]}>
+          <Text style={styles.badgeText}>{track.analysis?.bpm ? `${Math.round(track.analysis.bpm)} BPM` : 'Analyzed'}</Text>
+        </View>
+      );
+    case 'analyzing':
+      return (
+        <View style={[styles.badge, styles.badgeAnalyzing]}>
+          <ActivityIndicator size="small" color={Colors.warning} />
+        </View>
+      );
+    case 'error':
+      return (
+        <View style={[styles.badge, styles.badgeError]}>
+          <Ionicons name="alert-circle" size={14} color={Colors.error} />
+        </View>
+      );
+    default:
+      return null;
+  }
+}
+
+function TrackItem({
+  track,
+  onPress,
+  onDelete,
+  onAnalyze,
+}: {
+  track: Track;
+  onPress: () => void;
+  onDelete: () => void;
+  onAnalyze: () => void;
+}) {
   return (
     <TouchableOpacity style={styles.trackItem} onPress={onPress} onLongPress={onDelete}>
       <View style={styles.trackIcon}>
@@ -20,17 +56,26 @@ function TrackItem({ track, onPress, onDelete }: { track: Track; onPress: () => 
       </View>
       <View style={styles.trackInfo}>
         <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
-        <Text style={styles.trackMeta}>
-          {track.format.toUpperCase()} · {formatFileSize(track.fileSize)}
-        </Text>
+        <View style={styles.trackMetaRow}>
+          <Text style={styles.trackMeta}>
+            {track.format.toUpperCase()} · {formatFileSize(track.fileSize)}
+          </Text>
+          <AnalysisBadge track={track} />
+        </View>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+      {track.analysisStatus === 'idle' || track.analysisStatus === 'error' ? (
+        <TouchableOpacity style={styles.analyzeButton} onPress={onAnalyze}>
+          <Ionicons name="analytics-outline" size={20} color={Colors.primary} />
+        </TouchableOpacity>
+      ) : (
+        <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+      )}
     </TouchableOpacity>
   );
 }
 
 export default function LibraryScreen() {
-  const { tracks, addTrack, removeTrack, setCurrentTrack } = usePlayerStore();
+  const { tracks, addTrack, removeTrack, setCurrentTrack, setTrackAnalysisStatus, setTrackAnalysis } = usePlayerStore();
   const router = useRouter();
 
   const handleImport = async () => {
@@ -52,6 +97,17 @@ export default function LibraryScreen() {
     ]);
   };
 
+  const handleAnalyze = async (track: Track) => {
+    setTrackAnalysisStatus(track.id, 'analyzing');
+    try {
+      const result = await analyzeTrack(track.uri, track.title, track.format);
+      setTrackAnalysis(track.id, result);
+    } catch (e: any) {
+      setTrackAnalysisStatus(track.id, 'error');
+      Alert.alert('Analysis Failed', e.message || 'Could not connect to analysis server.');
+    }
+  };
+
   return (
     <View style={styles.container}>
       {tracks.length === 0 ? (
@@ -65,7 +121,12 @@ export default function LibraryScreen() {
           data={tracks}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <TrackItem track={item} onPress={() => handlePlay(item)} onDelete={() => handleDelete(item)} />
+            <TrackItem
+              track={item}
+              onPress={() => handlePlay(item)}
+              onDelete={() => handleDelete(item)}
+              onAnalyze={() => handleAnalyze(item)}
+            />
           )}
           contentContainerStyle={styles.list}
         />
@@ -103,7 +164,25 @@ const styles = StyleSheet.create({
   },
   trackInfo: { flex: 1 },
   trackTitle: { color: Colors.text, fontSize: FontSize.lg, fontWeight: '500' },
-  trackMeta: { color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: 2 },
+  trackMetaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 2 },
+  trackMeta: { color: Colors.textSecondary, fontSize: FontSize.sm },
+  badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  badgeDone: { backgroundColor: 'rgba(76, 175, 80, 0.2)' },
+  badgeAnalyzing: { backgroundColor: 'rgba(255, 193, 7, 0.15)' },
+  badgeError: { backgroundColor: 'rgba(244, 67, 54, 0.15)' },
+  badgeText: { color: '#4CAF50', fontSize: FontSize.xs, fontWeight: '600' },
+  analyzeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surfaceLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   fab: {
     position: 'absolute',
     right: Spacing.lg,

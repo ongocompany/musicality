@@ -1,11 +1,16 @@
 import { create } from 'zustand';
 import { Track } from '../types/track';
+import { AnalysisResult, AnalysisStatus } from '../types/analysis';
 
 interface PlayerState {
   // Library
   tracks: Track[];
   addTrack: (track: Track) => void;
   removeTrack: (id: string) => void;
+
+  // Analysis
+  setTrackAnalysisStatus: (trackId: string, status: AnalysisStatus) => void;
+  setTrackAnalysis: (trackId: string, analysis: AnalysisResult) => void;
 
   // Playback
   currentTrack: Track | null;
@@ -38,6 +43,29 @@ export const usePlayerStore = create<PlayerState>((set) => ({
   tracks: [],
   addTrack: (track) => set((state) => ({ tracks: [...state.tracks, track] })),
   removeTrack: (id) => set((state) => ({ tracks: state.tracks.filter((t) => t.id !== id) })),
+
+  // Analysis
+  setTrackAnalysisStatus: (trackId, status) =>
+    set((state) => ({
+      tracks: state.tracks.map((t) =>
+        t.id === trackId ? { ...t, analysisStatus: status } : t,
+      ),
+      // Also update currentTrack if it matches
+      currentTrack:
+        state.currentTrack?.id === trackId
+          ? { ...state.currentTrack, analysisStatus: status }
+          : state.currentTrack,
+    })),
+  setTrackAnalysis: (trackId, analysis) =>
+    set((state) => ({
+      tracks: state.tracks.map((t) =>
+        t.id === trackId ? { ...t, analysis, analysisStatus: 'done' as AnalysisStatus } : t,
+      ),
+      currentTrack:
+        state.currentTrack?.id === trackId
+          ? { ...state.currentTrack, analysis, analysisStatus: 'done' as AnalysisStatus }
+          : state.currentTrack,
+    })),
 
   // Playback
   currentTrack: null,
