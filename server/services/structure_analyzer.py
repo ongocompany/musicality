@@ -1,14 +1,21 @@
 """
-Music structure analyzer for Latin dance music (v2).
+Music structure analyzer for Latin dance music (v2.1).
 Detects sections: intro, derecho, majao, mambo, bridge, outro.
 
-v2 improvements over v1:
+v2.1 improvements over v2:
+- Beat-synchronous features (all features averaged per beat interval)
+  → cleaner SSM, better boundary detection for syncopated Latin music
+- Tempogram added for rhythm pattern change detection
+- SSM computed on beat-level data (no arbitrary downsampling)
+- Faster processing (fewer data points: ~400 beats vs ~10000 frames)
+
+v2 features retained:
 - Multi-feature self-similarity matrix (MFCC + chroma + spectral contrast)
 - Checkerboard kernel convolution for boundary detection
 - Harmonic-percussive source separation (percussion entry = derecho start)
 - Band-specific energy analysis (low/mid/high frequency)
 - Phrase-aligned boundary snapping (4-bar phrases via downbeats)
-- Enhanced classification heuristics for Latin music
+- Score-based classification for Latin music sections
 
 MVP focus: find where intro ends and derecho begins.
 """
@@ -37,6 +44,14 @@ def analyze_structure(
     Returns:
         List of SectionInfo sorted by start_time
     """
+    if len(beats) < 8:
+        return [SectionInfo(
+            label="derecho",
+            start_time=0.0,
+            end_time=round(duration, 3),
+            confidence=0.3,
+        )]
+
     # 1. Load audio
     y, sr = librosa.load(audio_path, sr=22050)
     hop_length = 512
@@ -44,14 +59,19 @@ def analyze_structure(
     # 2. Harmonic-Percussive Source Separation
     y_harmonic, y_percussive = librosa.effects.hpss(y)
 
-    # 3. Compute multi-dimensional features
-    features = _compute_features(y, y_harmonic, y_percussive, sr, hop_length)
+    # 3. Compute beat-synchronous features
+    beat_times = np.array(beats)
+    features = _compute_features(
+        y, y_harmonic, y_percussive, sr, hop_length, beat_times
+    )
 
-    # 4. Find boundaries via self-similarity + checkerboard kernel
-    boundaries = _find_boundaries_ssm(features, duration, sr, hop_length)
+    # 4. Find boundaries via beat-sync SSM + checkerboard kernel
+    boundaries = _find_boundaries_ssm(features, beat_times)
 
     # Also get agglomerative boundaries as fallback/supplement
-    agg_boundaries = _find_boundaries_agglomerative(features["mfcc"], duration, sr)
+    agg_boundaries = _find_boundaries_agglomerative(
+        features["mfcc_sync"], beat_times
+    )
 
     # Merge both boundary sets
     boundaries = _merge_boundaries(boundaries, agg_boundaries, min_gap=5.0)
@@ -67,9 +87,9 @@ def analyze_structure(
     # 5. Snap boundaries to downbeats (phrase-aligned) or beats
     boundaries = _snap_to_phrases(boundaries, beats, downbeats)
 
-    # 6. Compute per-segment features (enriched)
+    # 6. Compute per-segment features (from beat-sync data)
     segments = _compute_segment_features(
-        boundaries, duration, features, sr, hop_length
+        boundaries, duration, features, beat_times
     )
 
     # 7. Classify segments
@@ -78,7 +98,7 @@ def analyze_structure(
     return sections
 
 
-# ─── Feature Extraction ────────────────────────────────────────────────
+# ─── Feature Extraction (Beat-Synchronous) ─────────────────────────────
 
 def _compute_features(
     y: np.ndarray,
@@ -86,8 +106,19 @@ def _compute_features(
     y_percussive: np.ndarray,
     sr: int,
     hop_length: int,
+    beat_times: np.ndarray,
 ) -> dict:
-    """Compute a rich set of audio features."""
+    """
+    Compute audio features and sync them to beat positions.
+
+    Instead of frame-level features (~10000 frames for a 4-min track),
+    we average each feature within beat intervals (~400 beats).
+    This removes syncopation noise and makes boundaries much cleaner.
+    """
+    # Convert beat times to frame indices for sync
+    beat_frames = librosa.time_to_frames(beat_times, sr=sr, hop_length=hop_length)
+
+    # ── Frame-level features ──
 
     # MFCC (timbre) — from full mix
     S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, hop_length=hop_length)
@@ -114,29 +145,61 @@ def _compute_features(
     # Onset strength (rhythmic activity)
     onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop_length)
 
+    # Tempogram (rhythm pattern) — new in v2.1
+    tempogram = librosa.feature.tempogram(
+        onset_envelope=onset_env, sr=sr, hop_length=hop_length
+    )
+
     # Band-specific energy (low / mid / high)
     S_power = np.abs(librosa.stft(y, hop_length=hop_length)) ** 2
     freqs = librosa.fft_frequencies(sr=sr)
-    low_mask = freqs < 300          # bass + conga fundamentals
+    low_mask = freqs < 300           # bass + conga fundamentals
     mid_mask = (freqs >= 300) & (freqs < 2000)  # piano, guitar, vocals
-    high_mask = freqs >= 2000       # brass, cymbals, hi-hat
+    high_mask = freqs >= 2000        # brass, cymbals, hi-hat
 
     rms_low = np.sqrt(np.mean(S_power[low_mask, :], axis=0)) if np.any(low_mask) else rms_full
     rms_mid = np.sqrt(np.mean(S_power[mid_mask, :], axis=0)) if np.any(mid_mask) else rms_full
     rms_high = np.sqrt(np.mean(S_power[high_mask, :], axis=0)) if np.any(high_mask) else rms_full
 
+    # ── Beat-synchronous aggregation ──
+    # librosa.util.sync averages each feature within beat intervals
+    # Result: (n_features, n_beats) instead of (n_features, n_frames)
+
+    mfcc_sync = librosa.util.sync(mfcc, beat_frames, aggregate=np.mean)
+    chroma_sync = librosa.util.sync(chroma, beat_frames, aggregate=np.mean)
+    contrast_sync = librosa.util.sync(contrast, beat_frames, aggregate=np.mean)
+    tempogram_sync = librosa.util.sync(tempogram, beat_frames, aggregate=np.mean)
+
+    # 1D features → expand to 2D for sync, then squeeze back
+    def _sync_1d(arr):
+        return librosa.util.sync(
+            arr.reshape(1, -1), beat_frames, aggregate=np.mean
+        )[0]
+
+    rms_full_sync = _sync_1d(rms_full)
+    rms_harmonic_sync = _sync_1d(rms_harmonic)
+    rms_percussive_sync = _sync_1d(rms_percussive)
+    rms_low_sync = _sync_1d(rms_low)
+    rms_mid_sync = _sync_1d(rms_mid)
+    rms_high_sync = _sync_1d(rms_high)
+    centroid_sync = _sync_1d(centroid)
+    onset_sync = _sync_1d(onset_env)
+
     return {
-        "mfcc": mfcc,
-        "chroma": chroma,
-        "contrast": contrast,
-        "rms_full": rms_full,
-        "rms_harmonic": rms_harmonic,
-        "rms_percussive": rms_percussive,
-        "rms_low": rms_low,
-        "rms_mid": rms_mid,
-        "rms_high": rms_high,
-        "centroid": centroid,
-        "onset_env": onset_env,
+        # Beat-synced 2D features (for SSM)
+        "mfcc_sync": mfcc_sync,
+        "chroma_sync": chroma_sync,
+        "contrast_sync": contrast_sync,
+        "tempogram_sync": tempogram_sync,
+        # Beat-synced 1D features (for segment classification)
+        "rms_full": rms_full_sync,
+        "rms_harmonic": rms_harmonic_sync,
+        "rms_percussive": rms_percussive_sync,
+        "rms_low": rms_low_sync,
+        "rms_mid": rms_mid_sync,
+        "rms_high": rms_high_sync,
+        "centroid": centroid_sync,
+        "onset_env": onset_sync,
     }
 
 
@@ -152,57 +215,65 @@ def _make_checkerboard_kernel(size: int) -> np.ndarray:
 
 def _find_boundaries_ssm(
     features: dict,
-    duration: float,
-    sr: int,
-    hop_length: int,
+    beat_times: np.ndarray,
 ) -> list[float]:
     """
-    Find section boundaries using multi-feature self-similarity matrix
+    Find section boundaries using beat-synchronous SSM
     with checkerboard kernel convolution.
+
+    Since features are already beat-synced, each column = 1 beat.
+    No downsampling needed — data is already compact (~400 beats).
+    Peak indices map directly to beat timestamps.
     """
-    # Combine features: MFCC + chroma + spectral contrast
-    # Normalize each feature set before concatenating
-    def _norm_features(F: np.ndarray) -> np.ndarray:
+    def _norm(F: np.ndarray) -> np.ndarray:
         mu = F.mean(axis=1, keepdims=True)
         std = F.std(axis=1, keepdims=True)
         std[std < 1e-8] = 1.0
         return (F - mu) / std
 
-    mfcc_n = _norm_features(features["mfcc"])
-    chroma_n = _norm_features(features["chroma"])
-    contrast_n = _norm_features(features["contrast"])
+    # Combine beat-synced features: MFCC(13) + Chroma(12) + Contrast(7) + Tempogram(top 8)
+    mfcc_n = _norm(features["mfcc_sync"])
+    chroma_n = _norm(features["chroma_sync"])
+    contrast_n = _norm(features["contrast_sync"])
 
-    # Stack: 13 + 12 + 7 = 32 dimensional feature vector per frame
-    combined = np.vstack([mfcc_n, chroma_n, contrast_n])
+    # Tempogram: use only top 8 tempo bands (most informative)
+    tempo_full = features["tempogram_sync"]
+    n_tempo_bins = min(8, tempo_full.shape[0])
+    # Select bins with highest variance (most discriminative)
+    variances = np.var(tempo_full, axis=1)
+    top_bins = np.argsort(variances)[-n_tempo_bins:]
+    tempogram_n = _norm(tempo_full[top_bins, :])
 
-    # Downsample for efficiency (take every 4th frame → ~11.6 fps → ~86ms resolution)
-    ds_factor = 4
-    combined_ds = combined[:, ::ds_factor]
-    n_frames = combined_ds.shape[1]
+    # Stack: 13 + 12 + 7 + 8 = 40 dimensional feature vector per beat
+    combined = np.vstack([mfcc_n, chroma_n, contrast_n, tempogram_n])
+    n_beats = combined.shape[1]
 
-    if n_frames < 20:
+    if n_beats < 16:
         return []
 
     # Compute self-similarity matrix (cosine similarity)
-    # Normalize columns to unit length
-    norms = np.linalg.norm(combined_ds, axis=0, keepdims=True)
+    norms = np.linalg.norm(combined, axis=0, keepdims=True)
     norms[norms < 1e-8] = 1.0
-    combined_unit = combined_ds / norms
-    ssm = combined_unit.T @ combined_unit  # n_frames x n_frames
+    combined_unit = combined / norms
+    ssm = combined_unit.T @ combined_unit  # n_beats x n_beats
 
     # Apply median filter to clean up SSM
     ssm = median_filter(ssm, size=3)
 
     # Checkerboard kernel convolution along diagonal
-    kernel_size = min(32, n_frames // 4)
+    # Kernel size in beats: ~16 beats = 4 bars (at 4/4 time)
+    kernel_size = min(16, n_beats // 4)
     if kernel_size < 4:
-        return []
+        kernel_size = 4
+
+    # Make kernel size even
+    kernel_size = kernel_size - (kernel_size % 2)
 
     kernel = _make_checkerboard_kernel(kernel_size)
     half_k = kernel_size // 2
 
-    novelty = np.zeros(n_frames)
-    for i in range(half_k, n_frames - half_k):
+    novelty = np.zeros(n_beats)
+    for i in range(half_k, n_beats - half_k):
         patch = ssm[i - half_k:i + half_k, i - half_k:i + half_k]
         if patch.shape == kernel.shape:
             novelty[i] = np.sum(patch * kernel)
@@ -211,23 +282,26 @@ def _find_boundaries_ssm(
     if np.max(novelty) > 0:
         novelty = novelty / np.max(novelty)
 
-    # Peak picking on novelty curve
-    # Adaptive threshold: mean + 0.5 * std
+    # Peak picking with adaptive threshold
     threshold = np.mean(novelty) + 0.5 * np.std(novelty)
-    threshold = max(threshold, 0.15)  # minimum threshold
+    threshold = max(threshold, 0.15)
 
+    # Minimum distance between peaks: 8 beats (~2 bars)
+    min_dist = 8
     peaks = []
     for i in range(1, len(novelty) - 1):
         if novelty[i] > threshold and novelty[i] >= novelty[i - 1] and novelty[i] >= novelty[i + 1]:
-            peaks.append(i)
+            if not peaks or (i - peaks[-1]) >= min_dist:
+                peaks.append(i)
 
-    # Convert peak indices back to time
+    # Convert beat indices to time
+    duration = float(beat_times[-1]) + 1.0  # approximate end
     boundary_times = []
     for p in peaks:
-        frame_idx = p * ds_factor
-        t = librosa.frames_to_time(frame_idx, sr=sr, hop_length=hop_length)
-        if 3.0 < t < duration - 3.0:
-            boundary_times.append(float(t))
+        if p < len(beat_times):
+            t = float(beat_times[p])
+            if 3.0 < t < duration - 3.0:
+                boundary_times.append(t)
 
     return sorted(boundary_times)
 
@@ -235,33 +309,41 @@ def _find_boundaries_ssm(
 # ─── Boundary Detection: Agglomerative (fallback) ──────────────────────
 
 def _find_boundaries_agglomerative(
-    mfcc: np.ndarray,
-    duration: float,
-    sr: int,
+    mfcc_sync: np.ndarray,
+    beat_times: np.ndarray,
 ) -> list[float]:
     """
-    Original v1 agglomerative clustering approach as a supplementary source.
+    Agglomerative clustering on beat-synced MFCCs as supplementary source.
     """
+    n_beats = mfcc_sync.shape[1]
+    if n_beats < 8:
+        return []
+
+    duration = float(beat_times[-1]) + 1.0
+
     best_boundaries = []
     best_score = -1.0
 
-    novelty = np.sqrt(np.sum(np.diff(mfcc, axis=1) ** 2, axis=0))
+    novelty = np.sqrt(np.sum(np.diff(mfcc_sync, axis=1) ** 2, axis=0))
 
     for k in range(4, 9):
         try:
-            bounds = librosa.segment.agglomerative(mfcc, k=k)
-            bound_times = librosa.frames_to_time(bounds, sr=sr)
+            bounds = librosa.segment.agglomerative(mfcc_sync, k=k)
 
             score = 0.0
             for b in bounds:
                 if 0 < b < len(novelty):
-                    start = max(0, b - 2)
-                    end = min(len(novelty), b + 3)
+                    start = max(0, b - 1)
+                    end = min(len(novelty), b + 2)
                     score += float(np.mean(novelty[start:end]))
 
             if score > best_score:
                 best_score = score
-                best_boundaries = bound_times.tolist()
+                # Convert beat indices to times
+                best_boundaries = [
+                    float(beat_times[b]) for b in bounds
+                    if b < len(beat_times)
+                ]
 
         except Exception:
             continue
@@ -278,8 +360,7 @@ def _merge_boundaries(
 ) -> list[float]:
     """
     Merge SSM and agglomerative boundaries.
-    If both methods agree (within 3 seconds), boost confidence.
-    Keep all unique boundaries but remove those too close together.
+    Boundaries agreed by both methods (within 3s) are stronger.
     """
     all_bounds = sorted(ssm_bounds + agg_bounds)
     if not all_bounds:
@@ -318,7 +399,6 @@ def _snap_to_phrases(
     Snap boundaries to nearest downbeat (phrase start) if available,
     otherwise to nearest beat.
     """
-    # Prefer downbeats for phrase-level snapping
     snap_targets = downbeats if downbeats and len(downbeats) > 2 else beats
     if not snap_targets:
         return boundaries
@@ -338,11 +418,12 @@ def _compute_segment_features(
     boundaries: list[float],
     duration: float,
     features: dict,
-    sr: int,
-    hop_length: int,
+    beat_times: np.ndarray,
 ) -> list[dict]:
-    """Compute enriched per-segment features including band energy and percussion ratio."""
-
+    """
+    Compute per-segment features using beat-synced data.
+    Uses beat indices instead of frame indices for precise alignment.
+    """
     all_bounds = [0.0] + sorted(boundaries) + [duration]
     segments = []
 
@@ -350,30 +431,31 @@ def _compute_segment_features(
         start = all_bounds[i]
         end = all_bounds[i + 1]
 
-        start_frame = int(start * sr / hop_length)
-        end_frame = int(end * sr / hop_length)
+        # Find beat range for this segment
+        start_beat = int(np.searchsorted(beat_times, start))
+        end_beat = int(np.searchsorted(beat_times, end))
 
-        def _safe_mean(arr, sf, ef):
-            sf = max(0, min(sf, len(arr) - 1))
-            ef = max(sf + 1, min(ef, len(arr)))
-            return float(np.mean(arr[sf:ef]))
+        def _safe_mean(arr, sb, eb):
+            sb = max(0, min(sb, len(arr) - 1))
+            eb = max(sb + 1, min(eb, len(arr)))
+            return float(np.mean(arr[sb:eb]))
 
         seg = {
             "start": round(start, 3),
             "end": round(end, 3),
             "duration": round(end - start, 3),
             # Full mix energy
-            "rms": _safe_mean(features["rms_full"], start_frame, end_frame),
+            "rms": _safe_mean(features["rms_full"], start_beat, end_beat),
             # Harmonic vs percussive
-            "rms_harmonic": _safe_mean(features["rms_harmonic"], start_frame, end_frame),
-            "rms_percussive": _safe_mean(features["rms_percussive"], start_frame, end_frame),
+            "rms_harmonic": _safe_mean(features["rms_harmonic"], start_beat, end_beat),
+            "rms_percussive": _safe_mean(features["rms_percussive"], start_beat, end_beat),
             # Band-specific energy
-            "rms_low": _safe_mean(features["rms_low"], start_frame, end_frame),
-            "rms_mid": _safe_mean(features["rms_mid"], start_frame, end_frame),
-            "rms_high": _safe_mean(features["rms_high"], start_frame, end_frame),
+            "rms_low": _safe_mean(features["rms_low"], start_beat, end_beat),
+            "rms_mid": _safe_mean(features["rms_mid"], start_beat, end_beat),
+            "rms_high": _safe_mean(features["rms_high"], start_beat, end_beat),
             # Brightness & rhythm
-            "centroid": _safe_mean(features["centroid"], start_frame, end_frame),
-            "onset_density": _safe_mean(features["onset_env"], start_frame, end_frame),
+            "centroid": _safe_mean(features["centroid"], start_beat, end_beat),
+            "onset_density": _safe_mean(features["onset_env"], start_beat, end_beat),
         }
 
         # Derived ratios
@@ -431,35 +513,30 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
         seg_scores = {}
 
         # ── Intro score ──
-        # Low percussion + low overall energy + early position
-        position_factor = 1.0 - (s["start"] / duration)  # higher for early segments
+        position_factor = 1.0 - (s["start"] / duration)
         intro_score = (
             (1.0 - s["rms_percussive_n"]) * 0.35 +
             (1.0 - s["rms_n"]) * 0.25 +
             s["harmonic_ratio"] * 0.2 +
             position_factor * 0.2
         )
-        # Penalize if not first/second segment
         if i > 1:
             intro_score *= 0.3
         seg_scores["intro"] = intro_score
 
         # ── Outro score ──
-        # Low/declining energy + late position
-        late_factor = s["start"] / duration  # higher for late segments
+        late_factor = s["start"] / duration
         outro_score = (
             (1.0 - s["rms_n"]) * 0.3 +
             late_factor * 0.3 +
             (1.0 - s["rms_percussive_n"]) * 0.2 +
             s["harmonic_ratio"] * 0.2
         )
-        # Penalize if not last/second-to-last segment
         if i < n - 2:
             outro_score *= 0.3
         seg_scores["outro"] = outro_score
 
         # ── Mambo score ──
-        # Highest energy + high brightness + high percussion + brass (high freq)
         mambo_score = (
             s["rms_n"] * 0.25 +
             s["centroid_n"] * 0.2 +
@@ -467,27 +544,24 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
             s["rms_percussive_n"] * 0.2 +
             s["onset_density_n"] * 0.15
         )
-        # Penalize first/last segments
         if i == 0 or i == n - 1:
             mambo_score *= 0.4
         seg_scores["mambo"] = mambo_score
 
         # ── Majao score ──
-        # High onset density + moderate energy + lower brightness than mambo
         majao_score = (
             s["onset_density_n"] * 0.3 +
             s["rms_percussive_n"] * 0.25 +
             s["rms_n"] * 0.2 +
-            (1.0 - s["rms_high_n"]) * 0.15 +  # less bright than mambo
-            s["rms_low_n"] * 0.1              # strong bass
+            (1.0 - s["rms_high_n"]) * 0.15 +
+            s["rms_low_n"] * 0.1
         )
         if i == 0 or i == n - 1:
             majao_score *= 0.5
         seg_scores["majao"] = majao_score
 
         # ── Bridge score ──
-        # Short + low energy + between louder sections
-        short_factor = max(0, 1.0 - s["duration"] / 20.0)  # shorter = higher
+        short_factor = max(0, 1.0 - s["duration"] / 20.0)
         bridge_score = (
             (1.0 - s["rms_n"]) * 0.35 +
             short_factor * 0.35 +
@@ -496,7 +570,6 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
         )
         if i == 0 or i == n - 1:
             bridge_score *= 0.3
-        # Must be between louder sections
         if i > 0 and i < n - 1:
             prev_louder = segments[i - 1]["rms"] > s["rms"]
             next_louder = segments[i + 1]["rms"] > s["rms"]
@@ -505,21 +578,19 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
         seg_scores["bridge"] = bridge_score
 
         # ── Derecho score ──
-        # Balanced, moderate energy — the "default" dance section
         derecho_score = (
             s["rms_n"] * 0.2 +
             s["percussion_ratio"] * 0.2 +
-            (1.0 - abs(s["rms_n"] - 0.5)) * 0.2 +  # prefer mid-range energy
+            (1.0 - abs(s["rms_n"] - 0.5)) * 0.2 +
             s["onset_density_n"] * 0.15 +
-            (s["duration"] / duration) * 0.15 +      # longer = more likely derecho
-            0.1                                       # slight bias (most common section)
+            (s["duration"] / duration) * 0.15 +
+            0.1
         )
         seg_scores["derecho"] = derecho_score
 
         scores.append(seg_scores)
 
     # ── Assignment pass ──
-    # First pass: assign each segment to its highest-scoring label
     labels = []
     confidences = []
     for i, seg_scores in enumerate(scores):
@@ -529,15 +600,13 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
         confidences.append(best_score)
 
     # ── Constraint pass ──
-    # Rule: intro must come before derecho, outro must be last
-    # Rule: mambo should appear in the middle-to-late portion
 
-    # If no intro was detected but first segment has weak percussion → force intro
+    # If no intro but first segment has weak percussion → force intro
     if labels[0] != "intro" and segments[0]["percussion_ratio"] < 0.35:
         labels[0] = "intro"
         confidences[0] = 0.6
 
-    # Ensure at most one intro (the earliest one)
+    # At most one intro (earliest)
     intro_found = False
     for i in range(n):
         if labels[i] == "intro":
@@ -546,14 +615,14 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
                 confidences[i] = 0.4
             intro_found = True
 
-    # Ensure at most one outro (the latest one)
+    # At most one outro (latest)
     outro_indices = [i for i in range(n) if labels[i] == "outro"]
     if len(outro_indices) > 1:
         for idx in outro_indices[:-1]:
             labels[idx] = "derecho"
             confidences[idx] = 0.4
 
-    # Ensure at most one mambo (the highest-scoring one)
+    # At most one mambo (highest-scoring)
     mambo_indices = [i for i in range(n) if labels[i] == "mambo"]
     if len(mambo_indices) > 1:
         best_mambo = max(mambo_indices, key=lambda i: scores[i]["mambo"])
