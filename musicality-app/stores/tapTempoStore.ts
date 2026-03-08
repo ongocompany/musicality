@@ -72,6 +72,17 @@ export const useTapTempoStore = create<TapTempoState>((set, get) => ({
     // Validate BPM range for dance music (60-220)
     const validBpm = bpm >= 60 && bpm <= 220 ? bpm : get().bpm;
 
+    // During counting: adjust BPM + re-sync to beat 1
+    if (phase === 'counting') {
+      set({
+        tapTimestamps: newTimestamps,
+        bpm: validBpm,
+        startTime: now,
+        currentBeatIndex: 0,
+      });
+      return;
+    }
+
     // Phase transitions
     let newPhase: TapTempoPhase;
     if (newTimestamps.length < 2) {

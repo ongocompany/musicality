@@ -1,5 +1,7 @@
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { useRef, useEffect } from 'react';
+import { View, Text, Pressable, StyleSheet, ScrollView, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { CountDisplay } from '../../components/ui/CountDisplay';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useTapTempoStore } from '../../stores/tapTempoStore';
@@ -31,6 +33,45 @@ export default function TapTempoScreen() {
   // Fire cue sounds via timer
   useTapTempoCue();
 
+  // Tap button pulse animation
+  const tapScale = useRef(new Animated.Value(1)).current;
+  const tapRing = useRef(new Animated.Value(0)).current;
+
+  const fireTapPulse = () => {
+    tapScale.setValue(0.9);
+    tapRing.setValue(0);
+    Animated.parallel([
+      Animated.spring(tapScale, {
+        toValue: 1,
+        friction: 3,
+        tension: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(tapRing, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  // Beat pulse animation (fires on each count change during counting)
+  const beatScale = useRef(new Animated.Value(1)).current;
+  const prevBeatIndex = useRef(-1);
+
+  useEffect(() => {
+    if (phase !== 'counting' || currentBeatIndex === prevBeatIndex.current) return;
+    prevBeatIndex.current = currentBeatIndex;
+
+    beatScale.setValue(1.15);
+    Animated.spring(beatScale, {
+      toValue: 1,
+      friction: 4,
+      tension: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [currentBeatIndex, phase]);
+
   // Build CountInfo for display
   const countInfo: CountInfo | null =
     phase === 'counting'
@@ -53,9 +94,9 @@ export default function TapTempoScreen() {
       </View>
 
       {/* Count display */}
-      <View style={styles.countSection}>
+      <Animated.View style={[styles.countSection, { transform: [{ scale: beatScale }] }]}>
         <CountDisplay countInfo={countInfo} hasAnalysis={showCount} />
-      </View>
+      </Animated.View>
 
       {/* BPM display + adjust */}
       <View style={styles.bpmSection}>
@@ -96,25 +137,48 @@ export default function TapTempoScreen() {
         )}
       </View>
 
-      {/* TAP button */}
-      {(phase === 'idle' || phase === 'tapping' || phase === 'bpmSet') && (
+      {/* TAP button — visible in all phases except idle-with-no-action */}
+      {(phase === 'idle' || phase === 'tapping' || phase === 'bpmSet' || phase === 'counting') && (
         <View style={styles.tapSection}>
-          <Pressable
-            onPressIn={recordTap}
-            style={({ pressed }) => [
-              styles.tapButton,
-              pressed && styles.tapButtonPressed,
-              phase === 'bpmSet' && styles.tapButtonReady,
-            ]}
-          >
-            <Ionicons name="hand-left" size={48} color={Colors.text} />
-            <Text style={styles.tapButtonText}>TAP</Text>
-          </Pressable>
+          <View style={styles.tapButtonWrapper}>
+            {/* Expanding ring */}
+            <Animated.View
+              style={[
+                styles.tapRing,
+                phase === 'bpmSet' && { borderColor: Colors.accent },
+                phase === 'counting' && { borderColor: Colors.tapAccent, width: 100, height: 100, borderRadius: 50 },
+                {
+                  opacity: tapRing.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] }),
+                  transform: [{ scale: tapRing.interpolate({ inputRange: [0, 1], outputRange: [1, 1.5] }) }],
+                },
+              ]}
+            />
+            <Animated.View style={{ transform: [{ scale: tapScale }] }}>
+              <Pressable
+                onPressIn={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  fireTapPulse();
+                  recordTap();
+                }}
+                style={({ pressed }) => [
+                  styles.tapButton,
+                  phase === 'counting' && styles.tapButtonSmall,
+                  pressed && styles.tapButtonPressed,
+                  phase === 'bpmSet' && styles.tapButtonReady,
+                  phase === 'counting' && styles.tapButtonCounting,
+                ]}
+              >
+                <Ionicons name="hand-left" size={phase === 'counting' ? 32 : 48} color={Colors.text} />
+                <Text style={[styles.tapButtonText, phase === 'counting' && styles.tapButtonTextSmall]}>TAP</Text>
+              </Pressable>
+            </Animated.View>
+          </View>
 
           <Text style={styles.statusText}>
             {phase === 'idle' && '박자에 맞춰 탭하세요'}
             {phase === 'tapping' && `${tapTimestamps.length}회 탭 — 4회 이상 탭하세요`}
             {phase === 'bpmSet' && 'BPM 설정 완료! Start를 누르세요'}
+            {phase === 'counting' && '탭하면 BPM 조정 + 1박 재동기화'}
           </Text>
         </View>
       )}
@@ -129,28 +193,10 @@ export default function TapTempoScreen() {
         )}
 
         {phase === 'counting' && (
-          <View style={styles.actionRow}>
-            <Pressable style={styles.stopButton} onPress={stopCounting}>
-              <Ionicons name="pause" size={22} color={Colors.text} />
-              <Text style={styles.stopButtonText}>Stop</Text>
-            </Pressable>
-
-            {/* Re-sync: tap to reset beat 1 */}
-            <Pressable
-              onPressIn={() => {
-                // Reset startTime to now, treating this tap as beat 1
-                const store = useTapTempoStore.getState();
-                store.startCounting(); // resets startTime + beatIndex
-              }}
-              style={({ pressed }) => [
-                styles.resyncButton,
-                pressed && styles.resyncButtonPressed,
-              ]}
-            >
-              <Ionicons name="locate-outline" size={20} color={Colors.tapAccent} />
-              <Text style={styles.resyncText}>지금이 1</Text>
-            </Pressable>
-          </View>
+          <Pressable style={styles.stopButton} onPress={stopCounting}>
+            <Ionicons name="pause" size={22} color={Colors.text} />
+            <Text style={styles.stopButtonText}>Stop</Text>
+          </Pressable>
         )}
 
         {phase !== 'idle' && (
@@ -257,6 +303,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: Spacing.xl,
   },
+  tapButtonWrapper: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tapRing: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    borderWidth: 3,
+    borderColor: Colors.primary,
+  },
   tapButton: {
     width: 160,
     height: 160,
@@ -274,6 +332,18 @@ const styles = StyleSheet.create({
   },
   tapButtonReady: {
     borderColor: Colors.accent,
+  },
+  tapButtonSmall: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  tapButtonCounting: {
+    borderColor: Colors.tapAccent,
+    borderWidth: 2,
+  },
+  tapButtonTextSmall: {
+    fontSize: FontSize.sm,
   },
   tapButtonText: {
     fontSize: FontSize.lg,

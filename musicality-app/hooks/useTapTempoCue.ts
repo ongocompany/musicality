@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useTapTempoStore } from '../stores/tapTempoStore';
 import { getCueSound } from '../constants/cueSounds';
@@ -49,6 +50,15 @@ export function useTapTempoCue() {
         state.advanceBeat();
         const newIndex = state.currentBeatIndex + 1;
         const count = (newIndex % 8) + 1; // 1-8
+
+        // Haptic feedback: strong on 1,5 / light on 4,8 (tap) / medium otherwise
+        if (count === 1 || count === 5) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        } else if (count === 4 || count === 8) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        } else {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }
 
         // Fire cue sound
         const { cueType: ct, cueEnabled: ce } = useSettingsStore.getState();
