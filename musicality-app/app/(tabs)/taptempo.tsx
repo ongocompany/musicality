@@ -1,5 +1,5 @@
-import { useRef, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, Animated } from 'react-native';
+import { useState, useRef, useEffect } from 'react';
+import { View, Text, Pressable, StyleSheet, ScrollView, Animated, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { CountDisplay } from '../../components/ui/CountDisplay';
@@ -26,9 +26,31 @@ export default function TapTempoScreen() {
   const tapTimestamps = useTapTempoStore((s) => s.tapTimestamps);
   const recordTap = useTapTempoStore((s) => s.recordTap);
   const adjustBpm = useTapTempoStore((s) => s.adjustBpm);
+  const setManualBpm = useTapTempoStore((s) => s.setManualBpm);
   const startCounting = useTapTempoStore((s) => s.startCounting);
   const stopCounting = useTapTempoStore((s) => s.stopCounting);
   const reset = useTapTempoStore((s) => s.reset);
+
+  // BPM input modal state
+  const [showBpmModal, setShowBpmModal] = useState(false);
+  const [bpmInput, setBpmInput] = useState('');
+  const [bpmError, setBpmError] = useState('');
+
+  const openBpmModal = () => {
+    setBpmInput(bpm > 0 ? String(bpm) : '');
+    setBpmError('');
+    setShowBpmModal(true);
+  };
+
+  const confirmBpmInput = () => {
+    const value = parseInt(bpmInput, 10);
+    if (isNaN(value) || value < 60 || value > 220) {
+      setBpmError('60 ~ 220 범위로 입력하세요');
+      return;
+    }
+    setManualBpm(value);
+    setShowBpmModal(false);
+  };
 
   // Fire cue sounds via timer
   useTapTempoCue();
@@ -113,10 +135,10 @@ export default function TapTempoScreen() {
                 color={phase === 'bpmSet' || phase === 'counting' ? Colors.text : Colors.textMuted}
               />
             </Pressable>
-            <View style={styles.bpmDisplay}>
+            <Pressable onPress={openBpmModal} style={styles.bpmDisplay}>
               <Text style={styles.bpmNumber}>{bpm}</Text>
               <Text style={styles.bpmLabel}>BPM</Text>
-            </View>
+            </Pressable>
             <Pressable
               style={styles.bpmAdjustBtn}
               onPress={() => adjustBpm(1)}
@@ -130,10 +152,11 @@ export default function TapTempoScreen() {
             </Pressable>
           </>
         ) : (
-          <View style={styles.bpmDisplay}>
+          <Pressable onPress={openBpmModal} style={styles.bpmDisplay}>
             <Text style={[styles.bpmNumber, styles.bpmMuted]}>---</Text>
             <Text style={styles.bpmLabel}>BPM</Text>
-          </View>
+            <Text style={styles.bpmHint}>탭하여 직접 입력</Text>
+          </Pressable>
         )}
       </View>
 
@@ -228,6 +251,42 @@ export default function TapTempoScreen() {
           이 화면에서 박자에 맞춰 탭하세요
         </Text>
       </View>
+
+      {/* BPM manual input modal */}
+      <Modal
+        visible={showBpmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBpmModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowBpmModal(false)}>
+          <Pressable style={styles.modalContent} onPress={() => {}}>
+            <Text style={styles.modalTitle}>BPM 입력</Text>
+            <TextInput
+              style={styles.modalInput}
+              keyboardType="number-pad"
+              value={bpmInput}
+              onChangeText={(t) => { setBpmInput(t); setBpmError(''); }}
+              onSubmitEditing={confirmBpmInput}
+              placeholder="예: 130"
+              placeholderTextColor={Colors.textMuted}
+              autoFocus
+              maxLength={3}
+              selectTextOnFocus
+            />
+            <Text style={styles.modalRange}>60 ~ 220 범위</Text>
+            {bpmError !== '' && <Text style={styles.modalError}>{bpmError}</Text>}
+            <View style={styles.modalButtons}>
+              <Pressable style={styles.modalCancelBtn} onPress={() => setShowBpmModal(false)}>
+                <Text style={styles.modalCancelText}>취소</Text>
+              </Pressable>
+              <Pressable style={styles.modalConfirmBtn} onPress={confirmBpmInput}>
+                <Text style={styles.modalConfirmText}>확인</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -286,6 +345,11 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: '600',
     letterSpacing: 1,
+  },
+  bpmHint: {
+    fontSize: FontSize.xs,
+    color: Colors.primary,
+    marginTop: 2,
   },
   bpmAdjustBtn: {
     width: 44,
@@ -457,5 +521,83 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textAlign: 'center',
     lineHeight: 18,
+  },
+
+  // BPM input modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.xl,
+    width: 260,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: FontSize.xl,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.md,
+  },
+  modalInput: {
+    width: '100%',
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: 32,
+    fontWeight: '800',
+    color: Colors.text,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+  },
+  modalRange: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: Spacing.sm,
+  },
+  modalError: {
+    fontSize: FontSize.sm,
+    color: Colors.error,
+    marginTop: Spacing.xs,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginTop: Spacing.lg,
+    width: '100%',
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: FontSize.md,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  modalConfirmBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    fontSize: FontSize.md,
+    color: '#121212',
+    fontWeight: '700',
   },
 });

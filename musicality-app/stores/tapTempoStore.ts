@@ -16,6 +16,7 @@ interface TapTempoState {
   recordTap: () => void;
   adjustBpm: (delta: number) => void;
   setBpm: (bpm: number) => void;
+  setManualBpm: (bpm: number) => void;
   startCounting: () => void;
   stopCounting: () => void;
   reset: () => void;
@@ -109,6 +110,15 @@ export const useTapTempoStore = create<TapTempoState>((set, get) => ({
 
   setBpm: (bpm: number) => {
     set({ bpm: Math.max(60, Math.min(220, Math.round(bpm))) });
+  },
+
+  setManualBpm: (value: number) => {
+    const clamped = Math.max(60, Math.min(220, Math.round(value)));
+    set({
+      bpm: clamped,
+      phase: 'bpmSet',
+      tapTimestamps: [],
+    });
   },
 
   startCounting: () => {
