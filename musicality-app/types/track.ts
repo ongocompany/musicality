@@ -11,6 +11,7 @@ export interface Track {
   mediaType: MediaType;
   duration?: number;
   importedAt: number; // timestamp ms
+  thumbnailUri?: string; // video thumbnail or album art
   analysis?: AnalysisResult;
   analysisStatus: AnalysisStatus;
 }

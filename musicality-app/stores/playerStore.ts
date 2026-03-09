@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track } from '../types/track';
 import { AnalysisResult, AnalysisStatus } from '../types/analysis';
 
@@ -7,6 +9,8 @@ interface PlayerState {
   tracks: Track[];
   addTrack: (track: Track) => void;
   removeTrack: (id: string) => void;
+  renameTrack: (id: string, newTitle: string) => void;
+  setTrackThumbnail: (id: string, uri: string) => void;
 
   // Analysis
   setTrackAnalysisStatus: (trackId: string, status: AnalysisStatus) => void;
@@ -38,57 +42,86 @@ interface PlayerState {
   clearLoop: () => void;
 }
 
-export const usePlayerStore = create<PlayerState>((set) => ({
-  // Library
-  tracks: [],
-  addTrack: (track) => set((state) => ({ tracks: [...state.tracks, track] })),
-  removeTrack: (id) => set((state) => ({ tracks: state.tracks.filter((t) => t.id !== id) })),
+export const usePlayerStore = create<PlayerState>()(
+  persist(
+    (set) => ({
+      // Library
+      tracks: [],
+      addTrack: (track) => set((state) => ({ tracks: [...state.tracks, track] })),
+      removeTrack: (id) => set((state) => ({ tracks: state.tracks.filter((t) => t.id !== id) })),
+      renameTrack: (id, newTitle) =>
+        set((state) => ({
+          tracks: state.tracks.map((t) =>
+            t.id === id ? { ...t, title: newTitle } : t,
+          ),
+          currentTrack:
+            state.currentTrack?.id === id
+              ? { ...state.currentTrack, title: newTitle }
+              : state.currentTrack,
+        })),
+      setTrackThumbnail: (id, uri) =>
+        set((state) => ({
+          tracks: state.tracks.map((t) =>
+            t.id === id ? { ...t, thumbnailUri: uri } : t,
+          ),
+          currentTrack:
+            state.currentTrack?.id === id
+              ? { ...state.currentTrack, thumbnailUri: uri }
+              : state.currentTrack,
+        })),
 
-  // Analysis
-  setTrackAnalysisStatus: (trackId, status) =>
-    set((state) => ({
-      tracks: state.tracks.map((t) =>
-        t.id === trackId ? { ...t, analysisStatus: status } : t,
-      ),
-      // Also update currentTrack if it matches
-      currentTrack:
-        state.currentTrack?.id === trackId
-          ? { ...state.currentTrack, analysisStatus: status }
-          : state.currentTrack,
-    })),
-  setTrackAnalysis: (trackId, analysis) =>
-    set((state) => ({
-      tracks: state.tracks.map((t) =>
-        t.id === trackId ? { ...t, analysis, analysisStatus: 'done' as AnalysisStatus } : t,
-      ),
-      currentTrack:
-        state.currentTrack?.id === trackId
-          ? { ...state.currentTrack, analysis, analysisStatus: 'done' as AnalysisStatus }
-          : state.currentTrack,
-    })),
+      // Analysis
+      setTrackAnalysisStatus: (trackId, status) =>
+        set((state) => ({
+          tracks: state.tracks.map((t) =>
+            t.id === trackId ? { ...t, analysisStatus: status } : t,
+          ),
+          currentTrack:
+            state.currentTrack?.id === trackId
+              ? { ...state.currentTrack, analysisStatus: status }
+              : state.currentTrack,
+        })),
+      setTrackAnalysis: (trackId, analysis) =>
+        set((state) => ({
+          tracks: state.tracks.map((t) =>
+            t.id === trackId ? { ...t, analysis, analysisStatus: 'done' as AnalysisStatus } : t,
+          ),
+          currentTrack:
+            state.currentTrack?.id === trackId
+              ? { ...state.currentTrack, analysis, analysisStatus: 'done' as AnalysisStatus }
+              : state.currentTrack,
+        })),
 
-  // Playback
-  currentTrack: null,
-  setCurrentTrack: (track) => set({ currentTrack: track, position: 0, loopEnabled: false, loopStart: null, loopEnd: null }),
-  isPlaying: false,
-  setIsPlaying: (playing) => set({ isPlaying: playing }),
-  position: 0,
-  setPosition: (pos) => set({ position: pos }),
-  duration: 0,
-  setDuration: (dur) => set({ duration: dur }),
-  playbackRate: 1.0,
-  setPlaybackRate: (rate) => set({ playbackRate: rate }),
+      // Playback
+      currentTrack: null,
+      setCurrentTrack: (track) => set({ currentTrack: track, position: 0, loopEnabled: false, loopStart: null, loopEnd: null }),
+      isPlaying: false,
+      setIsPlaying: (playing) => set({ isPlaying: playing }),
+      position: 0,
+      setPosition: (pos) => set({ position: pos }),
+      duration: 0,
+      setDuration: (dur) => set({ duration: dur }),
+      playbackRate: 1.0,
+      setPlaybackRate: (rate) => set({ playbackRate: rate }),
 
-  // Seeking
-  isSeeking: false,
-  setIsSeeking: (seeking) => set({ isSeeking: seeking }),
+      // Seeking
+      isSeeking: false,
+      setIsSeeking: (seeking) => set({ isSeeking: seeking }),
 
-  // Loop
-  loopEnabled: false,
-  loopStart: null,
-  loopEnd: null,
-  setLoopStart: (pos) => set({ loopStart: pos }),
-  setLoopEnd: (pos) => set({ loopEnd: pos, loopEnabled: pos !== null }),
-  toggleLoop: () => set((state) => ({ loopEnabled: !state.loopEnabled })),
-  clearLoop: () => set({ loopEnabled: false, loopStart: null, loopEnd: null }),
-}));
+      // Loop
+      loopEnabled: false,
+      loopStart: null,
+      loopEnd: null,
+      setLoopStart: (pos) => set({ loopStart: pos }),
+      setLoopEnd: (pos) => set({ loopEnd: pos, loopEnabled: pos !== null }),
+      toggleLoop: () => set((state) => ({ loopEnabled: !state.loopEnabled })),
+      clearLoop: () => set({ loopEnabled: false, loopStart: null, loopEnd: null }),
+    }),
+    {
+      name: 'musicality-tracks',
+      storage: createJSONStorage(() => AsyncStorage),
+      // Only persist the tracks array (playback state is transient)
+      partialize: (state) => ({ tracks: state.tracks }),
+    },
+  ),
+);

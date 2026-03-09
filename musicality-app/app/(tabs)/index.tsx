@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { usePlayerStore } from '../../stores/playerStore';
@@ -39,26 +39,48 @@ function AnalysisBadge({ track }: { track: Track }) {
   }
 }
 
+function TrackThumbnail({ track }: { track: Track }) {
+  // YouTube: remote thumbnail
+  if (track.mediaType === 'youtube') {
+    return (
+      <Image
+        source={{ uri: `https://img.youtube.com/vi/${track.uri}/mqdefault.jpg` }}
+        style={styles.mediaThumbnail}
+      />
+    );
+  }
+  // Video with generated thumbnail
+  if (track.thumbnailUri) {
+    return (
+      <Image source={{ uri: track.thumbnailUri }} style={styles.mediaThumbnail} />
+    );
+  }
+  // Fallback icon
+  return (
+    <View style={styles.trackIcon}>
+      <Ionicons
+        name={track.mediaType === 'video' ? 'videocam' : 'musical-notes'}
+        size={24}
+        color={Colors.primary}
+      />
+    </View>
+  );
+}
+
 function TrackItem({
   track,
   onPress,
-  onDelete,
+  onLongPress,
   onAnalyze,
 }: {
   track: Track;
   onPress: () => void;
-  onDelete: () => void;
+  onLongPress: () => void;
   onAnalyze: () => void;
 }) {
   return (
-    <TouchableOpacity style={styles.trackItem} onPress={onPress} onLongPress={onDelete}>
-      <View style={styles.trackIcon}>
-        <Ionicons
-          name={track.mediaType === 'youtube' ? 'logo-youtube' : track.mediaType === 'video' ? 'videocam' : 'musical-notes'}
-          size={24}
-          color={track.mediaType === 'youtube' ? '#FF0000' : Colors.primary}
-        />
-      </View>
+    <TouchableOpacity style={styles.trackItem} onPress={onPress} onLongPress={onLongPress}>
+      <TrackThumbnail track={track} />
       <View style={styles.trackInfo}>
         <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
         <View style={styles.trackMetaRow}>
@@ -80,7 +102,7 @@ function TrackItem({
 }
 
 export default function LibraryScreen() {
-  const { tracks, addTrack, removeTrack, setCurrentTrack, setTrackAnalysisStatus, setTrackAnalysis } = usePlayerStore();
+  const { tracks, addTrack, removeTrack, renameTrack, setCurrentTrack, setTrackAnalysisStatus, setTrackAnalysis } = usePlayerStore();
   const router = useRouter();
   const [showYouTubeInput, setShowYouTubeInput] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -109,10 +131,26 @@ export default function LibraryScreen() {
     router.navigate('/(tabs)/player');
   };
 
-  const handleDelete = (track: Track) => {
-    Alert.alert('Delete Track', `Remove "${track.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+  const handleLongPress = (track: Track) => {
+    Alert.alert(track.title, undefined, [
+      {
+        text: 'Rename',
+        onPress: () => {
+          Alert.prompt(
+            'Rename Track',
+            'Enter new title:',
+            (newTitle) => {
+              if (newTitle && newTitle.trim()) {
+                renameTrack(track.id, newTitle.trim());
+              }
+            },
+            'plain-text',
+            track.title,
+          );
+        },
+      },
       { text: 'Delete', style: 'destructive', onPress: () => removeTrack(track.id) },
+      { text: 'Cancel', style: 'cancel' },
     ]);
   };
 
@@ -143,7 +181,7 @@ export default function LibraryScreen() {
             <TrackItem
               track={item}
               onPress={() => handlePlay(item)}
-              onDelete={() => handleDelete(item)}
+              onLongPress={() => handleLongPress(item)}
               onAnalyze={() => handleAnalyze(item)}
             />
           )}
@@ -219,6 +257,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
+  },
+  mediaThumbnail: {
+    width: 64,
+    height: 44,
+    borderRadius: 8,
+    marginRight: Spacing.md,
+    backgroundColor: '#000',
   },
   trackIcon: {
     width: 44,

@@ -1,4 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Track, MediaType } from '../types/track';
 
 const AUDIO_TYPES = ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/flac', 'audio/mp4', 'audio/x-m4a', 'audio/aac'];
@@ -42,14 +43,26 @@ export async function pickMediaFile(): Promise<Track | null> {
   }
 
   const asset = result.assets[0];
+  const mediaType = getMediaType(asset.mimeType, asset.name);
+
+  // Generate thumbnail for video files
+  let thumbnailUri: string | undefined;
+  if (mediaType === 'video') {
+    try {
+      const thumb = await VideoThumbnails.getThumbnailAsync(asset.uri, { time: 1000 });
+      thumbnailUri = thumb.uri;
+    } catch {}
+  }
+
   const track: Track = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     title: asset.name.replace(/\.[^/.]+$/, ''),
     uri: asset.uri,
     fileSize: asset.size ?? 0,
     format: getFormat(asset.mimeType, asset.name),
-    mediaType: getMediaType(asset.mimeType, asset.name),
+    mediaType,
     importedAt: Date.now(),
+    thumbnailUri,
     analysisStatus: 'idle',
   };
 
