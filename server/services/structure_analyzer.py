@@ -98,6 +98,85 @@ def analyze_structure(
     return sections
 
 
+def analyze_structure_with_phrases(
+    audio_path: str,
+    duration: float,
+    beats: list[float],
+    downbeats: list[float] | None = None,
+) -> tuple[list[SectionInfo], list[float]]:
+    """
+    Same as analyze_structure but also returns phrase boundary timestamps.
+
+    The SSM + agglomerative boundaries represent natural musical phrase changes.
+    We return them as phrase_boundaries for the client to build phrase segments.
+
+    Returns:
+        (sections, phrase_boundaries) where phrase_boundaries are sorted
+        timestamps in seconds, snapped to downbeats/beats.
+    """
+    if len(beats) < 8:
+        return (
+            [SectionInfo(
+                label="derecho",
+                start_time=0.0,
+                end_time=round(duration, 3),
+                confidence=0.3,
+            )],
+            [],
+        )
+
+    # 1. Load audio
+    y, sr = librosa.load(audio_path, sr=22050)
+    hop_length = 512
+
+    # 2. Harmonic-Percussive Source Separation
+    y_harmonic, y_percussive = librosa.effects.hpss(y)
+
+    # 3. Compute beat-synchronous features
+    beat_times = np.array(beats)
+    features = _compute_features(
+        y, y_harmonic, y_percussive, sr, hop_length, beat_times
+    )
+
+    # 4. Find boundaries via beat-sync SSM + checkerboard kernel
+    boundaries = _find_boundaries_ssm(features, beat_times)
+
+    # Also get agglomerative boundaries as fallback/supplement
+    agg_boundaries = _find_boundaries_agglomerative(
+        features["mfcc_sync"], beat_times
+    )
+
+    # Merge both boundary sets
+    boundaries = _merge_boundaries(boundaries, agg_boundaries, min_gap=5.0)
+
+    if len(boundaries) < 1:
+        return (
+            [SectionInfo(
+                label="derecho",
+                start_time=0.0,
+                end_time=round(duration, 3),
+                confidence=0.3,
+            )],
+            [],
+        )
+
+    # 5. Snap boundaries to downbeats (phrase-aligned) or beats
+    boundaries = _snap_to_phrases(boundaries, beats, downbeats)
+
+    # ── Phrase boundaries = snapped boundaries (the core output) ──
+    phrase_boundaries = [round(b, 3) for b in boundaries]
+
+    # 6. Compute per-segment features (from beat-sync data)
+    segments = _compute_segment_features(
+        boundaries, duration, features, beat_times
+    )
+
+    # 7. Classify segments
+    sections = _classify_segments(segments, duration)
+
+    return sections, phrase_boundaries
+
+
 # ─── Feature Extraction (Beat-Synchronous) ─────────────────────────────
 
 def _compute_features(

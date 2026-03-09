@@ -16,6 +16,8 @@ class AnalysisResult(BaseModel):
     beats_per_bar: int          # typically 4 for 4/4 time
     confidence: float           # analysis confidence 0-1
     sections: list[SectionInfo] = []  # music structure sections (backward compatible)
+    phrase_boundaries: list[float] = []  # phrase boundary timestamps in seconds (auto-detected)
+    waveform_peaks: list[float] = []  # 200 normalized amplitude peaks (0.0-1.0) for visualization
 
 
 class HealthResponse(BaseModel):

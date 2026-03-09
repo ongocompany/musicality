@@ -76,6 +76,8 @@ export async function analyzeTrack(
         endTime: s.end_time,
         confidence: s.confidence,
       })),
+      phraseBoundaries: data.phrase_boundaries ?? [],
+      waveformPeaks: data.waveform_peaks ?? [],
     };
   } finally {
     clearTimeout(timeout);

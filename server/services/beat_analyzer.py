@@ -8,7 +8,7 @@ from madmom.features.beats import RNNBeatProcessor, DBNBeatTrackingProcessor
 from madmom.features.downbeats import RNNDownBeatProcessor, DBNDownBeatTrackingProcessor
 
 from models.schemas import AnalysisResult
-from services.structure_analyzer import analyze_structure
+from services.structure_analyzer import analyze_structure, analyze_structure_with_phrases
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".m4v"}
 
@@ -103,13 +103,23 @@ def _do_analysis(audio_path: str) -> AnalysisResult:
     # 5. Calculate confidence based on beat regularity
     confidence = _calculate_confidence(beats, tempo)
 
-    # 6. Structure analysis (section detection)
+    # 6. Structure analysis (section detection) + phrase boundaries
     beats_list = [round(float(b), 3) for b in beats]
     downbeats_list = [round(d, 3) for d in downbeats]
+    phrase_boundaries: list[float] = []
     try:
-        sections = analyze_structure(audio_path, duration, beats_list, downbeats_list)
+        sections, phrase_boundaries = analyze_structure_with_phrases(
+            audio_path, duration, beats_list, downbeats_list
+        )
     except Exception:
         sections = []  # graceful degradation — beats still work without sections
+
+    # 7. Waveform peaks for client visualization (200 samples)
+    num_peaks = 200
+    hop = max(1, len(y) // num_peaks)
+    frames = [float(np.max(np.abs(y[i:i + hop]))) for i in range(0, len(y), hop)][:num_peaks]
+    max_amp = max(frames) if frames else 1.0
+    waveform_peaks = [round(f / max_amp, 3) for f in frames]
 
     return AnalysisResult(
         bpm=round(tempo, 1),
@@ -119,6 +129,8 @@ def _do_analysis(audio_path: str) -> AnalysisResult:
         beats_per_bar=beats_per_bar,
         confidence=round(confidence, 2),
         sections=sections,
+        phrase_boundaries=phrase_boundaries,
+        waveform_peaks=waveform_peaks,
     )
 
 

@@ -63,7 +63,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   toggleCue: () => set((state) => ({ cueEnabled: !state.cueEnabled })),
 
   // Phrase detection
-  phraseDetectionMode: 'rule-based',
+  phraseDetectionMode: 'server',
   setPhraseDetectionMode: (mode) => set({ phraseDetectionMode: mode }),
   defaultBeatsPerPhrase: 32,
   setDefaultBeatsPerPhrase: (n) => set({ defaultBeatsPerPhrase: Math.max(8, Math.round(n / 8) * 8) }),

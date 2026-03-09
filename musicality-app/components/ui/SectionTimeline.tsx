@@ -1,25 +1,30 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { Phrase } from '../../types/analysis';
 import { getPhraseColor, Colors, FontSize, Spacing } from '../../constants/theme';
+import { WaveformOverlay } from './WaveformOverlay';
 
 interface SectionTimelineProps {
   phrases: Phrase[];
   duration: number;       // seconds
   currentTimeMs: number;  // milliseconds
+  waveformPeaks?: number[];
 }
 
 /**
  * Horizontal bar showing colored rectangles for each phrase.
  * Current phrase gets a bright border; short phrases hide labels.
+ * Optionally overlays a waveform visualization.
  */
-export function SectionTimeline({ phrases, duration, currentTimeMs }: SectionTimelineProps) {
+export function SectionTimeline({ phrases, duration, currentTimeMs, waveformPeaks }: SectionTimelineProps) {
   if (!phrases || phrases.length === 0 || duration <= 0) return null;
 
   const currentTimeSec = currentTimeMs / 1000;
+  const progress = duration > 0 ? currentTimeSec / duration : 0;
 
   return (
     <View style={styles.container}>
       <View style={styles.bar}>
+        {/* Phrase segments */}
         {phrases.map((phrase) => {
           const startPct = (phrase.startTime / duration) * 100;
           const widthPct = ((phrase.endTime - phrase.startTime) / duration) * 100;
@@ -54,6 +59,10 @@ export function SectionTimeline({ phrases, duration, currentTimeMs }: SectionTim
             </View>
           );
         })}
+        {/* Waveform layer (on top of phrase segments) */}
+        {waveformPeaks && waveformPeaks.length > 0 && (
+          <WaveformOverlay peaks={waveformPeaks} progress={progress} />
+        )}
       </View>
     </View>
   );
@@ -65,8 +74,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   bar: {
-    height: 22,
-    borderRadius: 4,
+    height: 66,
+    borderRadius: 8,
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: Colors.surface,
@@ -77,10 +86,11 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 3,
+    borderRadius: 6,
+    zIndex: 2,
   },
   label: {
-    fontSize: FontSize.xs,
+    fontSize: FontSize.md,
     fontWeight: '700',
     letterSpacing: 0.5,
   },

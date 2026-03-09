@@ -131,8 +131,23 @@ export default function LibraryScreen() {
     router.navigate('/(tabs)/player');
   };
 
+  const handleReanalyze = (track: Track) => {
+    Alert.alert(
+      'Re-analyze Track',
+      '기존 분석 데이터(BPM, 박자, 프레이즈 등)가 삭제되고 새로 분석됩니다. 계속하시겠습니까?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Re-analyze',
+          style: 'destructive',
+          onPress: () => handleAnalyze(track),
+        },
+      ],
+    );
+  };
+
   const handleLongPress = (track: Track) => {
-    Alert.alert(track.title, undefined, [
+    const options: any[] = [
       {
         text: 'Rename',
         onPress: () => {
@@ -149,9 +164,19 @@ export default function LibraryScreen() {
           );
         },
       },
+    ];
+    // Show re-analyze option for non-YouTube tracks that have been analyzed
+    if (track.mediaType !== 'youtube' && track.analysisStatus === 'done') {
+      options.push({
+        text: 'Re-analyze',
+        onPress: () => handleReanalyze(track),
+      });
+    }
+    options.push(
       { text: 'Delete', style: 'destructive', onPress: () => removeTrack(track.id) },
       { text: 'Cancel', style: 'cancel' },
-    ]);
+    );
+    Alert.alert(track.title, undefined, options);
   };
 
   const handleAnalyze = async (track: Track) => {

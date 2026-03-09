@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.xs,
   },
   count: {
     fontSize: FontSize.count,
