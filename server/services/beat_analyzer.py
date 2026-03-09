@@ -1,3 +1,7 @@
+import os
+import subprocess
+import tempfile
+
 import numpy as np
 import librosa
 from madmom.features.beats import RNNBeatProcessor, DBNBeatTrackingProcessor
@@ -6,14 +10,53 @@ from madmom.features.downbeats import RNNDownBeatProcessor, DBNDownBeatTrackingP
 from models.schemas import AnalysisResult
 from services.structure_analyzer import analyze_structure
 
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".m4v"}
+
+
+def _extract_audio_from_video(video_path: str) -> str:
+    """
+    Extract audio from a video file using ffmpeg.
+    Returns path to temporary wav file (caller must delete).
+    """
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    tmp.close()
+    try:
+        subprocess.run(
+            ["ffmpeg", "-i", video_path, "-vn", "-acodec", "pcm_s16le",
+             "-ar", "22050", "-ac", "1", "-y", tmp.name],
+            capture_output=True, check=True, timeout=60,
+        )
+        return tmp.name
+    except Exception:
+        os.unlink(tmp.name)
+        raise
+
 
 def analyze_audio(audio_path: str) -> AnalysisResult:
     """
-    Analyze an audio file for beats, downbeats, and BPM.
+    Analyze an audio/video file for beats, downbeats, and BPM.
 
+    For video files (mp4, mov, etc.), extracts audio track first via ffmpeg.
     Uses Madmom (RNN + DBN) for beat/downbeat detection (state-of-the-art accuracy)
     and Librosa for BPM estimation and audio metadata.
     """
+
+    # 0. If video file, extract audio first
+    ext = os.path.splitext(audio_path)[1].lower()
+    extracted_audio = None
+    if ext in VIDEO_EXTENSIONS:
+        extracted_audio = _extract_audio_from_video(audio_path)
+        audio_path = extracted_audio
+
+    try:
+        return _do_analysis(audio_path)
+    finally:
+        if extracted_audio and os.path.exists(extracted_audio):
+            os.unlink(extracted_audio)
+
+
+def _do_analysis(audio_path: str) -> AnalysisResult:
+    """Core analysis logic on an audio file."""
 
     # 1. Load audio with librosa for duration and BPM
     y, sr = librosa.load(audio_path, sr=22050)

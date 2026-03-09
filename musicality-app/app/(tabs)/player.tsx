@@ -105,40 +105,64 @@ export default function PlayerScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Track Info */}
-      <View style={styles.trackHeader}>
-        <Ionicons name={isVideo ? 'videocam' : 'musical-notes'} size={40} color={Colors.primary} />
-        <Text style={styles.trackTitle} numberOfLines={2}>{currentTrack.title}</Text>
-        <View style={styles.trackMetaRow}>
-          <Text style={styles.trackFormat}>{currentTrack.format.toUpperCase()}</Text>
-          {currentTrack.analysis && (
-            <View style={styles.bpmBadge}>
-              <Text style={styles.bpmText}>{Math.round(currentTrack.analysis.bpm)} BPM</Text>
+    <ScrollView style={styles.container} contentContainerStyle={isVideo ? styles.videoContentContainer : styles.contentContainer}>
+      {/* Track Info — compact for video, full for audio */}
+      {isVideo ? (
+        <View style={styles.videoHeader}>
+          <Text style={styles.videoHeaderTitle} numberOfLines={1}>{currentTrack.title}</Text>
+          <View style={styles.videoHeaderMeta}>
+            {currentTrack.analysis && (
+              <View style={styles.bpmBadge}>
+                <Text style={styles.bpmText}>{Math.round(currentTrack.analysis.bpm)} BPM</Text>
+              </View>
+            )}
+            {(!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
+              <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyze}>
+                <Ionicons name="analytics-outline" size={16} color={Colors.text} />
+                <Text style={styles.analyzeBtnText}>Analyze</Text>
+              </TouchableOpacity>
+            )}
+            {currentTrack.analysisStatus === 'analyzing' && (
+              <View style={styles.analyzingRow}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <Text style={styles.analyzingText}>Analyzing...</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      ) : (
+        <View style={styles.trackHeader}>
+          <Ionicons name="musical-notes" size={40} color={Colors.primary} />
+          <Text style={styles.trackTitle} numberOfLines={2}>{currentTrack.title}</Text>
+          <View style={styles.trackMetaRow}>
+            <Text style={styles.trackFormat}>{currentTrack.format.toUpperCase()}</Text>
+            {currentTrack.analysis && (
+              <View style={styles.bpmBadge}>
+                <Text style={styles.bpmText}>{Math.round(currentTrack.analysis.bpm)} BPM</Text>
+              </View>
+            )}
+            {currentTrack.analysis && (
+              <Text style={styles.confidenceText}>
+                {Math.round(currentTrack.analysis.confidence * 100)}%
+              </Text>
+            )}
+          </View>
+          {(!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
+            <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyze}>
+              <Ionicons name="analytics-outline" size={18} color={Colors.text} />
+              <Text style={styles.analyzeBtnText}>Analyze Beats</Text>
+            </TouchableOpacity>
+          )}
+          {currentTrack.analysisStatus === 'analyzing' && (
+            <View style={styles.analyzingRow}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.analyzingText}>Analyzing...</Text>
             </View>
           )}
-          {currentTrack.analysis && (
-            <Text style={styles.confidenceText}>
-              {Math.round(currentTrack.analysis.confidence * 100)}%
-            </Text>
-          )}
         </View>
-        {/* Analyze Button */}
-        {(!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
-          <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyze}>
-            <Ionicons name="analytics-outline" size={18} color={Colors.text} />
-            <Text style={styles.analyzeBtnText}>Analyze Beats</Text>
-          </TouchableOpacity>
-        )}
-        {currentTrack.analysisStatus === 'analyzing' && (
-          <View style={styles.analyzingRow}>
-            <ActivityIndicator size="small" color={Colors.primary} />
-            <Text style={styles.analyzingText}>Analyzing...</Text>
-          </View>
-        )}
-      </View>
+      )}
 
-      {/* Video Player (video tracks only) */}
+      {/* Video Player — full width, edge-to-edge */}
       {isVideo && (
         <View style={styles.videoSection}>
           <View style={styles.videoContainer}>
@@ -155,7 +179,6 @@ export default function PlayerScreen() {
               <VideoOverlay
                 countInfo={countInfo}
                 hasAnalysis={!!analysis}
-                sectionLabel={currentSection?.label?.toUpperCase()}
               />
             )}
           </View>
@@ -185,7 +208,7 @@ export default function PlayerScreen() {
       )}
 
       {/* Seek Bar */}
-      <View style={styles.seekSection}>
+      <View style={[styles.seekSection, isVideo && { paddingHorizontal: Spacing.lg }]}>
         <SeekBar
           value={position}
           max={duration || 1}
@@ -202,8 +225,8 @@ export default function PlayerScreen() {
           <Text style={styles.timeText}>{formatTime(position)}</Text>
           <Text style={styles.timeText}>{formatTime(duration)}</Text>
         </View>
-        {/* Section Timeline */}
-        {analysis?.sections && analysis.sections.length > 0 && (
+        {/* Section Timeline (audio only — video sections are unreliable for practice clips) */}
+        {!isVideo && analysis?.sections && analysis.sections.length > 0 && (
           <SectionTimeline
             sections={analysis.sections}
             duration={analysis.duration}
@@ -234,7 +257,7 @@ export default function PlayerScreen() {
       </View>
 
       {/* Speed Control */}
-      <View style={styles.speedSection}>
+      <View style={[styles.speedSection, isVideo && { paddingHorizontal: Spacing.lg }]}>
         <Text style={styles.sectionLabel}>Speed</Text>
         <View style={styles.speedRow}>
           {RATES.map((rate) => (
@@ -252,7 +275,7 @@ export default function PlayerScreen() {
       </View>
 
       {/* Loop Controls (A-B Repeat) */}
-      <View style={styles.loopSection}>
+      <View style={[styles.loopSection, isVideo && { paddingHorizontal: Spacing.lg }]}>
         <Text style={styles.sectionLabel}>Loop (A-B)</Text>
         <View style={styles.loopRow}>
           <TouchableOpacity
@@ -304,10 +327,30 @@ export default function PlayerScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   contentContainer: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  videoContentContainer: { paddingHorizontal: 0, paddingBottom: Spacing.xxl },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm },
   emptyTitle: { color: Colors.text, fontSize: FontSize.xl, fontWeight: '600', marginTop: Spacing.md },
   emptySubtitle: { color: Colors.textSecondary, fontSize: FontSize.md },
 
+  videoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  videoHeaderTitle: {
+    color: Colors.text,
+    fontSize: FontSize.md,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  videoHeaderMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   trackHeader: { alignItems: 'center', marginTop: Spacing.xl, gap: Spacing.sm },
   trackTitle: { color: Colors.text, fontSize: FontSize.xxl, fontWeight: '700', textAlign: 'center' },
   trackMetaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
@@ -337,13 +380,12 @@ const styles = StyleSheet.create({
 
   videoSection: {
     alignItems: 'center',
-    marginTop: Spacing.lg,
   },
   videoContainer: {
     width: '100%',
-    aspectRatio: 16 / 9,
+    aspectRatio: 9 / 16,
+    maxHeight: 480,
     backgroundColor: '#000',
-    borderRadius: 12,
     overflow: 'hidden',
   },
   video: {

@@ -1,3 +1,11 @@
+# Numpy compatibility shim — madmom's compiled Cython extensions use np.int/np.float
+# which were removed in NumPy 1.24+. Restore them before any madmom import.
+import numpy as np
+np.int = int  # type: ignore[attr-defined]
+np.float = float  # type: ignore[attr-defined]
+np.complex = complex  # type: ignore[attr-defined]
+np.bool = bool  # type: ignore[attr-defined]
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

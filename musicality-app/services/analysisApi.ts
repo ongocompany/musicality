@@ -34,12 +34,14 @@ export async function analyzeTrack(
     m4a: 'audio/mp4',
     aac: 'audio/aac',
     ogg: 'audio/ogg',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
   };
 
   const formData = new FormData();
   formData.append('file', {
     uri,
-    name: fileName || `track.${format}`,
+    name: `${fileName || 'track'}.${format}`,
     type: mimeMap[format] || 'audio/mpeg',
   } as any);
 

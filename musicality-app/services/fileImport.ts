@@ -2,8 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Track, MediaType } from '../types/track';
 
 const AUDIO_TYPES = ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/flac', 'audio/mp4', 'audio/x-m4a', 'audio/aac'];
-const VIDEO_TYPES = ['video/mp4', 'video/quicktime'];
-const ALL_MEDIA_TYPES = [...AUDIO_TYPES, ...VIDEO_TYPES];
+const ALL_MEDIA_TYPES = [...AUDIO_TYPES, 'video/*'];
 
 const FORMAT_MAP: Record<string, string> = {
   'audio/mpeg': 'mp3',

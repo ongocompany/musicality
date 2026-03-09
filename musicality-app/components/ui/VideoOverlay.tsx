@@ -5,14 +5,13 @@ import { CountInfo, getBeatTypeLabel } from '../../utils/beatCounter';
 interface VideoOverlayProps {
   countInfo: CountInfo | null;
   hasAnalysis: boolean;
-  sectionLabel?: string;
 }
 
 /**
  * Semi-transparent count overlay positioned on top of video.
- * Shows the current beat count (1-8) and optional section label.
+ * Shows the current beat count (1-8) in the bottom-right corner.
  */
-export function VideoOverlay({ countInfo, hasAnalysis, sectionLabel }: VideoOverlayProps) {
+export function VideoOverlay({ countInfo, hasAnalysis }: VideoOverlayProps) {
   if (!hasAnalysis || !countInfo) return null;
 
   const isTapOrPause = countInfo.beatType === 'tap' || countInfo.beatType === 'pause';
@@ -20,13 +19,6 @@ export function VideoOverlay({ countInfo, hasAnalysis, sectionLabel }: VideoOver
 
   return (
     <View style={styles.overlay} pointerEvents="none">
-      {/* Section label */}
-      {sectionLabel && (
-        <View style={styles.sectionBadge}>
-          <Text style={styles.sectionText}>{sectionLabel}</Text>
-        </View>
-      )}
-
       {/* Count display */}
       <View style={styles.countContainer}>
         <Text style={[styles.count, { color: countColor }]}>
@@ -64,21 +56,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     fontWeight: '700',
     letterSpacing: 2,
-    textTransform: 'uppercase',
-  },
-  sectionBadge: {
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 6,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    marginBottom: Spacing.xs,
-    alignSelf: 'flex-start',
-  },
-  sectionText: {
-    color: Colors.text,
-    fontSize: FontSize.xs,
-    fontWeight: '600',
-    letterSpacing: 1,
     textTransform: 'uppercase',
   },
 });

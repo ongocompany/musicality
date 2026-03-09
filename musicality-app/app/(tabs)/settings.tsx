@@ -52,7 +52,7 @@ export default function SettingsScreen() {
         <View style={styles.row}>
           <Ionicons name="information-circle-outline" size={20} color={Colors.textSecondary} />
           <Text style={styles.label}>Version</Text>
-          <Text style={styles.value}>1.0.0 (M3)</Text>
+          <Text style={styles.value}>1.0.0 (M7)</Text>
         </View>
       </View>
 

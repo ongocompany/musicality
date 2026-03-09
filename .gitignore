@@ -34,6 +34,13 @@ yarn-error.log*
 tmp/
 temp/
 
+# Python
+__pycache__/
+*.pyc
+venv/
+uploads/
+samples/
+
 # Local tool configs
 .bkit/
 .omc/
