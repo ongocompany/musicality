@@ -27,7 +27,7 @@ export function useAudioPlayer() {
         await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
-      if (!currentTrack) return;
+      if (!currentTrack || currentTrack.mediaType === 'video' || currentTrack.mediaType === 'youtube') return;
 
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,

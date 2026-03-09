@@ -1,8 +1,9 @@
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { usePlayerStore } from '../../stores/playerStore';
-import { pickMediaFile } from '../../services/fileImport';
+import { pickMediaFile, parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
 import { analyzeTrack } from '../../services/analysisApi';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 import { Track } from '../../types/track';
@@ -52,18 +53,22 @@ function TrackItem({
   return (
     <TouchableOpacity style={styles.trackItem} onPress={onPress} onLongPress={onDelete}>
       <View style={styles.trackIcon}>
-        <Ionicons name={track.mediaType === 'video' ? 'videocam' : 'musical-notes'} size={24} color={Colors.primary} />
+        <Ionicons
+          name={track.mediaType === 'youtube' ? 'logo-youtube' : track.mediaType === 'video' ? 'videocam' : 'musical-notes'}
+          size={24}
+          color={track.mediaType === 'youtube' ? '#FF0000' : Colors.primary}
+        />
       </View>
       <View style={styles.trackInfo}>
         <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
         <View style={styles.trackMetaRow}>
           <Text style={styles.trackMeta}>
-            {track.format.toUpperCase()} · {formatFileSize(track.fileSize)}
+            {track.mediaType === 'youtube' ? 'YouTube' : `${track.format.toUpperCase()} · ${formatFileSize(track.fileSize)}`}
           </Text>
           <AnalysisBadge track={track} />
         </View>
       </View>
-      {track.analysisStatus === 'idle' || track.analysisStatus === 'error' ? (
+      {track.mediaType !== 'youtube' && (track.analysisStatus === 'idle' || track.analysisStatus === 'error') ? (
         <TouchableOpacity style={styles.analyzeButton} onPress={onAnalyze}>
           <Ionicons name="analytics-outline" size={20} color={Colors.primary} />
         </TouchableOpacity>
@@ -77,12 +82,26 @@ function TrackItem({
 export default function LibraryScreen() {
   const { tracks, addTrack, removeTrack, setCurrentTrack, setTrackAnalysisStatus, setTrackAnalysis } = usePlayerStore();
   const router = useRouter();
+  const [showYouTubeInput, setShowYouTubeInput] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
 
   const handleImport = async () => {
     const track = await pickMediaFile();
     if (track) {
       addTrack(track);
     }
+  };
+
+  const handleAddYouTube = () => {
+    const videoId = parseYouTubeUrl(youtubeUrl);
+    if (!videoId) {
+      Alert.alert('Invalid URL', 'Please enter a valid YouTube URL.');
+      return;
+    }
+    const track = createYouTubeTrack(videoId);
+    addTrack(track);
+    setYoutubeUrl('');
+    setShowYouTubeInput(false);
   };
 
   const handlePlay = (track: Track) => {
@@ -132,9 +151,57 @@ export default function LibraryScreen() {
         />
       )}
 
-      <TouchableOpacity style={styles.fab} onPress={handleImport}>
-        <Ionicons name="add" size={28} color={Colors.text} />
-      </TouchableOpacity>
+      {/* YouTube URL input — modal overlay at top, keyboard-aware */}
+      {showYouTubeInput && (
+        <KeyboardAvoidingView
+          style={styles.youtubeOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={100}
+        >
+          <TouchableOpacity
+            style={styles.youtubeBackdrop}
+            activeOpacity={1}
+            onPress={() => { setShowYouTubeInput(false); setYoutubeUrl(''); }}
+          />
+          <View style={styles.youtubeInputPanel}>
+            <Text style={styles.youtubeInputLabel}>YouTube URL</Text>
+            <View style={styles.youtubeInputRow}>
+              <TextInput
+                style={styles.youtubeInput}
+                placeholder="https://youtube.com/watch?v=..."
+                placeholderTextColor={Colors.textMuted}
+                value={youtubeUrl}
+                onChangeText={setYoutubeUrl}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus={true}
+                keyboardType="url"
+                returnKeyType="done"
+                onSubmitEditing={handleAddYouTube}
+              />
+              <TouchableOpacity style={styles.youtubeAddBtn} onPress={handleAddYouTube}>
+                <Ionicons name="add-circle" size={32} color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity onPress={() => { setShowYouTubeInput(false); setYoutubeUrl(''); }}>
+              <Text style={styles.youtubeCancel}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      )}
+
+      {/* FAB buttons: file import + YouTube */}
+      <View style={styles.fabContainer}>
+        <TouchableOpacity
+          style={[styles.fabSmall, styles.fabYouTube]}
+          onPress={() => setShowYouTubeInput(!showYouTubeInput)}
+        >
+          <Ionicons name="logo-youtube" size={22} color="#FFF" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.fab} onPress={handleImport}>
+          <Ionicons name="add" size={28} color={Colors.text} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -183,10 +250,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  fab: {
+  fabContainer: {
     position: 'absolute',
     right: Spacing.lg,
     bottom: Spacing.lg,
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  fabSmall: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  fabYouTube: {
+    backgroundColor: '#CC0000',
+  },
+  fab: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -198,5 +284,58 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
+  },
+
+  // YouTube URL input — modal overlay
+  youtubeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  youtubeBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  youtubeInputPanel: {
+    marginHorizontal: Spacing.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: Spacing.md,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  youtubeInputLabel: {
+    color: Colors.text,
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    marginBottom: Spacing.sm,
+  },
+  youtubeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  youtubeInput: {
+    flex: 1,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 8,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    color: Colors.text,
+    fontSize: FontSize.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  youtubeAddBtn: {
+    padding: Spacing.xs,
+  },
+  youtubeCancel: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.sm,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
   },
 });

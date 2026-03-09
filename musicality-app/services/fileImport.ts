@@ -56,5 +56,52 @@ export async function pickMediaFile(): Promise<Track | null> {
   return track;
 }
 
+// ─── YouTube helpers ───────────────────────────────────────────
+
+/**
+ * Extract YouTube video ID from various URL formats:
+ *  - https://www.youtube.com/watch?v=ID
+ *  - https://youtu.be/ID
+ *  - https://youtube.com/shorts/ID
+ *  - https://m.youtube.com/watch?v=ID
+ *  - https://www.youtube.com/embed/ID
+ * Returns null if no valid ID found.
+ */
+export function parseYouTubeUrl(url: string): string | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+
+  // youtu.be/ID
+  const shortMatch = trimmed.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  if (shortMatch) return shortMatch[1];
+
+  // youtube.com/watch?v=ID  or  youtube.com/shorts/ID  or  youtube.com/embed/ID
+  const longMatch = trimmed.match(
+    /youtube\.com\/(?:watch\?.*v=|shorts\/|embed\/)([a-zA-Z0-9_-]{11})/,
+  );
+  if (longMatch) return longMatch[1];
+
+  // Bare video ID (exactly 11 chars)
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+
+  return null;
+}
+
+/**
+ * Create a Track object for a YouTube video.
+ */
+export function createYouTubeTrack(videoId: string, title?: string): Track {
+  return {
+    id: `yt-${videoId}-${Date.now()}`,
+    title: title || `YouTube: ${videoId}`,
+    uri: videoId, // store videoId, not full URL
+    fileSize: 0,
+    format: 'youtube',
+    mediaType: 'youtube',
+    importedAt: Date.now(),
+    analysisStatus: 'idle',
+  };
+}
+
 /** @deprecated Use pickMediaFile instead */
 export const pickAudioFile = pickMediaFile;

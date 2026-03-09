@@ -1,5 +1,7 @@
+import { useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
+import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
 import { SeekBar } from '../../components/ui/SeekBar';
 import { CountDisplay } from '../../components/ui/CountDisplay';
@@ -7,11 +9,14 @@ import { VideoOverlay } from '../../components/ui/VideoOverlay';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useTapTempoStore } from '../../stores/tapTempoStore';
 import { useAudioPlayer } from '../../hooks/useAudioPlayer';
 import { useVideoPlayer } from '../../hooks/useVideoPlayer';
+import { useYouTubePlayer } from '../../hooks/useYouTubePlayer';
 import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
 import { getCountInfo, findNearestBeatIndex, findCurrentSection } from '../../utils/beatCounter';
+import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
 import { Colors, SectionColors, Spacing, FontSize } from '../../constants/theme';
 
 const RATES = [0.5, 0.75, 1.0, 1.25, 1.5];
@@ -43,14 +48,33 @@ export default function PlayerScreen() {
   } = usePlayerStore();
 
   const isVideo = currentTrack?.mediaType === 'video';
+  const isYouTube = currentTrack?.mediaType === 'youtube';
+  const isVisual = isVideo || isYouTube; // any visual media (compact header, no section timeline)
+
   const audioPlayer = useAudioPlayer();
   const videoPlayer = useVideoPlayer();
+  const youtubePlayer = useYouTubePlayer();
 
   // Use the appropriate player based on media type
-  const togglePlay = isVideo ? videoPlayer.togglePlay : audioPlayer.togglePlay;
-  const seekTo = isVideo ? videoPlayer.seekTo : audioPlayer.seekTo;
+  const togglePlay = isYouTube
+    ? youtubePlayer.togglePlay
+    : isVideo
+      ? videoPlayer.togglePlay
+      : audioPlayer.togglePlay;
+  const seekTo = isYouTube
+    ? youtubePlayer.seekTo
+    : isVideo
+      ? videoPlayer.seekTo
+      : audioPlayer.seekTo;
 
   useCuePlayer(); // fires cue sounds on each beat
+
+  // Tap tempo store (for YouTube inline tap tempo)
+  const tapBpm = useTapTempoStore((s) => s.bpm);
+  const tapPhase = useTapTempoStore((s) => s.phase);
+  const recordTap = useTapTempoStore((s) => s.recordTap);
+  const adjustBpm = useTapTempoStore((s) => s.adjustBpm);
+  const resetTapTempo = useTapTempoStore((s) => s.reset);
 
   const danceStyle = useSettingsStore((s) => s.danceStyle);
   const cueEnabled = useSettingsStore((s) => s.cueEnabled);
@@ -59,8 +83,12 @@ export default function PlayerScreen() {
   const downbeatOffsets = useSettingsStore((s) => s.downbeatOffsets);
   const setDownbeatOffset = useSettingsStore((s) => s.setDownbeatOffset);
 
+  // YouTube state change handler
+  const onYtStateChange = useCallback((state: string) => {
+    youtubePlayer.onStateChange(state);
+  }, []);
+
   // Compute current count from position + analysis data
-  // Apply lookAheadMs to compensate for audio output latency
   const analysis = currentTrack?.analysis;
   const offsetBeatIndex = currentTrack ? (downbeatOffsets[currentTrack.id] ?? null) : null;
   const countInfo = analysis
@@ -73,10 +101,28 @@ export default function PlayerScreen() {
     : null;
 
   const handleNowIsOne = () => {
-    if (!currentTrack || !analysis) return;
-    const nearestIdx = findNearestBeatIndex(position, analysis.beats);
-    if (nearestIdx >= 0) {
-      setDownbeatOffset(currentTrack.id, nearestIdx);
+    if (!currentTrack) return;
+
+    if (isYouTube) {
+      // For YouTube: generate synthetic beats from tap tempo BPM anchored at current position
+      if (tapBpm <= 0) {
+        Alert.alert('BPM 필요', '먼저 TAP 버튼으로 BPM을 설정하세요.');
+        return;
+      }
+      const synth = generateSyntheticAnalysis(tapBpm, duration, position);
+      setTrackAnalysis(currentTrack.id, synth);
+      // Set downbeat offset to the anchor beat
+      const anchorIdx = findNearestBeatIndex(position, synth.beats);
+      if (anchorIdx >= 0) {
+        setDownbeatOffset(currentTrack.id, anchorIdx);
+      }
+    } else {
+      // For audio/video: snap to nearest analyzed beat
+      if (!analysis) return;
+      const nearestIdx = findNearestBeatIndex(position, analysis.beats);
+      if (nearestIdx >= 0) {
+        setDownbeatOffset(currentTrack.id, nearestIdx);
+      }
     }
   };
 
@@ -105,10 +151,16 @@ export default function PlayerScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={isVideo ? styles.videoContentContainer : styles.contentContainer}>
-      {/* Track Info — compact for video, full for audio */}
-      {isVideo ? (
+    <ScrollView style={styles.container} contentContainerStyle={isVisual ? styles.videoContentContainer : styles.contentContainer}>
+      {/* Track Info — compact for visual media, full for audio */}
+      {isVisual ? (
         <View style={styles.videoHeader}>
+          <Ionicons
+            name={isYouTube ? 'logo-youtube' : 'videocam'}
+            size={18}
+            color={isYouTube ? '#FF0000' : Colors.primary}
+            style={{ marginRight: Spacing.xs }}
+          />
           <Text style={styles.videoHeaderTitle} numberOfLines={1}>{currentTrack.title}</Text>
           <View style={styles.videoHeaderMeta}>
             {currentTrack.analysis && (
@@ -116,7 +168,8 @@ export default function PlayerScreen() {
                 <Text style={styles.bpmText}>{Math.round(currentTrack.analysis.bpm)} BPM</Text>
               </View>
             )}
-            {(!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
+            {/* Show Analyze button for video (not YouTube — YouTube uses tap tempo) */}
+            {!isYouTube && (!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
               <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyze}>
                 <Ionicons name="analytics-outline" size={16} color={Colors.text} />
                 <Text style={styles.analyzeBtnText}>Analyze</Text>
@@ -162,6 +215,42 @@ export default function PlayerScreen() {
         </View>
       )}
 
+      {/* YouTube Player */}
+      {isYouTube && (
+        <View style={styles.videoSection}>
+          <View style={styles.youtubeContainer}>
+            <YoutubePlayer
+              ref={youtubePlayer.playerRef}
+              height={240}
+              videoId={currentTrack.uri}
+              play={isPlaying}
+              onReady={youtubePlayer.onReady}
+              onChangeState={onYtStateChange}
+              webViewProps={{
+                allowsInlineMediaPlayback: true,
+                // Bridge: forward document messages to window (RN WebView may dispatch on document)
+                injectedJavaScript: `
+                  (function(){
+                    document.addEventListener('message', function(e) {
+                      window.dispatchEvent(new MessageEvent('message', {data: e.data}));
+                    });
+                  })(); true;
+                `,
+              }}
+            />
+            {/* Count overlay on top of YouTube */}
+            {analysis && (
+              <View style={styles.youtubeOverlay} pointerEvents="none">
+                <VideoOverlay
+                  countInfo={countInfo}
+                  hasAnalysis={!!analysis}
+                />
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
       {/* Video Player — full width, edge-to-edge */}
       {isVideo && (
         <View style={styles.videoSection}>
@@ -192,7 +281,7 @@ export default function PlayerScreen() {
       )}
 
       {/* Count Display (audio tracks only) */}
-      {!isVideo && currentTrack.analysisStatus === 'done' && (
+      {!isVisual && currentTrack.analysisStatus === 'done' && (
         <View style={styles.countSection}>
           {currentSection && (
             <View style={[styles.sectionBadge, { backgroundColor: SectionColors[currentSection.label] || Colors.textMuted }]}>
@@ -207,8 +296,57 @@ export default function PlayerScreen() {
         </View>
       )}
 
+      {/* YouTube Tap Tempo Section */}
+      {isYouTube && (
+        <View style={styles.tapTempoSection}>
+          <Text style={styles.sectionLabel}>Tap Tempo</Text>
+          <View style={styles.tapTempoRow}>
+            {/* TAP button */}
+            <TouchableOpacity
+              style={styles.tapButton}
+              onPress={recordTap}
+              activeOpacity={0.6}
+            >
+              <Ionicons name="hand-left" size={24} color={Colors.text} />
+              <Text style={styles.tapButtonText}>TAP</Text>
+            </TouchableOpacity>
+
+            {/* BPM display + adjust */}
+            <View style={styles.tapBpmContainer}>
+              <TouchableOpacity onPress={() => adjustBpm(-1)} style={styles.bpmAdjust}>
+                <Ionicons name="remove-circle-outline" size={28} color={Colors.textSecondary} />
+              </TouchableOpacity>
+              <Text style={styles.tapBpmValue}>
+                {tapBpm > 0 ? tapBpm : '--'}
+              </Text>
+              <Text style={styles.tapBpmLabel}>BPM</Text>
+              <TouchableOpacity onPress={() => adjustBpm(1)} style={styles.bpmAdjust}>
+                <Ionicons name="add-circle-outline" size={28} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* "지금이 1" — anchor + generate beats */}
+            <TouchableOpacity
+              style={[styles.nowIsOneButtonInline, tapBpm <= 0 && styles.disabledButton]}
+              onPress={handleNowIsOne}
+              disabled={tapBpm <= 0}
+            >
+              <Ionicons name="locate" size={20} color={tapBpm > 0 ? Colors.tapAccent : Colors.textMuted} />
+              <Text style={[styles.nowIsOneTextInline, tapBpm <= 0 && { color: Colors.textMuted }]}>
+                지금이 1
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.tapTempoHint}>
+            {!analysis
+              ? 'TAP으로 BPM을 맞추고, 영상의 1박에 "지금이 1"을 누르세요'
+              : `${Math.round(analysis.bpm)} BPM · 카운트 활성`}
+          </Text>
+        </View>
+      )}
+
       {/* Seek Bar */}
-      <View style={[styles.seekSection, isVideo && { paddingHorizontal: Spacing.lg }]}>
+      <View style={[styles.seekSection, isVisual && { paddingHorizontal: Spacing.lg }]}>
         <SeekBar
           value={position}
           max={duration || 1}
@@ -225,8 +363,8 @@ export default function PlayerScreen() {
           <Text style={styles.timeText}>{formatTime(position)}</Text>
           <Text style={styles.timeText}>{formatTime(duration)}</Text>
         </View>
-        {/* Section Timeline (audio only — video sections are unreliable for practice clips) */}
-        {!isVideo && analysis?.sections && analysis.sections.length > 0 && (
+        {/* Section Timeline (audio only — video/youtube sections are unreliable) */}
+        {!isVisual && analysis?.sections && analysis.sections.length > 0 && (
           <SectionTimeline
             sections={analysis.sections}
             duration={analysis.duration}
@@ -257,7 +395,7 @@ export default function PlayerScreen() {
       </View>
 
       {/* Speed Control */}
-      <View style={[styles.speedSection, isVideo && { paddingHorizontal: Spacing.lg }]}>
+      <View style={[styles.speedSection, isVisual && { paddingHorizontal: Spacing.lg }]}>
         <Text style={styles.sectionLabel}>Speed</Text>
         <View style={styles.speedRow}>
           {RATES.map((rate) => (
@@ -275,7 +413,7 @@ export default function PlayerScreen() {
       </View>
 
       {/* Loop Controls (A-B Repeat) */}
-      <View style={[styles.loopSection, isVideo && { paddingHorizontal: Spacing.lg }]}>
+      <View style={[styles.loopSection, isVisual && { paddingHorizontal: Spacing.lg }]}>
         <Text style={styles.sectionLabel}>Loop (A-B)</Text>
         <View style={styles.loopRow}>
           <TouchableOpacity
@@ -392,6 +530,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  youtubeContainer: {
+    width: '100%',
+    backgroundColor: '#000',
+  },
+  youtubeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10,
+  },
 
   countSection: {
     alignItems: 'center',
@@ -425,6 +571,86 @@ const styles = StyleSheet.create({
     color: Colors.tapAccent,
     fontSize: FontSize.sm,
     fontWeight: '600',
+  },
+
+  // ─── Tap Tempo (YouTube inline) ────────────────────
+  tapTempoSection: {
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.surface,
+    marginHorizontal: Spacing.md,
+    borderRadius: 12,
+  },
+  tapTempoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  tapButton: {
+    width: 64,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tapButtonText: {
+    color: Colors.text,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  tapBpmContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+  },
+  bpmAdjust: {
+    padding: Spacing.xs,
+  },
+  tapBpmValue: {
+    color: Colors.text,
+    fontSize: 32,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+    minWidth: 60,
+    textAlign: 'center',
+  },
+  tapBpmLabel: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+  },
+  nowIsOneButtonInline: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 64,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: Colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: Colors.tapAccent,
+  },
+  nowIsOneTextInline: {
+    color: Colors.tapAccent,
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  disabledButton: {
+    opacity: 0.4,
+    borderColor: Colors.textMuted,
+  },
+  tapTempoHint: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
   },
 
   seekSection: { marginTop: Spacing.xl },

@@ -1,6 +1,6 @@
 import { AnalysisResult, AnalysisStatus } from './analysis';
 
-export type MediaType = 'audio' | 'video';
+export type MediaType = 'audio' | 'video' | 'youtube';
 
 export interface Track {
   id: string;
