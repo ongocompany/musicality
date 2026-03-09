@@ -1,11 +1,14 @@
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { SeekBar } from '../../components/ui/SeekBar';
 import { CountDisplay } from '../../components/ui/CountDisplay';
+import { VideoOverlay } from '../../components/ui/VideoOverlay';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useAudioPlayer } from '../../hooks/useAudioPlayer';
+import { useVideoPlayer } from '../../hooks/useVideoPlayer';
 import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
 import { getCountInfo, findNearestBeatIndex, findCurrentSection } from '../../utils/beatCounter';
@@ -38,7 +41,15 @@ export default function PlayerScreen() {
     setTrackAnalysisStatus,
     setTrackAnalysis,
   } = usePlayerStore();
-  const { togglePlay, seekTo } = useAudioPlayer();
+
+  const isVideo = currentTrack?.mediaType === 'video';
+  const audioPlayer = useAudioPlayer();
+  const videoPlayer = useVideoPlayer();
+
+  // Use the appropriate player based on media type
+  const togglePlay = isVideo ? videoPlayer.togglePlay : audioPlayer.togglePlay;
+  const seekTo = isVideo ? videoPlayer.seekTo : audioPlayer.seekTo;
+
   useCuePlayer(); // fires cue sounds on each beat
 
   const danceStyle = useSettingsStore((s) => s.danceStyle);
@@ -97,7 +108,7 @@ export default function PlayerScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       {/* Track Info */}
       <View style={styles.trackHeader}>
-        <Ionicons name="musical-notes" size={40} color={Colors.primary} />
+        <Ionicons name={isVideo ? 'videocam' : 'musical-notes'} size={40} color={Colors.primary} />
         <Text style={styles.trackTitle} numberOfLines={2}>{currentTrack.title}</Text>
         <View style={styles.trackMetaRow}>
           <Text style={styles.trackFormat}>{currentTrack.format.toUpperCase()}</Text>
@@ -127,8 +138,38 @@ export default function PlayerScreen() {
         )}
       </View>
 
-      {/* Count Display */}
-      {currentTrack.analysisStatus === 'done' && (
+      {/* Video Player (video tracks only) */}
+      {isVideo && (
+        <View style={styles.videoSection}>
+          <View style={styles.videoContainer}>
+            <Video
+              ref={videoPlayer.videoRef}
+              source={{ uri: currentTrack.uri }}
+              style={styles.video}
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay={false}
+              progressUpdateIntervalMillis={50}
+              onPlaybackStatusUpdate={videoPlayer.onPlaybackStatusUpdate}
+            />
+            {currentTrack.analysisStatus === 'done' && (
+              <VideoOverlay
+                countInfo={countInfo}
+                hasAnalysis={!!analysis}
+                sectionLabel={currentSection?.label?.toUpperCase()}
+              />
+            )}
+          </View>
+          {currentTrack.analysisStatus === 'done' && (
+            <TouchableOpacity style={styles.nowIsOneButton} onPress={handleNowIsOne}>
+              <Ionicons name="locate-outline" size={18} color={Colors.tapAccent} />
+              <Text style={styles.nowIsOneText}>지금이 1</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Count Display (audio tracks only) */}
+      {!isVideo && currentTrack.analysisStatus === 'done' && (
         <View style={styles.countSection}>
           {currentSection && (
             <View style={[styles.sectionBadge, { backgroundColor: SectionColors[currentSection.label] || Colors.textMuted }]}>
@@ -293,6 +334,22 @@ const styles = StyleSheet.create({
   analyzeBtnText: { color: Colors.primary, fontSize: FontSize.sm, fontWeight: '600' },
   analyzingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   analyzingText: { color: Colors.primary, fontSize: FontSize.sm },
+
+  videoSection: {
+    alignItems: 'center',
+    marginTop: Spacing.lg,
+  },
+  videoContainer: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#000',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  video: {
+    width: '100%',
+    height: '100%',
+  },
 
   countSection: {
     alignItems: 'center',

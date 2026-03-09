@@ -2,7 +2,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndi
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { usePlayerStore } from '../../stores/playerStore';
-import { pickAudioFile } from '../../services/fileImport';
+import { pickMediaFile } from '../../services/fileImport';
 import { analyzeTrack } from '../../services/analysisApi';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 import { Track } from '../../types/track';
@@ -52,7 +52,7 @@ function TrackItem({
   return (
     <TouchableOpacity style={styles.trackItem} onPress={onPress} onLongPress={onDelete}>
       <View style={styles.trackIcon}>
-        <Ionicons name="musical-notes" size={24} color={Colors.primary} />
+        <Ionicons name={track.mediaType === 'video' ? 'videocam' : 'musical-notes'} size={24} color={Colors.primary} />
       </View>
       <View style={styles.trackInfo}>
         <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
@@ -79,7 +79,7 @@ export default function LibraryScreen() {
   const router = useRouter();
 
   const handleImport = async () => {
-    const track = await pickAudioFile();
+    const track = await pickMediaFile();
     if (track) {
       addTrack(track);
     }
@@ -114,7 +114,7 @@ export default function LibraryScreen() {
         <View style={styles.empty}>
           <Ionicons name="musical-notes-outline" size={64} color={Colors.textMuted} />
           <Text style={styles.emptyTitle}>No tracks yet</Text>
-          <Text style={styles.emptySubtitle}>Import audio files to start practicing</Text>
+          <Text style={styles.emptySubtitle}>Import audio or video files to start practicing</Text>
         </View>
       ) : (
         <FlatList
