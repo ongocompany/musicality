@@ -1,7 +1,8 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { usePlayerStore } from '../stores/playerStore';
 import { useSettingsStore } from '../stores/settingsStore';
-import { findCurrentBeatIndex, computeReferenceIndex } from '../utils/beatCounter';
+import { findCurrentBeatIndex, computeReferenceIndex, findCurrentPhrase, getBeatType } from '../utils/beatCounter';
+import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries } from '../utils/phraseDetector';
 import { getCueSound } from '../constants/cueSounds';
 import { useSoundPool } from './useSoundPool';
 
@@ -13,6 +14,7 @@ import { useSoundPool } from './useSoundPool';
  * - Preload all sounds via useSoundPool (shared with useTapTempoCue)
  * - On each position update (~50ms), check if we crossed a new beat
  * - If new beat: lookup count → play corresponding sound via replayAsync()
+ * - Phrase-aware: count resets to 1 at phrase boundaries
  */
 export function useCuePlayer() {
   const lastFiredBeatRef = useRef<number>(-1);
@@ -38,8 +40,11 @@ export function useCuePlayer() {
     const { position, isPlaying, currentTrack } = usePlayerStore.getState();
     if (!isPlaying || !currentTrack?.analysis) return;
 
-    const { lookAheadMs, danceStyle, downbeatOffsets } = useSettingsStore.getState();
-    const { beats, downbeats, sections } = currentTrack.analysis;
+    const {
+      lookAheadMs, danceStyle, downbeatOffsets,
+      phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks,
+    } = useSettingsStore.getState();
+    const { beats, downbeats, sections, duration, phraseBoundaries } = currentTrack.analysis;
     if (beats.length === 0) return;
 
     const adjustedPos = position + lookAheadMs;
@@ -50,12 +55,43 @@ export function useCuePlayer() {
     if (beatIdx === lastFiredBeatRef.current) return;
     lastFiredBeatRef.current = beatIdx;
 
-    // Compute count (1-8)
+    // Compute count (1-8) with phrase awareness
     const offsetBeatIndex = downbeatOffsets[currentTrack.id] ?? null;
     const refIdx = computeReferenceIndex(beats, downbeats, offsetBeatIndex, sections);
-    const diff = beatIdx - refIdx;
-    const mod = ((diff % 8) + 8) % 8;
-    const count = mod + 1; // 1-8
+
+    // Build phraseMap inline (same logic as player.tsx)
+    let phraseMap;
+    switch (phraseDetectionMode) {
+      case 'rule-based':
+        phraseMap = detectPhrasesRuleBased(beats, refIdx, defaultBeatsPerPhrase, duration);
+        break;
+      case 'user-marked': {
+        const mark = phraseMarks[currentTrack.id];
+        phraseMap = mark != null
+          ? detectPhrasesFromUserMark(beats, refIdx, mark, duration)
+          : detectPhrasesRuleBased(beats, refIdx, defaultBeatsPerPhrase, duration);
+        break;
+      }
+      case 'server':
+        phraseMap = phraseBoundaries?.length
+          ? phrasesFromBoundaries(beats, phraseBoundaries, duration)
+          : detectPhrasesRuleBased(beats, refIdx, defaultBeatsPerPhrase, duration);
+        break;
+    }
+
+    // Phrase-aware count
+    let count: number;
+    const phrase = phraseMap ? findCurrentPhrase(beatIdx, phraseMap.phrases) : null;
+    if (phrase) {
+      const localOffset = beatIdx - phrase.startBeatIndex;
+      const mod = ((localOffset % 8) + 8) % 8;
+      count = mod + 1;
+    } else {
+      // Fallback: global mod 8
+      const diff = beatIdx - refIdx;
+      const mod = ((diff % 8) + 8) % 8;
+      count = mod + 1;
+    }
 
     // Get and play sound
     const asset = getCueSound(cueType, count);

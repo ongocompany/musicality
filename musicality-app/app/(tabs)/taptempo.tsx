@@ -101,6 +101,10 @@ export default function TapTempoScreen() {
           count: (currentBeatIndex % 8) + 1,
           beatType: getBeatType((currentBeatIndex % 8) + 1, danceStyle),
           beatIndex: currentBeatIndex,
+          phraseIndex: 0,
+          eightCountInPhrase: 0,
+          isTransitionHint: false,
+          totalPhrases: 0,
         }
       : null;
 

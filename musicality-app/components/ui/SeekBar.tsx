@@ -1,7 +1,7 @@
 import { View, StyleSheet, GestureResponderEvent, LayoutChangeEvent } from 'react-native';
 import { useRef, useState, useCallback } from 'react';
-import { Colors, SectionColors } from '../../constants/theme';
-import { Section } from '../../types/analysis';
+import { Colors, getPhraseColor } from '../../constants/theme';
+import { Phrase } from '../../types/analysis';
 
 interface SeekBarProps {
   value: number;
@@ -12,8 +12,8 @@ interface SeekBarProps {
   loopStart?: number | null;
   loopEnd?: number | null;
   loopEnabled?: boolean;
-  sections?: Section[];
-  durationSec?: number;  // duration in seconds for section boundary calculation
+  phrases?: Phrase[];
+  durationSec?: number;  // duration in seconds for boundary calculation
 }
 
 export function SeekBar({
@@ -25,7 +25,7 @@ export function SeekBar({
   loopStart,
   loopEnd,
   loopEnabled,
-  sections,
+  phrases,
   durationSec,
 }: SeekBarProps) {
   const [width, setWidth] = useState(0);
@@ -105,14 +105,14 @@ export function SeekBar({
       {/* Invisible hit area — catches all touches so locationX stays consistent */}
       <View style={StyleSheet.absoluteFill} pointerEvents="box-only" />
       <View style={styles.track}>
-        {/* Section boundary markers */}
-        {sections && durationSec && durationSec > 0 && sections.map((section, idx) => {
-          if (idx === 0) return null; // skip first boundary (start of track)
-          const boundaryPct = (section.startTime / durationSec) * 100;
-          const color = SectionColors[section.label] || Colors.textMuted;
+        {/* Phrase boundary markers */}
+        {phrases && durationSec && durationSec > 0 && phrases.map((phrase) => {
+          if (phrase.index === 0) return null; // skip first boundary (start of track)
+          const boundaryPct = (phrase.startTime / durationSec) * 100;
+          const color = getPhraseColor(phrase.index);
           return (
             <View
-              key={`boundary-${idx}`}
+              key={`boundary-${phrase.index}`}
               style={[styles.sectionBoundary, { left: `${boundaryPct}%`, backgroundColor: color }]}
               pointerEvents="none"
             />

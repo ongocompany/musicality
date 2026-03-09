@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { DanceStyle } from '../utils/beatCounter';
 import { CueType } from '../types/cue';
+import { PhraseDetectionMode } from '../types/analysis';
 
 interface SettingsState {
   // Dance style (global setting)
@@ -24,6 +25,16 @@ interface SettingsState {
   setCueVolume: (vol: number) => void;
   cueEnabled: boolean;
   toggleCue: () => void;
+
+  // Phrase detection settings
+  phraseDetectionMode: PhraseDetectionMode;
+  setPhraseDetectionMode: (mode: PhraseDetectionMode) => void;
+  defaultBeatsPerPhrase: number;  // default 32 (4 eight-counts)
+  setDefaultBeatsPerPhrase: (n: number) => void;
+  // Per-track phrase boundary marks (for 'user-marked' mode)
+  phraseMarks: Record<string, number>;
+  setPhraseMark: (trackId: string, beatIndex: number) => void;
+  clearPhraseMark: (trackId: string) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -50,4 +61,20 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setCueVolume: (vol) => set({ cueVolume: Math.max(0, Math.min(1, vol)) }),
   cueEnabled: false,
   toggleCue: () => set((state) => ({ cueEnabled: !state.cueEnabled })),
+
+  // Phrase detection
+  phraseDetectionMode: 'rule-based',
+  setPhraseDetectionMode: (mode) => set({ phraseDetectionMode: mode }),
+  defaultBeatsPerPhrase: 32,
+  setDefaultBeatsPerPhrase: (n) => set({ defaultBeatsPerPhrase: Math.max(8, Math.round(n / 8) * 8) }),
+  phraseMarks: {},
+  setPhraseMark: (trackId, beatIndex) =>
+    set((state) => ({
+      phraseMarks: { ...state.phraseMarks, [trackId]: beatIndex },
+    })),
+  clearPhraseMark: (trackId) =>
+    set((state) => {
+      const { [trackId]: _, ...rest } = state.phraseMarks;
+      return { phraseMarks: rest };
+    }),
 }));

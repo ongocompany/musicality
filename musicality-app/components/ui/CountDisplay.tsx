@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { Colors, Spacing, FontSize } from '../../constants/theme';
+import { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
+import { Colors, Spacing, FontSize, getPhraseColor, blendColors } from '../../constants/theme';
 import { CountInfo, getBeatTypeLabel } from '../../utils/beatCounter';
 
 interface CountDisplayProps {
@@ -8,6 +9,25 @@ interface CountDisplayProps {
 }
 
 export function CountDisplay({ countInfo, hasAnalysis }: CountDisplayProps) {
+  // Pulse animation for transition hint
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const isHinting = countInfo?.isTransitionHint ?? false;
+
+  useEffect(() => {
+    if (isHinting) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.15, duration: 250, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1.0, duration: 250, useNativeDriver: true }),
+        ]),
+      );
+      pulse.start();
+      return () => pulse.stop();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [isHinting]);
+
   if (!hasAnalysis) {
     return (
       <View style={styles.container}>
@@ -26,14 +46,33 @@ export function CountDisplay({ countInfo, hasAnalysis }: CountDisplayProps) {
     );
   }
 
-  const isTapOrPause = countInfo.beatType === 'tap' || countInfo.beatType === 'pause';
-  const countColor = isTapOrPause ? Colors.tapAccent : Colors.beatPulse;
+  // Phrase-aware color
+  const hasPhrases = countInfo.totalPhrases > 0;
+  let countColor: string;
+
+  if (hasPhrases && isHinting) {
+    // Transition hint: blend current → next phrase color
+    const currentColor = getPhraseColor(countInfo.phraseIndex);
+    const nextColor = getPhraseColor(countInfo.phraseIndex + 1);
+    countColor = blendColors(currentColor, nextColor, 0.5);
+  } else if (hasPhrases) {
+    countColor = getPhraseColor(countInfo.phraseIndex);
+  } else {
+    // Fallback: legacy colors
+    const isTapOrPause = countInfo.beatType === 'tap' || countInfo.beatType === 'pause';
+    countColor = isTapOrPause ? Colors.tapAccent : Colors.beatPulse;
+  }
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.count, { color: countColor }]}>
+      <Animated.Text
+        style={[
+          styles.count,
+          { color: countColor, transform: [{ scale: pulseAnim }] },
+        ]}
+      >
         {countInfo.count}
-      </Text>
+      </Animated.Text>
       <Text style={[styles.label, { color: countColor }]}>
         {getBeatTypeLabel(countInfo.beatType)}
       </Text>

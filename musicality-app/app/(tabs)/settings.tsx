@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useCallback } from 'react';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
@@ -7,11 +7,17 @@ import { API_BASE_URL } from '../../constants/config';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { DanceStyle } from '../../utils/beatCounter';
 import { CueType, CUE_TYPE_LABELS } from '../../types/cue';
+import { PhraseDetectionMode } from '../../types/analysis';
 
 const LOOK_AHEAD_STEP = 25; // ms per tap
 
 export default function SettingsScreen() {
-  const { danceStyle, setDanceStyle, lookAheadMs, setLookAheadMs, cueType, setCueType, cueVolume, setCueVolume } = useSettingsStore();
+  const {
+    danceStyle, setDanceStyle, lookAheadMs, setLookAheadMs,
+    cueType, setCueType, cueVolume, setCueVolume,
+    phraseDetectionMode, setPhraseDetectionMode,
+    defaultBeatsPerPhrase, setDefaultBeatsPerPhrase,
+  } = useSettingsStore();
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -27,7 +33,7 @@ export default function SettingsScreen() {
   }, [checkServer]);
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Server Status */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Analysis Server</Text>
@@ -80,6 +86,55 @@ export default function SettingsScreen() {
             <Text style={styles.styleDesc}>{item.desc}</Text>
           </TouchableOpacity>
         ))}
+      </View>
+
+      {/* Phrase Detection */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Phrase Detection</Text>
+        {([
+          { key: 'rule-based' as PhraseDetectionMode, label: 'Rule-based', desc: '고정 길이 자동 분할' },
+          { key: 'user-marked' as PhraseDetectionMode, label: 'User Mark', desc: '직접 프레이즈 경계 표시' },
+          { key: 'server' as PhraseDetectionMode, label: 'Server Analysis', desc: '서버 구조 분석 사용' },
+        ]).map((item) => (
+          <TouchableOpacity
+            key={item.key}
+            style={[styles.row, phraseDetectionMode === item.key && styles.rowActive]}
+            onPress={() => setPhraseDetectionMode(item.key)}
+          >
+            <Ionicons
+              name={phraseDetectionMode === item.key ? 'radio-button-on' : 'radio-button-off'}
+              size={20}
+              color={phraseDetectionMode === item.key ? Colors.primary : Colors.textSecondary}
+            />
+            <Text style={[styles.label, phraseDetectionMode === item.key && styles.labelActive]}>
+              {item.label}
+            </Text>
+            <Text style={styles.styleDesc}>{item.desc}</Text>
+          </TouchableOpacity>
+        ))}
+        {/* Beats per phrase (for rule-based mode) */}
+        <View style={styles.row}>
+          <Ionicons name="resize-outline" size={20} color={Colors.textSecondary} />
+          <Text style={styles.label}>Phrase Length</Text>
+          <View style={styles.lookAheadControls}>
+            <TouchableOpacity
+              style={styles.lookAheadBtn}
+              onPress={() => setDefaultBeatsPerPhrase(defaultBeatsPerPhrase - 8)}
+            >
+              <Ionicons name="remove" size={18} color={Colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.lookAheadValue}>{defaultBeatsPerPhrase / 8}×8</Text>
+            <TouchableOpacity
+              style={styles.lookAheadBtn}
+              onPress={() => setDefaultBeatsPerPhrase(defaultBeatsPerPhrase + 8)}
+            >
+              <Ionicons name="add" size={18} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <Text style={styles.lookAheadHint}>
+          프레이즈 = {defaultBeatsPerPhrase}박 ({defaultBeatsPerPhrase / 8}×에잇카운트)
+        </Text>
       </View>
 
       {/* Count Timing */}
@@ -153,12 +208,13 @@ export default function SettingsScreen() {
           </>
         )}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, padding: Spacing.lg },
+  container: { flex: 1, backgroundColor: Colors.background },
+  content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   section: { marginBottom: Spacing.xl },
   sectionTitle: { color: Colors.primary, fontSize: FontSize.sm, fontWeight: '700', marginBottom: Spacing.md, textTransform: 'uppercase', letterSpacing: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },

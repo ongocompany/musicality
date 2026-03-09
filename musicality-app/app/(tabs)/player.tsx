@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
@@ -15,9 +15,10 @@ import { useVideoPlayer } from '../../hooks/useVideoPlayer';
 import { useYouTubePlayer } from '../../hooks/useYouTubePlayer';
 import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
-import { getCountInfo, findNearestBeatIndex, findCurrentSection } from '../../utils/beatCounter';
+import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, findCurrentBeatIndex } from '../../utils/beatCounter';
+import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries } from '../../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
-import { Colors, SectionColors, Spacing, FontSize } from '../../constants/theme';
+import { Colors, Spacing, FontSize, getPhraseColor } from '../../constants/theme';
 
 const RATES = [0.5, 0.75, 1.0, 1.25, 1.5];
 
@@ -82,6 +83,10 @@ export default function PlayerScreen() {
   const lookAheadMs = useSettingsStore((s) => s.lookAheadMs);
   const downbeatOffsets = useSettingsStore((s) => s.downbeatOffsets);
   const setDownbeatOffset = useSettingsStore((s) => s.setDownbeatOffset);
+  const phraseDetectionMode = useSettingsStore((s) => s.phraseDetectionMode);
+  const defaultBeatsPerPhrase = useSettingsStore((s) => s.defaultBeatsPerPhrase);
+  const phraseMarks = useSettingsStore((s) => s.phraseMarks);
+  const setPhraseMark = useSettingsStore((s) => s.setPhraseMark);
 
   // YouTube state change handler
   const onYtStateChange = useCallback((state: string) => {
@@ -91,13 +96,29 @@ export default function PlayerScreen() {
   // Compute current count from position + analysis data
   const analysis = currentTrack?.analysis;
   const offsetBeatIndex = currentTrack ? (downbeatOffsets[currentTrack.id] ?? null) : null;
-  const countInfo = analysis
-    ? getCountInfo(position + lookAheadMs, analysis.beats, analysis.downbeats, offsetBeatIndex, danceStyle, analysis.sections)
-    : null;
 
-  // Current section for badge display
-  const currentSection = analysis?.sections
-    ? findCurrentSection(position, analysis.sections)
+  // Compute phrase map based on detection mode
+  const phraseMap = useMemo(() => {
+    if (!analysis || analysis.beats.length === 0) return undefined;
+    const refIdx = computeReferenceIndex(analysis.beats, analysis.downbeats, offsetBeatIndex, analysis.sections);
+    switch (phraseDetectionMode) {
+      case 'rule-based':
+        return detectPhrasesRuleBased(analysis.beats, refIdx, defaultBeatsPerPhrase, analysis.duration);
+      case 'user-marked': {
+        const mark = currentTrack ? phraseMarks[currentTrack.id] : undefined;
+        return mark != null
+          ? detectPhrasesFromUserMark(analysis.beats, refIdx, mark, analysis.duration)
+          : detectPhrasesRuleBased(analysis.beats, refIdx, defaultBeatsPerPhrase, analysis.duration);
+      }
+      case 'server':
+        return analysis.phraseBoundaries?.length
+          ? phrasesFromBoundaries(analysis.beats, analysis.phraseBoundaries, analysis.duration)
+          : detectPhrasesRuleBased(analysis.beats, refIdx, defaultBeatsPerPhrase, analysis.duration);
+    }
+  }, [analysis, offsetBeatIndex, phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks, currentTrack?.id]);
+
+  const countInfo = analysis
+    ? getPhraseCountInfo(position + lookAheadMs, analysis.beats, analysis.downbeats, offsetBeatIndex, danceStyle, phraseMap)
     : null;
 
   const handleNowIsOne = () => {
@@ -283,16 +304,31 @@ export default function PlayerScreen() {
       {/* Count Display (audio tracks only) */}
       {!isVisual && currentTrack.analysisStatus === 'done' && (
         <View style={styles.countSection}>
-          {currentSection && (
-            <View style={[styles.sectionBadge, { backgroundColor: SectionColors[currentSection.label] || Colors.textMuted }]}>
-              <Text style={styles.sectionBadgeText}>{currentSection.label.toUpperCase()}</Text>
+          {countInfo && countInfo.totalPhrases > 0 && (
+            <View style={[styles.sectionBadge, { backgroundColor: getPhraseColor(countInfo.phraseIndex) }]}>
+              <Text style={styles.sectionBadgeText}>PHRASE {countInfo.phraseIndex + 1}</Text>
             </View>
           )}
           <CountDisplay countInfo={countInfo} hasAnalysis={!!analysis} />
-          <TouchableOpacity style={styles.nowIsOneButton} onPress={handleNowIsOne}>
-            <Ionicons name="locate-outline" size={18} color={Colors.tapAccent} />
-            <Text style={styles.nowIsOneText}>지금이 1</Text>
-          </TouchableOpacity>
+          <View style={styles.countButtonsRow}>
+            <TouchableOpacity style={styles.nowIsOneButton} onPress={handleNowIsOne}>
+              <Ionicons name="locate-outline" size={18} color={Colors.tapAccent} />
+              <Text style={styles.nowIsOneText}>지금이 1</Text>
+            </TouchableOpacity>
+            {phraseDetectionMode === 'user-marked' && analysis && (
+              <TouchableOpacity
+                style={styles.markPhraseButton}
+                onPress={() => {
+                  if (!currentTrack || !analysis) return;
+                  const beatIdx = findCurrentBeatIndex(position, analysis.beats);
+                  if (beatIdx >= 0) setPhraseMark(currentTrack.id, beatIdx);
+                }}
+              >
+                <Ionicons name="flag-outline" size={18} color={Colors.accent} />
+                <Text style={styles.markPhraseText}>프레이즈 표시</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       )}
 
@@ -356,17 +392,17 @@ export default function PlayerScreen() {
           loopStart={loopStart}
           loopEnd={loopEnd}
           loopEnabled={loopEnabled}
-          sections={analysis?.sections}
+          phrases={phraseMap?.phrases}
           durationSec={analysis?.duration}
         />
         <View style={styles.timeRow}>
           <Text style={styles.timeText}>{formatTime(position)}</Text>
           <Text style={styles.timeText}>{formatTime(duration)}</Text>
         </View>
-        {/* Section Timeline (audio only — video/youtube sections are unreliable) */}
-        {!isVisual && analysis?.sections && analysis.sections.length > 0 && (
+        {/* Phrase Timeline */}
+        {phraseMap && phraseMap.phrases.length > 0 && analysis && (
           <SectionTimeline
-            sections={analysis.sections}
+            phrases={phraseMap.phrases}
             duration={analysis.duration}
             currentTimeMs={position}
           />
@@ -565,10 +601,30 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.tapAccent,
-    marginTop: Spacing.sm,
   },
   nowIsOneText: {
     color: Colors.tapAccent,
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+  },
+  countButtonsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  markPhraseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.surfaceLight,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.accent,
+  },
+  markPhraseText: {
+    color: Colors.accent,
     fontSize: FontSize.sm,
     fontWeight: '600',
   },

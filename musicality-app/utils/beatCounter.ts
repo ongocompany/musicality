@@ -1,15 +1,20 @@
 // Beat counting engine for Latin dance (Bachata / Salsa)
 // Pure functions — no React or store dependencies
 
-import { Section } from '../types/analysis';
+import { Section, Phrase, PhraseMap } from '../types/analysis';
 
 export type DanceStyle = 'bachata' | 'salsa-on1' | 'salsa-on2';
 export type BeatType = 'step' | 'tap' | 'pause';
 
 export interface CountInfo {
-  count: number;      // 1-8
+  count: number;              // 1-8
   beatType: BeatType;
-  beatIndex: number;  // index into beats[]
+  beatIndex: number;          // index into beats[]
+  // Phrase-aware fields (populated when phraseMap is available)
+  phraseIndex: number;        // 0-based current phrase number
+  eightCountInPhrase: number; // which 8-count within the phrase (0-based)
+  isTransitionHint: boolean;  // true if within last 4 beats before next phrase
+  totalPhrases: number;       // total number of phrases
 }
 
 /**
@@ -134,6 +139,10 @@ export function getCountInfo(
     count,
     beatType: getBeatType(count, style),
     beatIndex: currentIdx,
+    phraseIndex: 0,
+    eightCountInPhrase: 0,
+    isTransitionHint: false,
+    totalPhrases: 0,
   };
 }
 
@@ -164,4 +173,94 @@ export function findDerechoStartBeatIndex(
   const derecho = sections.find((s) => s.label === 'derecho');
   if (!derecho || beats.length === 0) return null;
   return findNearestBeatIndex(derecho.startTime * 1000, beats);
+}
+
+// ─── Phrase-aware counting ────────────────────────────
+
+/**
+ * Binary search: find the phrase containing beatIndex.
+ * Returns null if beatIndex is outside all phrases.
+ */
+export function findCurrentPhrase(
+  beatIndex: number,
+  phrases: Phrase[],
+): Phrase | null {
+  if (phrases.length === 0) return null;
+
+  // Before first phrase
+  if (beatIndex < phrases[0].startBeatIndex) return null;
+
+  // Binary search
+  let lo = 0;
+  let hi = phrases.length - 1;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const p = phrases[mid];
+    if (beatIndex >= p.startBeatIndex && beatIndex < p.endBeatIndex) {
+      return p;
+    }
+    if (beatIndex < p.startBeatIndex) {
+      hi = mid - 1;
+    } else {
+      lo = mid + 1;
+    }
+  }
+
+  // If past last phrase, return last phrase
+  const last = phrases[phrases.length - 1];
+  if (beatIndex >= last.startBeatIndex) return last;
+
+  return null;
+}
+
+/**
+ * Phrase-aware count computation.
+ * Count resets to 1 at each phrase boundary.
+ * Includes transition hint for last 4 beats before next phrase.
+ * Falls back to getCountInfo() when no phraseMap is provided.
+ */
+export function getPhraseCountInfo(
+  positionMs: number,
+  beats: number[],
+  downbeats: number[],
+  offsetBeatIndex: number | null,
+  style: DanceStyle,
+  phraseMap?: PhraseMap | null,
+): CountInfo | null {
+  if (beats.length === 0) return null;
+
+  const currentIdx = findCurrentBeatIndex(positionMs, beats);
+  if (currentIdx < 0) return null;
+
+  // No phraseMap → fallback to legacy counting
+  if (!phraseMap || phraseMap.phrases.length === 0) {
+    return getCountInfo(positionMs, beats, downbeats, offsetBeatIndex, style);
+  }
+
+  const phrase = findCurrentPhrase(currentIdx, phraseMap.phrases);
+  if (!phrase) {
+    // Before first phrase or gap — use legacy
+    return getCountInfo(positionMs, beats, downbeats, offsetBeatIndex, style);
+  }
+
+  // Count relative to phrase start → resets to 1 at each phrase boundary
+  const localOffset = currentIdx - phrase.startBeatIndex;
+  const mod = ((localOffset % 8) + 8) % 8;
+  const count = mod + 1; // 1-8
+
+  const eightCountInPhrase = Math.floor(localOffset / 8);
+
+  // Transition hint: within last 4 beats of phrase
+  const beatsRemaining = phrase.endBeatIndex - currentIdx;
+  const isTransitionHint = beatsRemaining > 0 && beatsRemaining <= 4;
+
+  return {
+    count,
+    beatType: getBeatType(count, style),
+    beatIndex: currentIdx,
+    phraseIndex: phrase.index,
+    eightCountInPhrase,
+    isTransitionHint,
+    totalPhrases: phraseMap.phrases.length,
+  };
 }
