@@ -108,6 +108,15 @@ export function detectPhrasesFromUserMark(
  * Method 3: Server-detected boundaries → phrases.
  * Convert server boundary timestamps to beat indices and build phrases.
  */
+/**
+ * Extract boundary timestamps from existing phrases (for initializing overrides).
+ * Returns startTime of each phrase except the first (which is always 0).
+ */
+export function extractBoundaries(phrases: Phrase[]): number[] {
+  if (phrases.length <= 1) return [];
+  return phrases.slice(1).map(p => p.startTime);
+}
+
 export function phrasesFromBoundaries(
   beats: number[],
   boundaries: number[],

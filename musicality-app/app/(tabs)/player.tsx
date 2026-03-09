@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SeekBar } from '../../components/ui/SeekBar';
 import { CountDisplay } from '../../components/ui/CountDisplay';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
-import { SectionTimeline } from '../../components/ui/SectionTimeline';
+import { InteractiveSectionTimeline } from '../../components/ui/InteractiveSectionTimeline';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -17,7 +17,7 @@ import { useYouTubePlayer } from '../../hooks/useYouTubePlayer';
 import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
 import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, findCurrentBeatIndex } from '../../utils/beatCounter';
-import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries } from '../../utils/phraseDetector';
+import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, extractBoundaries } from '../../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
 import { Colors, Spacing, FontSize, getPhraseColor } from '../../constants/theme';
 
@@ -87,6 +87,9 @@ export default function PlayerScreen() {
   const defaultBeatsPerPhrase = useSettingsStore((s) => s.defaultBeatsPerPhrase);
   const phraseMarks = useSettingsStore((s) => s.phraseMarks);
   const setPhraseMark = useSettingsStore((s) => s.setPhraseMark);
+  const phraseBoundaryOverrides = useSettingsStore((s) => s.phraseBoundaryOverrides);
+  const setPhraseBoundaryOverrides = useSettingsStore((s) => s.setPhraseBoundaryOverrides);
+  const setBoundaryCorrection = useSettingsStore((s) => s.setBoundaryCorrection);
 
   const onYtStateChange = useCallback((state: string) => {
     youtubePlayer.onStateChange(state);
@@ -97,6 +100,13 @@ export default function PlayerScreen() {
 
   const phraseMap = useMemo(() => {
     if (!analysis || analysis.beats.length === 0) return undefined;
+
+    // User-adjusted boundary overrides take priority
+    const overrides = currentTrack ? phraseBoundaryOverrides[currentTrack.id] : undefined;
+    if (overrides && overrides.length > 0) {
+      return phrasesFromBoundaries(analysis.beats, overrides, analysis.duration);
+    }
+
     const refIdx = computeReferenceIndex(analysis.beats, analysis.downbeats, offsetBeatIndex, analysis.sections);
     switch (phraseDetectionMode) {
       case 'rule-based':
@@ -112,11 +122,22 @@ export default function PlayerScreen() {
           ? phrasesFromBoundaries(analysis.beats, analysis.phraseBoundaries, analysis.duration)
           : detectPhrasesRuleBased(analysis.beats, refIdx, defaultBeatsPerPhrase, analysis.duration);
     }
-  }, [analysis, offsetBeatIndex, phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks, currentTrack?.id]);
+  }, [analysis, offsetBeatIndex, phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks, currentTrack?.id, phraseBoundaryOverrides]);
 
   const countInfo = analysis
     ? getPhraseCountInfo(position + lookAheadMs, analysis.beats, analysis.downbeats, offsetBeatIndex, danceStyle, phraseMap)
     : null;
+
+  const handleBoundariesChanged = useCallback((newBoundaries: number[], originalBoundaries: number[]) => {
+    if (!currentTrack) return;
+    setPhraseBoundaryOverrides(currentTrack.id, newBoundaries);
+    // Store correction data for future model training
+    setBoundaryCorrection(currentTrack.id, {
+      originalBoundaries,
+      correctedBoundaries: newBoundaries,
+      timestamp: Date.now(),
+    });
+  }, [currentTrack, setPhraseBoundaryOverrides, setBoundaryCorrection]);
 
   const handleNowIsOne = () => {
     if (!currentTrack) return;
@@ -342,13 +363,15 @@ export default function PlayerScreen() {
             <Text style={styles.timeText}>{formatTime(duration)}</Text>
           </View>
 
-          {/* ⑥ Phrase Timeline (enlarged with waveform) */}
+          {/* ⑥ Phrase Timeline (interactive with drag-to-adjust) */}
           {phraseMap && phraseMap.phrases.length > 0 && analysis && (
-            <SectionTimeline
+            <InteractiveSectionTimeline
               phrases={phraseMap.phrases}
               duration={analysis.duration}
               currentTimeMs={position}
               waveformPeaks={analysis.waveformPeaks}
+              beats={analysis.beats}
+              onBoundariesChanged={handleBoundariesChanged}
             />
           )}
         </View>

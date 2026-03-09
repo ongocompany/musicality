@@ -1,7 +1,16 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DanceStyle } from '../utils/beatCounter';
 import { CueType } from '../types/cue';
 import { PhraseDetectionMode } from '../types/analysis';
+
+/** Per-track boundary correction data (for future model training) */
+export interface BoundaryCorrection {
+  originalBoundaries: number[];   // server/rule-generated boundaries
+  correctedBoundaries: number[];  // user-adjusted boundaries
+  timestamp: number;              // when the correction was made
+}
 
 interface SettingsState {
   // Dance style (global setting)
@@ -35,46 +44,95 @@ interface SettingsState {
   phraseMarks: Record<string, number>;
   setPhraseMark: (trackId: string, beatIndex: number) => void;
   clearPhraseMark: (trackId: string) => void;
+
+  // Per-track phrase boundary overrides (drag-to-adjust)
+  phraseBoundaryOverrides: Record<string, number[]>;
+  setPhraseBoundaryOverrides: (trackId: string, boundaries: number[]) => void;
+  clearPhraseBoundaryOverrides: (trackId: string) => void;
+
+  // Per-track boundary corrections (for future model training data collection)
+  boundaryCorrections: Record<string, BoundaryCorrection>;
+  setBoundaryCorrection: (trackId: string, correction: BoundaryCorrection) => void;
 }
 
-export const useSettingsStore = create<SettingsState>((set) => ({
-  danceStyle: 'bachata',
-  setDanceStyle: (style) => set({ danceStyle: style }),
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set) => ({
+      danceStyle: 'bachata',
+      setDanceStyle: (style) => set({ danceStyle: style }),
 
-  lookAheadMs: 150,
-  setLookAheadMs: (ms) => set({ lookAheadMs: Math.max(0, Math.min(300, ms)) }),
+      lookAheadMs: 150,
+      setLookAheadMs: (ms) => set({ lookAheadMs: Math.max(0, Math.min(300, ms)) }),
 
-  downbeatOffsets: {},
-  setDownbeatOffset: (trackId, beatIndex) =>
-    set((state) => ({
-      downbeatOffsets: { ...state.downbeatOffsets, [trackId]: beatIndex },
-    })),
-  clearDownbeatOffset: (trackId) =>
-    set((state) => {
-      const { [trackId]: _, ...rest } = state.downbeatOffsets;
-      return { downbeatOffsets: rest };
+      downbeatOffsets: {},
+      setDownbeatOffset: (trackId, beatIndex) =>
+        set((state) => ({
+          downbeatOffsets: { ...state.downbeatOffsets, [trackId]: beatIndex },
+        })),
+      clearDownbeatOffset: (trackId) =>
+        set((state) => {
+          const { [trackId]: _, ...rest } = state.downbeatOffsets;
+          return { downbeatOffsets: rest };
+        }),
+
+      cueType: 'off',
+      setCueType: (type) => set({ cueType: type, cueEnabled: type !== 'off' }),
+      cueVolume: 0.7,
+      setCueVolume: (vol) => set({ cueVolume: Math.max(0, Math.min(1, vol)) }),
+      cueEnabled: false,
+      toggleCue: () => set((state) => ({ cueEnabled: !state.cueEnabled })),
+
+      // Phrase detection
+      phraseDetectionMode: 'server',
+      setPhraseDetectionMode: (mode) => set({ phraseDetectionMode: mode }),
+      defaultBeatsPerPhrase: 32,
+      setDefaultBeatsPerPhrase: (n) => set({ defaultBeatsPerPhrase: Math.max(8, Math.round(n / 8) * 8) }),
+      phraseMarks: {},
+      setPhraseMark: (trackId, beatIndex) =>
+        set((state) => ({
+          phraseMarks: { ...state.phraseMarks, [trackId]: beatIndex },
+        })),
+      clearPhraseMark: (trackId) =>
+        set((state) => {
+          const { [trackId]: _, ...rest } = state.phraseMarks;
+          return { phraseMarks: rest };
+        }),
+
+      // Phrase boundary overrides (drag-to-adjust)
+      phraseBoundaryOverrides: {},
+      setPhraseBoundaryOverrides: (trackId, boundaries) =>
+        set((state) => ({
+          phraseBoundaryOverrides: { ...state.phraseBoundaryOverrides, [trackId]: boundaries },
+        })),
+      clearPhraseBoundaryOverrides: (trackId) =>
+        set((state) => {
+          const { [trackId]: _, ...rest } = state.phraseBoundaryOverrides;
+          return { phraseBoundaryOverrides: rest };
+        }),
+
+      // Boundary corrections (training data)
+      boundaryCorrections: {},
+      setBoundaryCorrection: (trackId, correction) =>
+        set((state) => ({
+          boundaryCorrections: { ...state.boundaryCorrections, [trackId]: correction },
+        })),
     }),
-
-  cueType: 'off',
-  setCueType: (type) => set({ cueType: type, cueEnabled: type !== 'off' }),
-  cueVolume: 0.7,
-  setCueVolume: (vol) => set({ cueVolume: Math.max(0, Math.min(1, vol)) }),
-  cueEnabled: false,
-  toggleCue: () => set((state) => ({ cueEnabled: !state.cueEnabled })),
-
-  // Phrase detection
-  phraseDetectionMode: 'server',
-  setPhraseDetectionMode: (mode) => set({ phraseDetectionMode: mode }),
-  defaultBeatsPerPhrase: 32,
-  setDefaultBeatsPerPhrase: (n) => set({ defaultBeatsPerPhrase: Math.max(8, Math.round(n / 8) * 8) }),
-  phraseMarks: {},
-  setPhraseMark: (trackId, beatIndex) =>
-    set((state) => ({
-      phraseMarks: { ...state.phraseMarks, [trackId]: beatIndex },
-    })),
-  clearPhraseMark: (trackId) =>
-    set((state) => {
-      const { [trackId]: _, ...rest } = state.phraseMarks;
-      return { phraseMarks: rest };
-    }),
-}));
+    {
+      name: 'musicality-settings',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        danceStyle: state.danceStyle,
+        lookAheadMs: state.lookAheadMs,
+        downbeatOffsets: state.downbeatOffsets,
+        cueType: state.cueType,
+        cueVolume: state.cueVolume,
+        cueEnabled: state.cueEnabled,
+        phraseDetectionMode: state.phraseDetectionMode,
+        defaultBeatsPerPhrase: state.defaultBeatsPerPhrase,
+        phraseMarks: state.phraseMarks,
+        phraseBoundaryOverrides: state.phraseBoundaryOverrides,
+        boundaryCorrections: state.boundaryCorrections,
+      }),
+    },
+  ),
+);

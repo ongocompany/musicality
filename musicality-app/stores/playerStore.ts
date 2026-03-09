@@ -122,6 +122,21 @@ export const usePlayerStore = create<PlayerState>()(
       storage: createJSONStorage(() => AsyncStorage),
       // Only persist the tracks array (playback state is transient)
       partialize: (state) => ({ tracks: state.tracks }),
+      // Reset stuck 'analyzing' status on rehydration
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        let changed = false;
+        const fixed = state.tracks.map((t) => {
+          if (t.analysisStatus === 'analyzing') {
+            changed = true;
+            return { ...t, analysisStatus: 'idle' as AnalysisStatus };
+          }
+          return t;
+        });
+        if (changed) {
+          usePlayerStore.setState({ tracks: fixed });
+        }
+      },
     },
   ),
 );
