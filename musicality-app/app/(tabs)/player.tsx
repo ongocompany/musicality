@@ -1,12 +1,12 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
 import { SeekBar } from '../../components/ui/SeekBar';
-import { CountDisplay } from '../../components/ui/CountDisplay';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
-import { InteractiveSectionTimeline } from '../../components/ui/InteractiveSectionTimeline';
+import { SectionTimeline } from '../../components/ui/SectionTimeline';
+import { PhraseGrid } from '../../components/ui/PhraseGrid';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -16,8 +16,8 @@ import { useVideoPlayer } from '../../hooks/useVideoPlayer';
 import { useYouTubePlayer } from '../../hooks/useYouTubePlayer';
 import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
-import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, findCurrentBeatIndex } from '../../utils/beatCounter';
-import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, extractBoundaries } from '../../utils/phraseDetector';
+import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, getBeatTypeLabel, CountInfo } from '../../utils/beatCounter';
+import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries } from '../../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
 import { Colors, Spacing, FontSize, getPhraseColor } from '../../constants/theme';
 
@@ -86,10 +86,9 @@ export default function PlayerScreen() {
   const phraseDetectionMode = useSettingsStore((s) => s.phraseDetectionMode);
   const defaultBeatsPerPhrase = useSettingsStore((s) => s.defaultBeatsPerPhrase);
   const phraseMarks = useSettingsStore((s) => s.phraseMarks);
-  const setPhraseMark = useSettingsStore((s) => s.setPhraseMark);
   const phraseBoundaryOverrides = useSettingsStore((s) => s.phraseBoundaryOverrides);
   const setPhraseBoundaryOverrides = useSettingsStore((s) => s.setPhraseBoundaryOverrides);
-  const setBoundaryCorrection = useSettingsStore((s) => s.setBoundaryCorrection);
+  const clearPhraseBoundaryOverrides = useSettingsStore((s) => s.clearPhraseBoundaryOverrides);
 
   const onYtStateChange = useCallback((state: string) => {
     youtubePlayer.onStateChange(state);
@@ -124,20 +123,67 @@ export default function PlayerScreen() {
     }
   }, [analysis, offsetBeatIndex, phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks, currentTrack?.id, phraseBoundaryOverrides]);
 
-  const countInfo = analysis
-    ? getPhraseCountInfo(position + lookAheadMs, analysis.beats, analysis.downbeats, offsetBeatIndex, danceStyle, phraseMap)
-    : null;
+  // Stable countInfo — only update reference when beatIndex/phraseIndex actually change
+  // This prevents PhraseGrid re-renders on every 50ms position tick
+  const prevCountRef = useRef<CountInfo | null>(null);
+  const countInfo = useMemo(() => {
+    const raw = analysis
+      ? getPhraseCountInfo(position + lookAheadMs, analysis.beats, analysis.downbeats, offsetBeatIndex, danceStyle, phraseMap)
+      : null;
+    const prev = prevCountRef.current;
+    if (prev && raw && prev.beatIndex === raw.beatIndex && prev.phraseIndex === raw.phraseIndex) {
+      return prev;
+    }
+    prevCountRef.current = raw;
+    return raw;
+  }, [position, lookAheadMs, analysis, offsetBeatIndex, danceStyle, phraseMap]);
 
-  const handleBoundariesChanged = useCallback((newBoundaries: number[], originalBoundaries: number[]) => {
+  const handleGridTapBeat = useCallback((globalBeatIndex: number) => {
     if (!currentTrack) return;
+    setDownbeatOffset(currentTrack.id, globalBeatIndex);
+  }, [currentTrack, setDownbeatOffset]);
+
+  // Phrase boundary: insert a new boundary at the tapped beat
+  const handleStartPhraseHere = useCallback((globalBeatIndex: number) => {
+    if (!currentTrack || !analysis || !phraseMap) return;
+    const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+    const newBoundaries = [...new Set([...currentBoundaries, globalBeatIndex])].sort((a, b) => a - b);
     setPhraseBoundaryOverrides(currentTrack.id, newBoundaries);
-    // Store correction data for future model training
-    setBoundaryCorrection(currentTrack.id, {
-      originalBoundaries,
-      correctedBoundaries: newBoundaries,
-      timestamp: Date.now(),
-    });
-  }, [currentTrack, setPhraseBoundaryOverrides, setBoundaryCorrection]);
+    // Seek to the new phrase start so grid refreshes with this as cell 1
+    if (globalBeatIndex < analysis.beats.length) {
+      seekTo(analysis.beats[globalBeatIndex] * 1000);
+    }
+  }, [currentTrack, analysis, phraseMap, setPhraseBoundaryOverrides, seekTo]);
+
+  // Paused tap: seek to beat and start playback (preview)
+  const handleSeekAndPlay = useCallback((beatTimeMs: number) => {
+    seekTo(beatTimeMs);
+    if (!isPlaying) togglePlay();
+  }, [seekTo, isPlaying, togglePlay]);
+
+  // Merge: remove phrase boundary to merge with previous phrase
+  const handleMergeWithPrevious = useCallback((globalBeatIndex: number) => {
+    if (!currentTrack || !phraseMap) return;
+    const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+    // Remove this boundary (keep the first boundary at index 0 always)
+    const newBoundaries = currentBoundaries.filter(b => b !== globalBeatIndex);
+    setPhraseBoundaryOverrides(currentTrack.id, newBoundaries);
+  }, [currentTrack, phraseMap, setPhraseBoundaryOverrides]);
+
+  // A-B loop: alternating A/B point setting from grid long-press
+  const handleSetLoopPoint = useCallback((beatTimeMs: number) => {
+    if (loopStart == null || loopEnd != null) {
+      // No loop or loop complete → start new: set A
+      clearLoop();
+      setLoopStart(beatTimeMs);
+    } else {
+      // A is set, B not set → set B (auto-swap if needed)
+      const start = Math.min(loopStart, beatTimeMs);
+      const end = Math.max(loopStart, beatTimeMs);
+      setLoopStart(start);
+      setLoopEnd(end);
+    }
+  }, [loopStart, loopEnd, setLoopStart, setLoopEnd, clearLoop]);
 
   const handleNowIsOne = () => {
     if (!currentTrack) return;
@@ -159,6 +205,8 @@ export default function PlayerScreen() {
 
   const handleAnalyze = async () => {
     if (!currentTrack || currentTrack.analysisStatus === 'analyzing') return;
+    // Clear user phrase edits BEFORE re-analysis so fresh results take effect
+    clearPhraseBoundaryOverrides(currentTrack.id);
     setTrackAnalysisStatus(currentTrack.id, 'analyzing');
     try {
       const result = await analyzeTrack(currentTrack.uri, currentTrack.title, currentTrack.format);
@@ -275,34 +323,42 @@ export default function PlayerScreen() {
           </View>
         )}
 
-        {/* ③ Count Display (audio only) */}
+        {/* ③ Compact Count + PhraseGrid (audio only) */}
         {!isVisual && currentTrack.analysisStatus === 'done' && (
           <View style={styles.countSection}>
-            {countInfo && countInfo.totalPhrases > 0 && (
-              <View style={[styles.sectionBadge, { backgroundColor: getPhraseColor(countInfo.phraseIndex) }]}>
-                <Text style={styles.sectionBadgeText}>PHRASE {countInfo.phraseIndex + 1}</Text>
-              </View>
-            )}
-            <CountDisplay countInfo={countInfo} hasAnalysis={!!analysis} />
-            <View style={styles.countButtonsRow}>
-              <TouchableOpacity style={styles.nowIsOneButton} onPress={handleNowIsOne}>
-                <Ionicons name="locate-outline" size={18} color={Colors.tapAccent} />
-                <Text style={styles.nowIsOneText}>지금이 1</Text>
-              </TouchableOpacity>
-              {phraseDetectionMode === 'user-marked' && analysis && (
-                <TouchableOpacity
-                  style={styles.markPhraseButton}
-                  onPress={() => {
-                    if (!currentTrack || !analysis) return;
-                    const beatIdx = findCurrentBeatIndex(position, analysis.beats);
-                    if (beatIdx >= 0) setPhraseMark(currentTrack.id, beatIdx);
-                  }}
-                >
-                  <Ionicons name="flag-outline" size={18} color={Colors.accent} />
-                  <Text style={styles.markPhraseText}>프레이즈 표시</Text>
-                </TouchableOpacity>
+            {/* Compact count header row */}
+            <View style={styles.countHeaderRow}>
+              {countInfo && countInfo.totalPhrases > 0 && (
+                <View style={[styles.phraseBadge, { backgroundColor: getPhraseColor(countInfo.phraseIndex) }]}>
+                  <Text style={styles.phraseBadgeText}>PHRASE {countInfo.phraseIndex + 1}</Text>
+                </View>
+              )}
+              <Text style={[styles.compactCount, { color: countInfo && countInfo.totalPhrases > 0 ? getPhraseColor(countInfo.phraseIndex) : Colors.textMuted }]}>
+                {countInfo?.count ?? '--'}
+              </Text>
+              {countInfo && (
+                <Text style={[styles.compactBeatType, { color: countInfo.totalPhrases > 0 ? getPhraseColor(countInfo.phraseIndex) : Colors.beatPulse }]}>
+                  {getBeatTypeLabel(countInfo.beatType)}
+                </Text>
               )}
             </View>
+
+            {/* PhraseGrid — rhythm game style */}
+            <PhraseGrid
+              countInfo={countInfo}
+              phraseMap={phraseMap ?? null}
+              hasAnalysis={!!analysis}
+              beats={analysis?.beats ?? []}
+              isPlaying={isPlaying}
+              onTapBeat={handleGridTapBeat}
+              onStartPhraseHere={handleStartPhraseHere}
+              onSetLoopPoint={handleSetLoopPoint}
+              onClearLoop={clearLoop}
+              onSeekAndPlay={handleSeekAndPlay}
+              onMergeWithPrevious={handleMergeWithPrevious}
+              loopStart={loopStart}
+              loopEnd={loopEnd}
+            />
           </View>
         )}
 
@@ -363,15 +419,12 @@ export default function PlayerScreen() {
             <Text style={styles.timeText}>{formatTime(duration)}</Text>
           </View>
 
-          {/* ⑥ Phrase Timeline (interactive with drag-to-adjust) */}
+          {/* ⑥ Phrase Timeline (overview bar) */}
           {phraseMap && phraseMap.phrases.length > 0 && analysis && (
-            <InteractiveSectionTimeline
+            <SectionTimeline
               phrases={phraseMap.phrases}
               duration={analysis.duration}
               currentTimeMs={position}
-              waveformPeaks={analysis.waveformPeaks}
-              beats={analysis.beats}
-              onBoundariesChanged={handleBoundariesChanged}
             />
           )}
         </View>
@@ -531,19 +584,36 @@ const styles = StyleSheet.create({
   youtubeContainer: { width: '100%', backgroundColor: '#000' },
   youtubeOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 10 },
 
-  // ─── Count Display ──────────────────────────────
+  // ─── Count Display + PhraseGrid ─────────────────
   countSection: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  sectionBadge: {
+  countHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  phraseBadge: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: 4,
-    marginBottom: Spacing.xs,
   },
-  sectionBadgeText: {
+  phraseBadgeText: {
     color: Colors.text,
     fontSize: FontSize.xs,
     fontWeight: '700',
     letterSpacing: 1,
+  },
+  compactCount: {
+    fontSize: 48,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  compactBeatType: {
+    fontSize: FontSize.md,
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   nowIsOneButton: {
     flexDirection: 'row',
@@ -558,27 +628,6 @@ const styles = StyleSheet.create({
   },
   nowIsOneText: {
     color: Colors.tapAccent,
-    fontSize: FontSize.sm,
-    fontWeight: '600',
-  },
-  countButtonsRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginTop: Spacing.sm,
-  },
-  markPhraseButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.surfaceLight,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.accent,
-  },
-  markPhraseText: {
-    color: Colors.accent,
     fontSize: FontSize.sm,
     fontWeight: '600',
   },

@@ -3,6 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, A
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { usePlayerStore } from '../../stores/playerStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { pickMediaFile, parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
 import { analyzeTrack } from '../../services/analysisApi';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
@@ -103,6 +104,7 @@ function TrackItem({
 
 export default function LibraryScreen() {
   const { tracks, addTrack, removeTrack, renameTrack, setCurrentTrack, setTrackAnalysisStatus, setTrackAnalysis } = usePlayerStore();
+  const clearPhraseBoundaryOverrides = useSettingsStore((s) => s.clearPhraseBoundaryOverrides);
   const router = useRouter();
   const [showYouTubeInput, setShowYouTubeInput] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -180,6 +182,8 @@ export default function LibraryScreen() {
   };
 
   const handleAnalyze = async (track: Track) => {
+    // Clear user phrase edits so fresh analysis takes effect
+    clearPhraseBoundaryOverrides(track.id);
     setTrackAnalysisStatus(track.id, 'analyzing');
     try {
       const result = await analyzeTrack(track.uri, track.title, track.format);

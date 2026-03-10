@@ -1,0 +1,199 @@
+import React, { useEffect, useRef } from 'react';
+import { TouchableOpacity, Animated, StyleSheet, View, Text, Platform } from 'react-native';
+import { Colors } from '../../constants/theme';
+
+export type CellState = 'upcoming' | 'current' | 'played' | 'hidden';
+
+interface PhraseGridCellProps {
+  state: CellState;
+  color: string;
+  size: number;
+  isFlashing: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
+  repeatMarker?: 'A' | 'B' | null;
+}
+
+function PhraseGridCellInner({ state, color, size, isFlashing, onPress, onLongPress, repeatMarker }: PhraseGridCellProps) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  const prevStateRef = useRef<CellState>(state);
+
+  // Punch + glow animation when becoming 'current'
+  useEffect(() => {
+    if (state === 'current' && prevStateRef.current !== 'current') {
+      // Scale punch: 1.35 → 1.05 spring bounce
+      scaleAnim.setValue(1.35);
+      Animated.spring(scaleAnim, {
+        toValue: 1.05,
+        friction: 4,
+        tension: 280,
+        useNativeDriver: true,
+      }).start();
+
+      // Glow pulse: 1 → 0.2
+      glowAnim.setValue(1);
+      Animated.timing(glowAnim, {
+        toValue: 0.2,
+        duration: 500,
+        useNativeDriver: true,
+      }).start();
+    } else if (state !== 'current' && prevStateRef.current === 'current') {
+      scaleAnim.setValue(1);
+      glowAnim.setValue(0);
+    }
+    prevStateRef.current = state;
+  }, [state]);
+
+  if (state === 'hidden') {
+    return <View style={{ width: size, height: size, margin: GAP / 2 }} />;
+  }
+
+  const backgroundColor = isFlashing
+    ? '#FFFFFF'
+    : state === 'played'
+      ? Colors.surfaceLight
+      : color;
+
+  const opacity = state === 'played' ? 0.5 : 1;
+  const isCurrent = state === 'current';
+
+  return (
+    <View style={{
+      width: size,
+      height: size,
+      margin: GAP / 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}>
+      {/* Glow layers — cross-platform (no native shadow needed) */}
+      {isCurrent && (
+        <>
+          {/* Outermost soft glow */}
+          <Animated.View
+            style={[
+              styles.glowLayer,
+              {
+                width: size + 12,
+                height: size + 12,
+                borderRadius: 8,
+                backgroundColor: color,
+                opacity: glowAnim.interpolate({
+                  inputRange: [0, 0.2, 1],
+                  outputRange: [0, 0.15, 0.35],
+                }),
+              },
+            ]}
+          />
+          {/* Middle glow */}
+          <Animated.View
+            style={[
+              styles.glowLayer,
+              {
+                width: size + 6,
+                height: size + 6,
+                borderRadius: 6,
+                backgroundColor: color,
+                opacity: glowAnim.interpolate({
+                  inputRange: [0, 0.2, 1],
+                  outputRange: [0, 0.25, 0.5],
+                }),
+              },
+            ]}
+          />
+          {/* Bright ring */}
+          <Animated.View
+            style={[
+              styles.glowLayer,
+              {
+                width: size + 4,
+                height: size + 4,
+                borderRadius: 5,
+                borderWidth: 1.5,
+                borderColor: color,
+                opacity: glowAnim.interpolate({
+                  inputRange: [0, 0.2, 1],
+                  outputRange: [0.1, 0.4, 0.8],
+                }),
+              },
+            ]}
+          />
+        </>
+      )}
+
+      {/* Main cell — iOS gets bonus native shadow */}
+      <Animated.View
+        style={[
+          isCurrent && Platform.OS === 'ios' ? {
+            shadowColor: color,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.9,
+            shadowRadius: 10,
+          } : undefined,
+          {
+            borderRadius: 4,
+            transform: [{ scale: isCurrent ? scaleAnim : 1 }],
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={[
+            styles.cell,
+            {
+              width: size - (isCurrent ? 4 : 0),
+              height: size - (isCurrent ? 4 : 0),
+              backgroundColor,
+              opacity,
+              borderWidth: isCurrent ? 2 : 0,
+              borderColor: isCurrent ? '#FFFFFF' : 'transparent',
+            },
+          ]}
+          onPress={onPress}
+          onLongPress={onLongPress}
+          delayLongPress={400}
+          activeOpacity={0.7}
+        >
+          {/* A/B repeat marker badge */}
+          {repeatMarker && (
+            <View style={styles.markerBadge}>
+              <Text style={styles.markerText}>{repeatMarker}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
+  );
+}
+
+const GAP = 3;
+
+const styles = StyleSheet.create({
+  cell: {
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glowLayer: {
+    position: 'absolute',
+  },
+  markerBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 1,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  markerText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '800',
+    lineHeight: 10,
+  },
+});
+
+export const PhraseGridCell = React.memo(PhraseGridCellInner);
+export { GAP as CELL_GAP };
