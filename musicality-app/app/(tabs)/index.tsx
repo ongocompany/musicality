@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { Swipeable } from 'react-native-gesture-handler';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { pickMediaFile, parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
 import { analyzeTrack } from '../../services/analysisApi';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 import { Track } from '../../types/track';
+import { EditionId, TrackEditions } from '../../types/analysis';
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -68,13 +70,51 @@ function TrackThumbnail({ track }: { track: Track }) {
   );
 }
 
+function EditionIndicators({ editions }: { editions?: TrackEditions }) {
+  if (!editions) return null;
+  const activeId = editions.activeEditionId;
+  const hasServer = !!editions.server;
+  const userIds = editions.userEditions.map(e => e.id);
+  if (!hasServer && userIds.length === 0) return null;
+
+  return (
+    <View style={styles.editionIndicators}>
+      {hasServer && (
+        <View style={[
+          styles.editionDot,
+          styles.editionDotServer,
+          activeId === 'S' && styles.editionDotActive,
+          activeId !== 'S' && { opacity: 0.4 },
+        ]}>
+          <Text style={styles.editionDotText}>S</Text>
+        </View>
+      )}
+      {(['1', '2', '3'] as EditionId[]).map(id => {
+        if (!userIds.includes(id)) return null;
+        return (
+          <View key={id} style={[
+            styles.editionDot,
+            styles.editionDotUser,
+            activeId === id && styles.editionDotActive,
+            activeId !== id && { opacity: 0.4 },
+          ]}>
+            <Text style={styles.editionDotText}>{id}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 function TrackItem({
   track,
+  editions,
   onPress,
   onLongPress,
   onAnalyze,
 }: {
   track: Track;
+  editions?: TrackEditions;
   onPress: () => void;
   onLongPress: () => void;
   onAnalyze: () => void;
@@ -89,6 +129,7 @@ function TrackItem({
             {track.mediaType === 'youtube' ? 'YouTube' : `${track.format.toUpperCase()} · ${formatFileSize(track.fileSize)}`}
           </Text>
           <AnalysisBadge track={track} />
+          <EditionIndicators editions={editions} />
         </View>
       </View>
       {track.mediaType !== 'youtube' && (track.analysisStatus === 'idle' || track.analysisStatus === 'error') ? (
@@ -102,9 +143,123 @@ function TrackItem({
   );
 }
 
+function SwipeableTrackItem({
+  track,
+  editions,
+  onPress,
+  onLongPress,
+  onAnalyze,
+  onSelectEdition,
+  onDeleteEdition,
+}: {
+  track: Track;
+  editions?: TrackEditions;
+  onPress: () => void;
+  onLongPress: () => void;
+  onAnalyze: () => void;
+  onSelectEdition: (trackId: string, editionId: EditionId) => void;
+  onDeleteEdition: (trackId: string, editionId: EditionId) => void;
+}) {
+  const swipeableRef = useRef<Swipeable>(null);
+  const hasEditions = editions && (editions.server || editions.userEditions.length > 0);
+
+  const renderRightActions = useCallback(() => {
+    if (!editions || !hasEditions) return null;
+    const activeId = editions.activeEditionId;
+    const allEditions: { id: EditionId; isServer: boolean }[] = [];
+
+    if (editions.server) {
+      allEditions.push({ id: 'S', isServer: true });
+    }
+    for (const id of ['1', '2', '3'] as EditionId[]) {
+      if (editions.userEditions.some(e => e.id === id)) {
+        allEditions.push({ id, isServer: false });
+      }
+    }
+
+    return (
+      <View style={styles.swipeActions}>
+        {allEditions.map(({ id, isServer }) => (
+          <TouchableOpacity
+            key={id}
+            style={[
+              styles.swipeEditionBtn,
+              isServer ? styles.swipeEditionServer : styles.swipeEditionUser,
+              activeId === id && styles.swipeEditionActive,
+            ]}
+            onPress={() => {
+              onSelectEdition(track.id, id);
+              swipeableRef.current?.close();
+            }}
+            onLongPress={() => {
+              if (isServer) {
+                Alert.alert('Server Edition', '서버 분석 에디션은 삭제할 수 없습니다.');
+              } else {
+                Alert.alert(
+                  `에디션 ${id} 삭제`,
+                  '이 에디션을 삭제하시겠습니까?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: () => {
+                        onDeleteEdition(track.id, id);
+                        swipeableRef.current?.close();
+                      },
+                    },
+                  ],
+                );
+              }
+            }}
+          >
+            <Text style={[
+              styles.swipeEditionText,
+              isServer ? styles.swipeEditionTextServer : styles.swipeEditionTextUser,
+            ]}>
+              {id}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  }, [editions, track.id, onSelectEdition, onDeleteEdition]);
+
+  if (!hasEditions) {
+    return (
+      <TrackItem
+        track={track}
+        editions={editions}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        onAnalyze={onAnalyze}
+      />
+    );
+  }
+
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      overshootRight={false}
+    >
+      <TrackItem
+        track={track}
+        editions={editions}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        onAnalyze={onAnalyze}
+      />
+    </Swipeable>
+  );
+}
+
 export default function LibraryScreen() {
   const { tracks, addTrack, removeTrack, renameTrack, setCurrentTrack, setTrackAnalysisStatus, setTrackAnalysis } = usePlayerStore();
-  const clearPhraseBoundaryOverrides = useSettingsStore((s) => s.clearPhraseBoundaryOverrides);
+  const trackEditions = useSettingsStore((s) => s.trackEditions);
+  const setActiveEdition = useSettingsStore((s) => s.setActiveEdition);
+  const deleteUserEdition = useSettingsStore((s) => s.deleteUserEdition);
+  const setServerEdition = useSettingsStore((s) => s.setServerEdition);
   const router = useRouter();
   const [showYouTubeInput, setShowYouTubeInput] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -182,12 +337,23 @@ export default function LibraryScreen() {
   };
 
   const handleAnalyze = async (track: Track) => {
-    // Clear user phrase edits so fresh analysis takes effect
-    clearPhraseBoundaryOverrides(track.id);
     setTrackAnalysisStatus(track.id, 'analyzing');
     try {
       const result = await analyzeTrack(track.uri, track.title, track.format);
       setTrackAnalysis(track.id, result);
+      // Store server phrase boundaries as 'S' edition (beat indices)
+      if (result.phraseBoundaries && result.phraseBoundaries.length > 0) {
+        const boundaryBeatIndices = result.phraseBoundaries.map(ts => {
+          let closest = 0;
+          let minDiff = Math.abs(result.beats[0] - ts);
+          for (let i = 1; i < result.beats.length; i++) {
+            const diff = Math.abs(result.beats[i] - ts);
+            if (diff < minDiff) { minDiff = diff; closest = i; }
+          }
+          return closest;
+        });
+        setServerEdition(track.id, boundaryBeatIndices);
+      }
     } catch (e: any) {
       setTrackAnalysisStatus(track.id, 'error');
       Alert.alert('Analysis Failed', e.message || 'Could not connect to analysis server.');
@@ -207,11 +373,14 @@ export default function LibraryScreen() {
           data={tracks}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <TrackItem
+            <SwipeableTrackItem
               track={item}
+              editions={trackEditions[item.id]}
               onPress={() => handlePlay(item)}
               onLongPress={() => handleLongPress(item)}
               onAnalyze={() => handleAnalyze(item)}
+              onSelectEdition={setActiveEdition}
+              onDeleteEdition={deleteUserEdition}
             />
           )}
           contentContainerStyle={styles.list}
@@ -411,5 +580,71 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     textAlign: 'center',
     marginTop: Spacing.sm,
+  },
+
+  // ─── Edition Indicators (small dots next to BPM badge) ───
+  editionIndicators: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  editionDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editionDotServer: {
+    backgroundColor: 'rgba(255, 193, 7, 0.3)',
+  },
+  editionDotUser: {
+    backgroundColor: 'rgba(156, 39, 176, 0.3)',
+  },
+  editionDotActive: {
+    borderWidth: 1.5,
+    borderColor: Colors.text,
+    opacity: 1,
+  },
+  editionDotText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+
+  // ─── Swipeable Edition Actions ────────────────────
+  swipeActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  swipeEditionBtn: {
+    width: 52,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    marginLeft: 4,
+  },
+  swipeEditionServer: {
+    backgroundColor: 'rgba(255, 193, 7, 0.25)',
+  },
+  swipeEditionUser: {
+    backgroundColor: 'rgba(156, 39, 176, 0.25)',
+  },
+  swipeEditionActive: {
+    borderWidth: 2,
+    borderColor: Colors.text,
+  },
+  swipeEditionText: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  swipeEditionTextServer: {
+    color: '#FFC107',
+  },
+  swipeEditionTextUser: {
+    color: '#CE93D8',
   },
 });

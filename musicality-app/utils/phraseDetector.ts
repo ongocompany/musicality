@@ -117,6 +117,41 @@ export function extractBoundaries(phrases: Phrase[]): number[] {
   return phrases.slice(1).map(p => p.startTime);
 }
 
+/**
+ * Build phrases directly from beat indices (used for user overrides).
+ * Unlike phrasesFromBoundaries, this skips timestamp→beatIndex conversion.
+ */
+export function phrasesFromBeatIndices(
+  beats: number[],
+  beatIndices: number[],
+  duration: number,
+): PhraseMap {
+  if (beats.length === 0 || beatIndices.length === 0) {
+    return { phrases: [], beatsPerPhrase: 0, detectionMode: 'server' };
+  }
+
+  const starts = [...new Set(beatIndices)].sort((a, b) => a - b);
+  // Ensure 0 is always the first boundary
+  if (starts[0] !== 0) starts.unshift(0);
+  // Filter to valid range
+  const validStarts = starts.filter(idx => idx >= 0 && idx < beats.length);
+
+  // Estimate average beats per phrase
+  let totalBeats = 0;
+  for (let i = 1; i < validStarts.length; i++) {
+    totalBeats += validStarts[i] - validStarts[i - 1];
+  }
+  const avgBpp = validStarts.length > 1
+    ? Math.round(totalBeats / (validStarts.length - 1) / 8) * 8
+    : 32;
+
+  return {
+    phrases: buildPhrases(validStarts, beats, duration),
+    beatsPerPhrase: avgBpp || 32,
+    detectionMode: 'server',
+  };
+}
+
 export function phrasesFromBoundaries(
   beats: number[],
   boundaries: number[],

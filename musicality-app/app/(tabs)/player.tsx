@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,8 +16,8 @@ import { useVideoPlayer } from '../../hooks/useVideoPlayer';
 import { useYouTubePlayer } from '../../hooks/useYouTubePlayer';
 import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
-import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, getBeatTypeLabel, CountInfo } from '../../utils/beatCounter';
-import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries } from '../../utils/phraseDetector';
+import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, CountInfo } from '../../utils/beatCounter';
+import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, phrasesFromBeatIndices } from '../../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
 import { Colors, Spacing, FontSize, getPhraseColor } from '../../constants/theme';
 
@@ -86,9 +86,12 @@ export default function PlayerScreen() {
   const phraseDetectionMode = useSettingsStore((s) => s.phraseDetectionMode);
   const defaultBeatsPerPhrase = useSettingsStore((s) => s.defaultBeatsPerPhrase);
   const phraseMarks = useSettingsStore((s) => s.phraseMarks);
-  const phraseBoundaryOverrides = useSettingsStore((s) => s.phraseBoundaryOverrides);
-  const setPhraseBoundaryOverrides = useSettingsStore((s) => s.setPhraseBoundaryOverrides);
-  const clearPhraseBoundaryOverrides = useSettingsStore((s) => s.clearPhraseBoundaryOverrides);
+  const trackEditions = useSettingsStore((s) => s.trackEditions);
+  const setServerEdition = useSettingsStore((s) => s.setServerEdition);
+  const draftBoundaries = useSettingsStore((s) => s.draftBoundaries);
+  const setDraftBoundaries = useSettingsStore((s) => s.setDraftBoundaries);
+  const clearDraft = useSettingsStore((s) => s.clearDraft);
+  const saveDraftAsEdition = useSettingsStore((s) => s.saveDraftAsEdition);
 
   const onYtStateChange = useCallback((state: string) => {
     youtubePlayer.onStateChange(state);
@@ -100,12 +103,29 @@ export default function PlayerScreen() {
   const phraseMap = useMemo(() => {
     if (!analysis || analysis.beats.length === 0) return undefined;
 
-    // User-adjusted boundary overrides take priority
-    const overrides = currentTrack ? phraseBoundaryOverrides[currentTrack.id] : undefined;
-    if (overrides && overrides.length > 0) {
-      return phrasesFromBoundaries(analysis.beats, overrides, analysis.duration);
+    // ─── Draft boundaries (unsaved edits) take highest priority ───
+    const draft = currentTrack ? draftBoundaries[currentTrack.id] : undefined;
+    if (draft && draft.length > 0) {
+      return phrasesFromBeatIndices(analysis.beats, draft, analysis.duration);
     }
 
+    // ─── Active edition boundaries ───
+    const editions = currentTrack ? trackEditions[currentTrack.id] : undefined;
+    if (editions) {
+      const activeId = editions.activeEditionId;
+      let boundaries: number[] | undefined;
+      if (activeId === 'S') {
+        boundaries = editions.server?.boundaries;
+      } else {
+        const userEd = editions.userEditions.find(e => e.id === activeId);
+        boundaries = userEd?.boundaries;
+      }
+      if (boundaries && boundaries.length > 0) {
+        return phrasesFromBeatIndices(analysis.beats, boundaries, analysis.duration);
+      }
+    }
+
+    // Fallback: detection mode
     const refIdx = computeReferenceIndex(analysis.beats, analysis.downbeats, offsetBeatIndex, analysis.sections);
     switch (phraseDetectionMode) {
       case 'rule-based':
@@ -121,7 +141,7 @@ export default function PlayerScreen() {
           ? phrasesFromBoundaries(analysis.beats, analysis.phraseBoundaries, analysis.duration)
           : detectPhrasesRuleBased(analysis.beats, refIdx, defaultBeatsPerPhrase, analysis.duration);
     }
-  }, [analysis, offsetBeatIndex, phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks, currentTrack?.id, phraseBoundaryOverrides]);
+  }, [analysis, offsetBeatIndex, phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks, currentTrack?.id, trackEditions, draftBoundaries]);
 
   // Stable countInfo — only update reference when beatIndex/phraseIndex actually change
   // This prevents PhraseGrid re-renders on every 50ms position tick
@@ -138,22 +158,40 @@ export default function PlayerScreen() {
     return raw;
   }, [position, lookAheadMs, analysis, offsetBeatIndex, danceStyle, phraseMap]);
 
+  // Bounce animation for count number
+  const countBounceAnim = useRef(new Animated.Value(1)).current;
+  const prevCountNumRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (countInfo && countInfo.count !== prevCountNumRef.current) {
+      prevCountNumRef.current = countInfo.count;
+      countBounceAnim.setValue(1.3);
+      Animated.spring(countBounceAnim, {
+        toValue: 1,
+        friction: 4,
+        tension: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [countInfo?.count]);
+
   const handleGridTapBeat = useCallback((globalBeatIndex: number) => {
     if (!currentTrack) return;
     setDownbeatOffset(currentTrack.id, globalBeatIndex);
   }, [currentTrack, setDownbeatOffset]);
 
-  // Phrase boundary: insert a new boundary at the tapped beat
+  // Phrase boundary: add a new boundary to split the current phrase
+  // e.g. Yellow[0-47](48beats) + Green[48-95](48beats) → tap beat 24 in Yellow
+  //   → Yellow[0-23](24beats) + Orange[24-47](24beats) + Green[48-95](48beats)
   const handleStartPhraseHere = useCallback((globalBeatIndex: number) => {
     if (!currentTrack || !analysis || !phraseMap) return;
     const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
     const newBoundaries = [...new Set([...currentBoundaries, globalBeatIndex])].sort((a, b) => a - b);
-    setPhraseBoundaryOverrides(currentTrack.id, newBoundaries);
+    setDraftBoundaries(currentTrack.id, newBoundaries);
     // Seek to the new phrase start so grid refreshes with this as cell 1
     if (globalBeatIndex < analysis.beats.length) {
       seekTo(analysis.beats[globalBeatIndex] * 1000);
     }
-  }, [currentTrack, analysis, phraseMap, setPhraseBoundaryOverrides, seekTo]);
+  }, [currentTrack, analysis, phraseMap, setDraftBoundaries, seekTo]);
 
   // Paused tap: seek to beat and start playback (preview)
   const handleSeekAndPlay = useCallback((beatTimeMs: number) => {
@@ -167,8 +205,44 @@ export default function PlayerScreen() {
     const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
     // Remove this boundary (keep the first boundary at index 0 always)
     const newBoundaries = currentBoundaries.filter(b => b !== globalBeatIndex);
-    setPhraseBoundaryOverrides(currentTrack.id, newBoundaries);
-  }, [currentTrack, phraseMap, setPhraseBoundaryOverrides]);
+    setDraftBoundaries(currentTrack.id, newBoundaries);
+  }, [currentTrack, phraseMap, setDraftBoundaries]);
+
+  // Phrase-based skip back (single tap = current phrase start, double tap = previous phrase)
+  const lastBackTapRef = useRef<number>(0);
+  const handleSkipBack = useCallback(() => {
+    if (!phraseMap || !countInfo || !analysis) {
+      seekTo(Math.max(0, position - 10000)); // fallback: 10s
+      return;
+    }
+    const now = Date.now();
+    const isDoubleTap = now - lastBackTapRef.current < 400;
+    lastBackTapRef.current = now;
+
+    const idx = countInfo.phraseIndex;
+    const phrase = phraseMap.phrases[idx];
+    if (!phrase) return;
+
+    if (isDoubleTap && idx > 0) {
+      // Double tap: go to previous phrase start
+      seekTo(phraseMap.phrases[idx - 1].startTime * 1000);
+    } else {
+      // Single tap: go to current phrase start
+      seekTo(phrase.startTime * 1000);
+    }
+  }, [phraseMap, countInfo, analysis, position, seekTo]);
+
+  // Phrase-based skip forward (go to next phrase start)
+  const handleSkipForward = useCallback(() => {
+    if (!phraseMap || !countInfo || !analysis) {
+      seekTo(Math.min(duration, position + 10000)); // fallback: 10s
+      return;
+    }
+    const nextIdx = countInfo.phraseIndex + 1;
+    if (nextIdx < phraseMap.phrases.length) {
+      seekTo(phraseMap.phrases[nextIdx].startTime * 1000);
+    }
+  }, [phraseMap, countInfo, analysis, duration, position, seekTo]);
 
   // A-B loop: alternating A/B point setting from grid long-press
   const handleSetLoopPoint = useCallback((beatTimeMs: number) => {
@@ -205,12 +279,24 @@ export default function PlayerScreen() {
 
   const handleAnalyze = async () => {
     if (!currentTrack || currentTrack.analysisStatus === 'analyzing') return;
-    // Clear user phrase edits BEFORE re-analysis so fresh results take effect
-    clearPhraseBoundaryOverrides(currentTrack.id);
     setTrackAnalysisStatus(currentTrack.id, 'analyzing');
     try {
       const result = await analyzeTrack(currentTrack.uri, currentTrack.title, currentTrack.format);
       setTrackAnalysis(currentTrack.id, result);
+      // Store server phrase boundaries as 'S' edition (beat indices)
+      if (result.phraseBoundaries && result.phraseBoundaries.length > 0) {
+        // Convert timestamps to beat indices
+        const boundaryBeatIndices = result.phraseBoundaries.map(ts => {
+          let closest = 0;
+          let minDiff = Math.abs(result.beats[0] - ts);
+          for (let i = 1; i < result.beats.length; i++) {
+            const diff = Math.abs(result.beats[i] - ts);
+            if (diff < minDiff) { minDiff = diff; closest = i; }
+          }
+          return closest;
+        });
+        setServerEdition(currentTrack.id, boundaryBeatIndices);
+      }
     } catch (e: any) {
       setTrackAnalysisStatus(currentTrack.id, 'error');
       Alert.alert('Analysis Failed', e.message || 'Could not connect to analysis server.');
@@ -326,22 +412,20 @@ export default function PlayerScreen() {
         {/* ③ Compact Count + PhraseGrid (audio only) */}
         {!isVisual && currentTrack.analysisStatus === 'done' && (
           <View style={styles.countSection}>
-            {/* Compact count header row */}
-            <View style={styles.countHeaderRow}>
-              {countInfo && countInfo.totalPhrases > 0 && (
-                <View style={[styles.phraseBadge, { backgroundColor: getPhraseColor(countInfo.phraseIndex) }]}>
-                  <Text style={styles.phraseBadgeText}>PHRASE {countInfo.phraseIndex + 1}</Text>
-                </View>
-              )}
-              <Text style={[styles.compactCount, { color: countInfo && countInfo.totalPhrases > 0 ? getPhraseColor(countInfo.phraseIndex) : Colors.textMuted }]}>
-                {countInfo?.count ?? '--'}
-              </Text>
-              {countInfo && (
-                <Text style={[styles.compactBeatType, { color: countInfo.totalPhrases > 0 ? getPhraseColor(countInfo.phraseIndex) : Colors.beatPulse }]}>
-                  {getBeatTypeLabel(countInfo.beatType)}
-                </Text>
-              )}
-            </View>
+            {/* Count number with bounce animation */}
+            <Animated.Text
+              style={[
+                styles.compactCount,
+                {
+                  color: countInfo && countInfo.totalPhrases > 0
+                    ? getPhraseColor(countInfo.phraseIndex)
+                    : Colors.textMuted,
+                  transform: [{ scale: countBounceAnim }],
+                },
+              ]}
+            >
+              {countInfo?.count ?? '--'}
+            </Animated.Text>
 
             {/* PhraseGrid — rhythm game style */}
             <PhraseGrid
@@ -359,6 +443,57 @@ export default function PlayerScreen() {
               loopStart={loopStart}
               loopEnd={loopEnd}
             />
+          </View>
+        )}
+
+        {/* Draft Save/Discard */}
+        {currentTrack && draftBoundaries[currentTrack.id] && (
+          <View style={styles.draftActions}>
+            <TouchableOpacity
+              style={styles.draftSaveButton}
+              onPress={() => {
+                const editions = trackEditions[currentTrack.id];
+                const usedSlots = editions?.userEditions?.length ?? 0;
+
+                if (usedSlots >= 3) {
+                  // 3개 슬롯 꽉 참 → 가장 오래된 슬롯 교체 경고
+                  const sorted = [...(editions?.userEditions ?? [])].sort((a, b) => a.createdAt - b.createdAt);
+                  const evictId = sorted[0]?.id ?? '1';
+                  Alert.alert(
+                    '슬롯 부족',
+                    `3개 슬롯이 모두 사용 중입니다.\nEdition ${evictId}을 대체하고 저장할까요?`,
+                    [
+                      { text: '취소', style: 'cancel' },
+                      {
+                        text: '대체하고 저장',
+                        style: 'destructive',
+                        onPress: () => {
+                          const slotId = saveDraftAsEdition(currentTrack.id);
+                          if (slotId) {
+                            Alert.alert('Saved', `Edition ${slotId}에 저장되었습니다`);
+                          }
+                        },
+                      },
+                    ],
+                  );
+                } else {
+                  const slotId = saveDraftAsEdition(currentTrack.id);
+                  if (slotId) {
+                    Alert.alert('Saved', `Edition ${slotId}에 저장되었습니다`);
+                  }
+                }
+              }}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+              <Text style={styles.draftSaveText}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.draftDiscardButton}
+              onPress={() => clearDraft(currentTrack.id)}
+            >
+              <Ionicons name="close-circle" size={20} color={Colors.error} />
+              <Text style={styles.draftDiscardText}>Discard</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -473,49 +608,27 @@ export default function PlayerScreen() {
 
       {/* ─── Fixed Bottom Bar (above tab bar) ─── */}
       <View style={styles.bottomBar}>
-        <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
-        <TouchableOpacity onPress={() => seekTo(Math.max(0, position - 10000))}>
-          <Ionicons name="play-back" size={28} color={Colors.text} />
-        </TouchableOpacity>
+        <View style={styles.bottomBarSide}>
+          <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
+          <TouchableOpacity onPress={handleSkipBack}>
+            <Ionicons name="play-back" size={28} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
           <Ionicons name={isPlaying ? 'pause' : 'play'} size={32} color={Colors.text} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => seekTo(Math.min(duration, position + 10000))}>
-          <Ionicons name="play-forward" size={28} color={Colors.text} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={toggleCue} style={styles.cueToggle}>
-          <Ionicons
-            name={cueEnabled ? 'volume-high' : 'volume-mute'}
-            size={22}
-            color={cueEnabled ? Colors.accent : Colors.textMuted}
-          />
-        </TouchableOpacity>
-        {/* Compact loop toggle — mirrors speed button on the left */}
-        <TouchableOpacity
-          style={styles.loopToggle}
-          onPress={() => {
-            if (loopStart !== null && loopEnd !== null) {
-              // Already has A-B: toggle or clear
-              clearLoop();
-            } else if (loopStart === null) {
-              // Set A point
-              setLoopStart(position);
-            } else {
-              // A is set, set B point
-              if (position > loopStart) setLoopEnd(position);
-            }
-          }}
-          onLongPress={clearLoop}
-        >
-          <Ionicons
-            name={loopEnabled ? 'repeat' : 'repeat-outline'}
-            size={20}
-            color={loopEnabled ? Colors.primary : loopStart !== null ? Colors.accent : Colors.textMuted}
-          />
-          {loopStart !== null && !loopEnd && (
-            <View style={styles.loopDot} />
-          )}
-        </TouchableOpacity>
+        <View style={styles.bottomBarSide}>
+          <TouchableOpacity onPress={handleSkipForward}>
+            <Ionicons name="play-forward" size={28} color={Colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleCue} style={styles.cueToggle}>
+            <Ionicons
+              name={cueEnabled ? 'volume-high' : 'volume-mute'}
+              size={22}
+              color={cueEnabled ? Colors.accent : Colors.textMuted}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -586,34 +699,11 @@ const styles = StyleSheet.create({
 
   // ─── Count Display + PhraseGrid ─────────────────
   countSection: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  countHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  phraseBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  phraseBadgeText: {
-    color: Colors.text,
-    fontSize: FontSize.xs,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
   compactCount: {
     fontSize: 48,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
-  },
-  compactBeatType: {
-    fontSize: FontSize.md,
-    fontWeight: '700',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+    marginBottom: Spacing.xs,
   },
   nowIsOneButton: {
     flexDirection: 'row',
@@ -719,14 +809,19 @@ const styles = StyleSheet.create({
   // ─── Bottom Bar (fixed above tab bar) ──────────
   bottomBar: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: Spacing.lg,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+  },
+  bottomBarSide: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.lg,
   },
   playButton: {
     width: 56,
@@ -735,12 +830,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    marginHorizontal: Spacing.md,
   },
   cueToggle: {
     padding: Spacing.xs,
   },
 
-  // ─── Loop (inline A-B controls + bottom bar toggle) ──
+  // ─── Loop (inline A-B controls in scroll area) ──
   loopInlineSection: {
     marginTop: Spacing.sm,
     paddingHorizontal: Spacing.lg,
@@ -760,21 +856,47 @@ const styles = StyleSheet.create({
   loopButtonTextActive: { color: Colors.primary },
   loopClear: { padding: Spacing.xs },
   loopStatus: { color: Colors.primary, fontSize: FontSize.xs, textAlign: 'center', marginTop: Spacing.xs },
-  loopToggle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+
+  // ─── Draft Save/Discard ──────────────────────────
+  draftActions: {
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.xs,
   },
-  loopDot: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.accent,
+  draftSaveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.4)',
+  },
+  draftSaveText: {
+    color: '#4CAF50',
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+  },
+  draftDiscardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(207, 102, 121, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(207, 102, 121, 0.4)',
+  },
+  draftDiscardText: {
+    color: Colors.error,
+    fontSize: FontSize.sm,
+    fontWeight: '700',
   },
 });

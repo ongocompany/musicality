@@ -3,14 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DanceStyle } from '../utils/beatCounter';
 import { CueType } from '../types/cue';
-import { PhraseDetectionMode } from '../types/analysis';
-
-/** Per-track boundary correction data (for future model training) */
-export interface BoundaryCorrection {
-  originalBoundaries: number[];   // server/rule-generated boundaries
-  correctedBoundaries: number[];  // user-adjusted boundaries
-  timestamp: number;              // when the correction was made
-}
+import { PhraseDetectionMode, EditionId, PhraseEdition, TrackEditions } from '../types/analysis';
 
 interface SettingsState {
   // Dance style (global setting)
@@ -45,19 +38,38 @@ interface SettingsState {
   setPhraseMark: (trackId: string, beatIndex: number) => void;
   clearPhraseMark: (trackId: string) => void;
 
-  // Per-track phrase boundary overrides (drag-to-adjust)
-  phraseBoundaryOverrides: Record<string, number[]>;
-  setPhraseBoundaryOverrides: (trackId: string, boundaries: number[]) => void;
-  clearPhraseBoundaryOverrides: (trackId: string) => void;
+  // ─── Phrase Edition System ───────────────────────────
+  trackEditions: Record<string, TrackEditions>;
 
-  // Per-track boundary corrections (for future model training data collection)
-  boundaryCorrections: Record<string, BoundaryCorrection>;
-  setBoundaryCorrection: (trackId: string, correction: BoundaryCorrection) => void;
+  /** Store server analysis as 'S' edition */
+  setServerEdition: (trackId: string, boundaryBeatIndices: number[]) => void;
+
+  /** Create or update a user edition's boundaries, set as active */
+  setEditionBoundaries: (trackId: string, editionId: EditionId, boundaries: number[]) => void;
+
+  /** Switch active edition */
+  setActiveEdition: (trackId: string, editionId: EditionId) => void;
+
+  /** Delete a user edition (S cannot be deleted) */
+  deleteUserEdition: (trackId: string, editionId: EditionId) => void;
+
+  // ─── Draft System (unsaved edits) ─────────────────────
+  /** Temporary boundaries while user is experimenting — not persisted */
+  draftBoundaries: Record<string, number[]>;
+
+  /** Update draft boundaries (live preview, not saved to edition yet) */
+  setDraftBoundaries: (trackId: string, boundaries: number[]) => void;
+
+  /** Discard draft — revert to active edition */
+  clearDraft: (trackId: string) => void;
+
+  /** Save current draft as a new user edition, auto-allocate slot */
+  saveDraftAsEdition: (trackId: string) => EditionId | null;
 }
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       danceStyle: 'bachata',
       setDanceStyle: (style) => set({ danceStyle: style }),
 
@@ -98,28 +110,195 @@ export const useSettingsStore = create<SettingsState>()(
           return { phraseMarks: rest };
         }),
 
-      // Phrase boundary overrides (drag-to-adjust)
-      phraseBoundaryOverrides: {},
-      setPhraseBoundaryOverrides: (trackId, boundaries) =>
-        set((state) => ({
-          phraseBoundaryOverrides: { ...state.phraseBoundaryOverrides, [trackId]: boundaries },
-        })),
-      clearPhraseBoundaryOverrides: (trackId) =>
+      // ─── Phrase Edition System ───────────────────────────
+
+      trackEditions: {},
+
+      setServerEdition: (trackId, boundaryBeatIndices) =>
         set((state) => {
-          const { [trackId]: _, ...rest } = state.phraseBoundaryOverrides;
-          return { phraseBoundaryOverrides: rest };
+          const existing = state.trackEditions[trackId] ?? {
+            server: null, userEditions: [], activeEditionId: 'S' as EditionId,
+          };
+          const now = Date.now();
+          return {
+            trackEditions: {
+              ...state.trackEditions,
+              [trackId]: {
+                ...existing,
+                server: {
+                  id: 'S' as EditionId,
+                  boundaries: boundaryBeatIndices,
+                  createdAt: existing.server?.createdAt ?? now,
+                  updatedAt: now,
+                },
+                // Keep current active unless nothing was active
+                activeEditionId: existing.activeEditionId || 'S',
+              },
+            },
+          };
         }),
 
-      // Boundary corrections (training data)
-      boundaryCorrections: {},
-      setBoundaryCorrection: (trackId, correction) =>
+      setEditionBoundaries: (trackId, editionId, boundaries) =>
+        set((state) => {
+          if (editionId === 'S') return state; // server edition is read-only
+
+          const existing = state.trackEditions[trackId] ?? {
+            server: null, userEditions: [], activeEditionId: 'S' as EditionId,
+          };
+          const now = Date.now();
+          const idx = existing.userEditions.findIndex(e => e.id === editionId);
+          let newUserEditions: PhraseEdition[];
+
+          if (idx >= 0) {
+            // Update in-place
+            newUserEditions = existing.userEditions.map((e, i) =>
+              i === idx ? { ...e, boundaries, updatedAt: now } : e
+            );
+          } else {
+            // Create new edition
+            newUserEditions = [
+              ...existing.userEditions,
+              { id: editionId, boundaries, createdAt: now, updatedAt: now },
+            ];
+          }
+
+          return {
+            trackEditions: {
+              ...state.trackEditions,
+              [trackId]: {
+                ...existing,
+                userEditions: newUserEditions,
+                activeEditionId: editionId,
+              },
+            },
+          };
+        }),
+
+      setActiveEdition: (trackId, editionId) =>
+        set((state) => {
+          const editions = state.trackEditions[trackId];
+          if (!editions) return state;
+
+          // Validate edition exists
+          if (editionId === 'S' && !editions.server) return state;
+          if (editionId !== 'S' && !editions.userEditions.find(e => e.id === editionId)) return state;
+
+          return {
+            trackEditions: {
+              ...state.trackEditions,
+              [trackId]: { ...editions, activeEditionId: editionId },
+            },
+          };
+        }),
+
+      deleteUserEdition: (trackId, editionId) =>
+        set((state) => {
+          if (editionId === 'S') return state; // cannot delete server edition
+          const editions = state.trackEditions[trackId];
+          if (!editions) return state;
+
+          const newUserEditions = editions.userEditions.filter(e => e.id !== editionId);
+          const newActive = editions.activeEditionId === editionId ? 'S' as EditionId : editions.activeEditionId;
+
+          return {
+            trackEditions: {
+              ...state.trackEditions,
+              [trackId]: {
+                ...editions,
+                userEditions: newUserEditions,
+                activeEditionId: newActive,
+              },
+            },
+          };
+        }),
+
+      // ─── Draft System ───────────────────────────────────
+
+      draftBoundaries: {},
+
+      setDraftBoundaries: (trackId, boundaries) =>
         set((state) => ({
-          boundaryCorrections: { ...state.boundaryCorrections, [trackId]: correction },
+          draftBoundaries: { ...state.draftBoundaries, [trackId]: boundaries },
         })),
+
+      clearDraft: (trackId) =>
+        set((state) => {
+          const { [trackId]: _, ...rest } = state.draftBoundaries;
+          return { draftBoundaries: rest };
+        }),
+
+      saveDraftAsEdition: (trackId) => {
+        const state = get();
+        const draft = state.draftBoundaries[trackId];
+        if (!draft || draft.length === 0) return null;
+
+        const editions = state.trackEditions[trackId] ?? {
+          server: null, userEditions: [], activeEditionId: 'S' as EditionId,
+        };
+
+        // Find available slot
+        const usedIds = new Set(editions.userEditions.map(e => e.id));
+        let slotId: EditionId;
+        const available = (['1', '2', '3'] as EditionId[]).filter(id => !usedIds.has(id));
+
+        if (available.length > 0) {
+          slotId = available[0];
+        } else {
+          // All 3 slots used — evict oldest by createdAt
+          const sorted = [...editions.userEditions].sort((a, b) => a.createdAt - b.createdAt);
+          slotId = sorted[0].id;
+        }
+
+        const now = Date.now();
+        const newUserEditions = editions.userEditions
+          .filter(e => e.id !== slotId)
+          .concat({ id: slotId, boundaries: draft, createdAt: now, updatedAt: now });
+
+        // Clear draft + save edition + set active
+        const { [trackId]: _, ...restDrafts } = state.draftBoundaries;
+        set({
+          draftBoundaries: restDrafts,
+          trackEditions: {
+            ...state.trackEditions,
+            [trackId]: {
+              ...editions,
+              userEditions: newUserEditions,
+              activeEditionId: slotId,
+            },
+          },
+        });
+
+        return slotId;
+      },
     }),
     {
       name: 'musicality-settings',
+      version: 2,
       storage: createJSONStorage(() => AsyncStorage),
+      migrate: (persistedState: any, version: number) => {
+        if (version < 2) {
+          // Migrate phraseBoundaryOverrides → trackEditions
+          const overrides = persistedState.phraseBoundaryOverrides ?? {};
+          const trackEditions: Record<string, TrackEditions> = {};
+          for (const [trackId, boundaries] of Object.entries(overrides)) {
+            if (Array.isArray(boundaries) && boundaries.length > 0) {
+              trackEditions[trackId] = {
+                server: null,
+                userEditions: [{
+                  id: '1' as EditionId,
+                  boundaries: boundaries as number[],
+                  createdAt: Date.now(),
+                  updatedAt: Date.now(),
+                }],
+                activeEditionId: '1' as EditionId,
+              };
+            }
+          }
+          const { phraseBoundaryOverrides, boundaryCorrections, ...rest } = persistedState;
+          return { ...rest, trackEditions };
+        }
+        return persistedState as SettingsState;
+      },
       partialize: (state) => ({
         danceStyle: state.danceStyle,
         lookAheadMs: state.lookAheadMs,
@@ -130,8 +309,7 @@ export const useSettingsStore = create<SettingsState>()(
         phraseDetectionMode: state.phraseDetectionMode,
         defaultBeatsPerPhrase: state.defaultBeatsPerPhrase,
         phraseMarks: state.phraseMarks,
-        phraseBoundaryOverrides: state.phraseBoundaryOverrides,
-        boundaryCorrections: state.boundaryCorrections,
+        trackEditions: state.trackEditions,
       }),
     },
   ),

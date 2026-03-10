@@ -40,3 +40,21 @@ export interface AnalysisResult {
 }
 
 export type AnalysisStatus = 'idle' | 'analyzing' | 'done' | 'error';
+
+// ─── Phrase Edition System ───────────────────────────
+
+/** Edition identifier: 'S' = server original, '1'|'2'|'3' = user editions */
+export type EditionId = 'S' | '1' | '2' | '3';
+
+export interface PhraseEdition {
+  id: EditionId;
+  boundaries: number[];   // beat indices (not timestamps)
+  createdAt: number;       // Date.now()
+  updatedAt: number;       // Date.now()
+}
+
+export interface TrackEditions {
+  server: PhraseEdition | null;     // 'S' edition — from server analysis
+  userEditions: PhraseEdition[];    // max 3 user editions
+  activeEditionId: EditionId;       // currently active
+}

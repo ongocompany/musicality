@@ -1,19 +1,20 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/theme';
 
 export default function TabLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        headerStyle: { backgroundColor: Colors.surface },
-        headerTintColor: Colors.text,
-        tabBarStyle: { backgroundColor: Colors.surface, borderTopColor: Colors.border },
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
-      }}
-    >
-      <Tabs.Screen
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: { backgroundColor: Colors.surface, borderTopColor: Colors.border },
+          tabBarActiveTintColor: Colors.primary,
+          tabBarInactiveTintColor: Colors.textMuted,
+        }}
+      >
+        <Tabs.Screen
         name="index"
         options={{
           title: 'Library',
@@ -41,6 +42,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color} />,
         }}
       />
-    </Tabs>
+      </Tabs>
+    </SafeAreaView>
   );
 }
