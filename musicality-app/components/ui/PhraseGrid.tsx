@@ -21,21 +21,22 @@ interface PhraseGridProps {
   loopStart: number | null;
   loopEnd: number | null;
   rows?: number; // default 8
+  scrollMode?: boolean; // rhythm-game style row scrolling
 }
 
 const COLS = 8;
-const HALF_COLS = 4; // visual grouping: 1234 | 5678
-const COL_GROUP_GAP = 6; // gap between the two 4-beat groups
 const DEFAULT_ROWS = 8;
 const MIN_CELL_SIZE = 20;
+const SCROLL_ANCHOR_ROW = 2; // current beat row fixed at 3rd display row (0-indexed)
 
 export function PhraseGrid({
   countInfo, phraseMap, hasAnalysis, beats, isPlaying,
   onTapBeat, onStartPhraseHere, onSetLoopPoint, onClearLoop,
   onSeekAndPlay, onMergeWithPrevious,
-  loopStart, loopEnd, rows,
+  loopStart, loopEnd, rows, scrollMode,
 }: PhraseGridProps) {
-  const CELLS_PER_PAGE = COLS * (rows ?? DEFAULT_ROWS);
+  const rowCount = rows ?? DEFAULT_ROWS;
+  const CELLS_PER_PAGE = COLS * rowCount;
   const [containerWidth, setContainerWidth] = useState(0);
   const [flashCellIndex, setFlashCellIndex] = useState<number | null>(null);
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -47,7 +48,7 @@ export function PhraseGrid({
   // Repeat selection mode ("selecting B")
   const [repeatSelectMode, setRepeatSelectMode] = useState(false);
 
-  // Refresh animation (phrase change OR page change)
+  // Refresh animation (phrase change OR page/row change)
   const prevPhraseIndexRef = useRef<number>(-1);
   const prevPageIndexRef = useRef<number>(0);
   const refreshAnim = useRef(new Animated.Value(1)).current;
@@ -79,62 +80,84 @@ export function PhraseGrid({
     setContainerWidth(e.nativeEvent.layout.width);
   }, []);
 
-  // Current phrase
+  // Current phrase (for page mode)
   const currentPhrase = useMemo(() => {
     if (!phraseMap || !countInfo || countInfo.phraseIndex < 0) return null;
     return phraseMap.phrases[countInfo.phraseIndex] ?? null;
   }, [phraseMap, countInfo?.phraseIndex]);
 
-  // Actual beats in current phrase
+  // Actual beats in current phrase (page mode)
   const actualBeats = currentPhrase
     ? currentPhrase.endBeatIndex - currentPhrase.startBeatIndex
     : CELLS_PER_PAGE;
 
-  // Local beat index within current phrase (0-based)
+  // Local beat index within current phrase (0-based, for page mode)
   const localBeatIndex = useMemo(() => {
     if (!countInfo || !currentPhrase) return -1;
     return countInfo.beatIndex - currentPhrase.startBeatIndex;
   }, [countInfo?.beatIndex, currentPhrase]);
 
-  // ─── Pagination for long phrases ───
-  const pageIndex = localBeatIndex >= 0
-    ? Math.floor(localBeatIndex / CELLS_PER_PAGE)
-    : 0;
-  const pageStartBeat = pageIndex * CELLS_PER_PAGE;
+  // Global beat index (for scroll mode cross-phrase view)
+  const globalBeatIndex = countInfo?.beatIndex ?? -1;
+  const totalBeats = beats.length;
 
-  // Beat index within current page (0-based)
-  const pageBeatIndex = localBeatIndex >= 0
-    ? localBeatIndex - pageStartBeat
-    : -1;
+  // ─── Pagination / Scroll logic ───
+  // Scroll mode: global beat space (continuous across phrases)
+  // Page mode: phrase-local beat space
+  const currentBeatRow = scrollMode
+    ? (globalBeatIndex >= 0 ? Math.floor(globalBeatIndex / COLS) : 0)
+    : (localBeatIndex >= 0 ? Math.floor(localBeatIndex / COLS) : 0);
 
-  // How many beats remain on this page
-  const beatsOnThisPage = Math.min(CELLS_PER_PAGE, actualBeats - pageStartBeat);
+  const startDataRow = useMemo(() => {
+    if (scrollMode) {
+      if (globalBeatIndex < 0) return 0;
+      // Allow negative so current beat always stays at SCROLL_ANCHOR_ROW
+      return currentBeatRow - SCROLL_ANCHOR_ROW;
+    }
+    if (localBeatIndex < 0) return 0;
+    const pageIdx = Math.floor(localBeatIndex / CELLS_PER_PAGE);
+    return pageIdx * rowCount;
+  }, [scrollMode, globalBeatIndex, localBeatIndex, currentBeatRow, CELLS_PER_PAGE, rowCount]);
 
-  // Detect phrase change OR page change → trigger refresh
+  const pageStartBeat = startDataRow * COLS;
+
+  // Beat index within current display window (0-based)
+  const pageBeatIndex = scrollMode
+    ? (globalBeatIndex >= 0 ? globalBeatIndex - pageStartBeat : -1)
+    : (localBeatIndex >= 0 ? localBeatIndex - pageStartBeat : -1);
+
+  // Total beats for bounds: global in scroll, phrase-local in page
+  const effectiveTotalBeats = scrollMode ? totalBeats : actualBeats;
+  const beatsOnThisPage = Math.max(0, Math.min(CELLS_PER_PAGE, effectiveTotalBeats - pageStartBeat));
+
+  // For page indicator
+  const pageIndex = scrollMode
+    ? currentBeatRow
+    : (localBeatIndex >= 0 ? Math.floor(localBeatIndex / CELLS_PER_PAGE) : 0);
+
+  // Detect phrase change OR row/page scroll → trigger refresh
   useEffect(() => {
     if (!countInfo || countInfo.totalPhrases === 0) return;
     const phraseChanged = prevPhraseIndexRef.current !== -1 &&
       prevPhraseIndexRef.current !== countInfo.phraseIndex;
-    const pageChanged = prevPageIndexRef.current !== pageIndex;
+    const scrollChanged = prevPageIndexRef.current !== startDataRow;
 
-    if (phraseChanged || pageChanged) {
+    if (phraseChanged || scrollChanged) {
       triggerRefresh();
     }
     prevPhraseIndexRef.current = countInfo.phraseIndex;
-    prevPageIndexRef.current = pageIndex;
-  }, [countInfo?.phraseIndex, pageIndex]);
+    prevPageIndexRef.current = startDataRow;
+  }, [countInfo?.phraseIndex, startDataRow]);
 
-  // Cell size (width-based, 4+4 grouped layout)
-  const rowCount = rows ?? DEFAULT_ROWS;
-  const groupGapsPerRow = Math.floor((COLS - 1) / HALF_COLS); // 1 group gap per row
+  // Cell size (width-based, uniform spacing)
   const cellSize = useMemo(() => {
     if (containerWidth <= 0) return 0;
-    const margins = COLS * CELL_GAP + groupGapsPerRow * COL_GROUP_GAP;
+    const margins = COLS * CELL_GAP;
     const available = containerWidth - margins;
     return Math.max(Math.floor(available / COLS), MIN_CELL_SIZE);
   }, [containerWidth]);
 
-  // Phrase color
+  // Phrase color (page mode: single color for entire grid)
   const phraseColor = useMemo(() => {
     if (countInfo && countInfo.totalPhrases > 0) {
       return getPhraseColor(countInfo.phraseIndex);
@@ -142,22 +165,63 @@ export function PhraseGrid({
     return Colors.textMuted;
   }, [countInfo?.phraseIndex, countInfo?.totalPhrases]);
 
-  // Cell state (page-relative)
+  // Cell state (relative to display window)
   const getCellState = useCallback((i: number): CellState => {
-    if (i >= beatsOnThisPage) return 'hidden';
+    const dataBeatIndex = pageStartBeat + i;
+    if (dataBeatIndex < 0) return 'hidden';
+    if (dataBeatIndex >= effectiveTotalBeats) return 'hidden';
+    if (!scrollMode && i >= beatsOnThisPage) return 'hidden';
     if (pageBeatIndex < 0) return 'upcoming';
     if (i === pageBeatIndex) return 'current';
     if (i < pageBeatIndex) return 'played';
     return 'upcoming';
-  }, [pageBeatIndex, beatsOnThisPage]);
+  }, [pageBeatIndex, beatsOnThisPage, pageStartBeat, effectiveTotalBeats, scrollMode]);
 
-  // ─── Tap handler (maps page-local → global) ───
+  // ─── Cell-to-global-beat resolution ───
+  const cellToGlobalBeat = useCallback((cellIndex: number): number => {
+    const dataBeat = pageStartBeat + cellIndex;
+    if (scrollMode) {
+      return (dataBeat >= 0 && dataBeat < totalBeats) ? dataBeat : -1;
+    }
+    if (!currentPhrase) return -1;
+    if (dataBeat < 0 || dataBeat >= actualBeats) return -1;
+    return currentPhrase.startBeatIndex + dataBeat;
+  }, [scrollMode, currentPhrase, pageStartBeat, actualBeats, totalBeats]);
+
+  // Per-cell color: scroll mode shows multiple phrase colors
+  const getCellPhraseColor = useCallback((cellIndex: number): string => {
+    if (!scrollMode) return phraseColor;
+    if (!phraseMap) return phraseColor;
+    const globalBeat = pageStartBeat + cellIndex;
+    if (globalBeat < 0 || globalBeat >= totalBeats) return Colors.textMuted;
+    for (let p = 0; p < phraseMap.phrases.length; p++) {
+      const phrase = phraseMap.phrases[p];
+      if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
+        return getPhraseColor(p);
+      }
+    }
+    return Colors.textMuted;
+  }, [scrollMode, phraseMap, pageStartBeat, totalBeats, phraseColor]);
+
+  // Per-cell row label: first column shows eight-count row number (1,2,3,4) — resets at phrase boundary
+  const getCellRowLabel = useCallback((cellIndex: number): string | null => {
+    if (cellIndex % COLS !== 0) return null; // only first column
+    const globalBeat = cellToGlobalBeat(cellIndex);
+    if (globalBeat < 0) return null;
+    if (!phraseMap) return null;
+    for (const phrase of phraseMap.phrases) {
+      if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
+        const beatInPhrase = globalBeat - phrase.startBeatIndex;
+        return String(Math.floor(beatInPhrase / COLS) + 1);
+      }
+    }
+    return null;
+  }, [cellToGlobalBeat, phraseMap]);
+
+  // ─── Tap handler ───
   const handleCellTap = useCallback((cellIndex: number) => {
-    if (!currentPhrase) return;
-    const phraseLocalIndex = pageStartBeat + cellIndex;
-    if (phraseLocalIndex >= actualBeats) return;
-
-    const globalBeatIndex = currentPhrase.startBeatIndex + phraseLocalIndex;
+    const globalBeat = cellToGlobalBeat(cellIndex);
+    if (globalBeat < 0) return;
 
     // Flash effect
     setFlashCellIndex(cellIndex);
@@ -166,58 +230,50 @@ export function PhraseGrid({
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    if (!isPlaying && beats.length > 0 && globalBeatIndex < beats.length) {
-      // Paused: seek to this beat and start playback (preview)
-      onSeekAndPlay(beats[globalBeatIndex] * 1000);
+    if (!isPlaying && globalBeat < beats.length) {
+      onSeekAndPlay(beats[globalBeat] * 1000);
     } else {
-      // Playing: existing downbeat adjustment
-      onTapBeat(globalBeatIndex);
+      onTapBeat(globalBeat);
     }
-  }, [currentPhrase, pageStartBeat, actualBeats, isPlaying, beats, onSeekAndPlay, onTapBeat]);
+  }, [cellToGlobalBeat, isPlaying, beats, onSeekAndPlay, onTapBeat]);
 
   // ─── Long-press handler ───
   const handleCellLongPress = useCallback((cellIndex: number) => {
-    if (!currentPhrase) return;
-    const phraseLocalIndex = pageStartBeat + cellIndex;
-    if (phraseLocalIndex >= actualBeats) return;
+    const globalBeat = cellToGlobalBeat(cellIndex);
+    if (globalBeat < 0) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     if (repeatSelectMode) {
-      // In "selecting B" mode — directly set B point
-      const globalBeatIndex = currentPhrase.startBeatIndex + phraseLocalIndex;
-      if (globalBeatIndex < beats.length) {
-        const beatTimeMs = beats[globalBeatIndex] * 1000;
-        onSetLoopPoint(beatTimeMs); // sets B (loop end)
+      if (globalBeat < beats.length) {
+        const beatTimeMs = beats[globalBeat] * 1000;
+        onSetLoopPoint(beatTimeMs);
       }
       setRepeatSelectMode(false);
     } else {
-      // Show context menu
       setMenuCellIndex(cellIndex);
       setMenuVisible(true);
     }
-  }, [currentPhrase, pageStartBeat, actualBeats, repeatSelectMode, beats, onSetLoopPoint]);
+  }, [cellToGlobalBeat, repeatSelectMode, beats, onSetLoopPoint]);
 
-  // ─── Context menu actions ───
+  // ─── Context menu helpers ───
+  const menuGlobalBeat = useMemo(() => {
+    if (menuCellIndex < 0) return -1;
+    return cellToGlobalBeat(menuCellIndex);
+  }, [menuCellIndex, cellToGlobalBeat]);
+
   const handleStartPhraseHere = useCallback(() => {
-    if (!currentPhrase) return;
-    const phraseLocalIndex = pageStartBeat + menuCellIndex;
-    const globalBeatIndex = currentPhrase.startBeatIndex + phraseLocalIndex;
-    onStartPhraseHere(globalBeatIndex);
+    if (menuGlobalBeat < 0) return;
+    onStartPhraseHere(menuGlobalBeat);
     setMenuVisible(false);
-  }, [menuCellIndex, currentPhrase, pageStartBeat, onStartPhraseHere]);
+  }, [menuGlobalBeat, onStartPhraseHere]);
 
   const handleRepeatFromHere = useCallback(() => {
-    if (!currentPhrase) return;
-    const phraseLocalIndex = pageStartBeat + menuCellIndex;
-    const globalBeatIndex = currentPhrase.startBeatIndex + phraseLocalIndex;
-    if (globalBeatIndex >= beats.length) return;
-
-    const beatTimeMs = beats[globalBeatIndex] * 1000;
-    onSetLoopPoint(beatTimeMs); // sets A (loop start)
+    if (menuGlobalBeat < 0 || menuGlobalBeat >= beats.length) return;
+    onSetLoopPoint(beats[menuGlobalBeat] * 1000);
     setRepeatSelectMode(true);
     setMenuVisible(false);
-  }, [menuCellIndex, currentPhrase, pageStartBeat, beats, onSetLoopPoint]);
+  }, [menuGlobalBeat, beats, onSetLoopPoint]);
 
   const handleClearLoop = useCallback(() => {
     onClearLoop();
@@ -227,35 +283,38 @@ export function PhraseGrid({
 
   // ─── Merge with previous phrase ───
   const handleMergeWithPrevious = useCallback(() => {
-    if (!currentPhrase) return;
-    const globalBeatIndex = currentPhrase.startBeatIndex;
-    onMergeWithPrevious(globalBeatIndex);
+    if (menuGlobalBeat < 0) return;
+    onMergeWithPrevious(menuGlobalBeat);
     setMenuVisible(false);
-  }, [currentPhrase, onMergeWithPrevious]);
+  }, [menuGlobalBeat, onMergeWithPrevious]);
 
-  // Is the menu cell the first beat of current phrase?
+  // Is the menu cell the first beat of a phrase?
   const isFirstCellOfPhrase = useMemo(() => {
-    if (menuCellIndex < 0 || !currentPhrase) return false;
-    const phraseLocalIndex = pageStartBeat + menuCellIndex;
-    return phraseLocalIndex === 0;
-  }, [menuCellIndex, currentPhrase, pageStartBeat]);
+    if (menuGlobalBeat < 0 || !phraseMap) return false;
+    return phraseMap.phrases.some(p => p.startBeatIndex === menuGlobalBeat);
+  }, [menuGlobalBeat, phraseMap]);
 
-  // Can merge: first cell of phrase AND not the very first phrase
-  const canMerge = isFirstCellOfPhrase && countInfo != null && countInfo.phraseIndex > 0;
+  // Can merge: first cell of a non-first phrase
+  const menuPhraseIndex = useMemo(() => {
+    if (menuGlobalBeat < 0 || !phraseMap) return -1;
+    return phraseMap.phrases.findIndex(p =>
+      menuGlobalBeat >= p.startBeatIndex && menuGlobalBeat < p.endBeatIndex
+    );
+  }, [menuGlobalBeat, phraseMap]);
+  const canMerge = isFirstCellOfPhrase && menuPhraseIndex > 0;
 
   // ─── Repeat marker calculation ───
   const getRepeatMarker = useCallback((cellIndex: number): 'A' | 'B' | null => {
-    if (!currentPhrase || !beats.length) return null;
-    const phraseLocalIndex = pageStartBeat + cellIndex;
-    const globalBeatIndex = currentPhrase.startBeatIndex + phraseLocalIndex;
-    if (globalBeatIndex >= beats.length) return null;
+    if (!beats.length) return null;
+    const globalBeat = cellToGlobalBeat(cellIndex);
+    if (globalBeat < 0 || globalBeat >= beats.length) return null;
 
-    const beatTimeMs = beats[globalBeatIndex] * 1000;
+    const beatTimeMs = beats[globalBeat] * 1000;
     // Check within +-20ms tolerance for floating point
     if (loopStart != null && Math.abs(beatTimeMs - loopStart) < 20) return 'A';
     if (loopEnd != null && Math.abs(beatTimeMs - loopEnd) < 20) return 'B';
     return null;
-  }, [currentPhrase, pageStartBeat, beats, loopStart, loopEnd]);
+  }, [cellToGlobalBeat, beats, loopStart, loopEnd]);
 
   // Animation interpolations
   const gridOpacity = refreshAnim.interpolate({
@@ -267,22 +326,20 @@ export function PhraseGrid({
     outputRange: [0.97, 1, 1],
   });
 
-  // Total pages for indicator
-  const totalPages = Math.ceil(actualBeats / CELLS_PER_PAGE);
+  // Total pages/rows for indicator
+  const totalDataRows = Math.ceil(effectiveTotalBeats / COLS);
+  const totalPages = scrollMode
+    ? totalDataRows
+    : Math.ceil(actualBeats / CELLS_PER_PAGE);
 
   // ─── No analysis placeholder ───
   if (!hasAnalysis) {
     return (
       <View style={styles.container}>
         <View style={styles.placeholderGrid} onLayout={onLayout}>
-          {containerWidth > 0 && Array.from({ length: CELLS_PER_PAGE }, (_, i) => {
-            const colInRow = i % COLS;
-            return (
-              <React.Fragment key={i}>
-                {colInRow === HALF_COLS && (
-                  <View style={{ width: COL_GROUP_GAP }} />
-                )}
+          {containerWidth > 0 && Array.from({ length: CELLS_PER_PAGE }, (_, i) => (
                 <PhraseGridCell
+                  key={i}
                   state="upcoming"
                   color={Colors.surfaceLight}
                   size={cellSize}
@@ -290,9 +347,7 @@ export function PhraseGrid({
                   onPress={() => {}}
                   onLongPress={() => {}}
                 />
-              </React.Fragment>
-            );
-          })}
+          ))}
           <View style={styles.placeholderOverlay}>
             <Text style={styles.placeholderText}>Analyze to see counts</Text>
           </View>
@@ -312,11 +367,13 @@ export function PhraseGrid({
         </View>
       )}
 
-      {/* Page indicator (only when multi-page) */}
-      {totalPages > 1 && (
+      {/* Page/row indicator (only when content exceeds one screen) */}
+      {(scrollMode ? totalDataRows > 1 : totalPages > 1) && (
         <View style={styles.pageIndicator}>
           <Text style={styles.pageText}>
-            {pageIndex + 1} / {totalPages}
+            {scrollMode
+              ? `${currentBeatRow + 1} / ${totalDataRows}`
+              : `${pageIndex + 1} / ${totalPages}`}
           </Text>
         </View>
       )}
@@ -328,25 +385,19 @@ export function PhraseGrid({
           { opacity: gridOpacity, transform: [{ scale: gridScale }] },
         ]}
       >
-        {containerWidth > 0 && cellSize > 0 && Array.from({ length: CELLS_PER_PAGE }, (_, i) => {
-          const colInRow = i % COLS;
-          return (
-            <React.Fragment key={i}>
-              {colInRow === HALF_COLS && (
-                <View style={{ width: COL_GROUP_GAP }} />
-              )}
+        {containerWidth > 0 && cellSize > 0 && Array.from({ length: CELLS_PER_PAGE }, (_, i) => (
               <PhraseGridCell
+                key={i}
                 state={getCellState(i)}
-                color={phraseColor}
+                color={getCellPhraseColor(i)}
                 size={cellSize}
                 isFlashing={flashCellIndex === i}
                 onPress={() => handleCellTap(i)}
                 onLongPress={() => handleCellLongPress(i)}
                 repeatMarker={getRepeatMarker(i)}
+                rowLabel={getCellRowLabel(i)}
               />
-            </React.Fragment>
-          );
-        })}
+        ))}
       </Animated.View>
 
       {/* Context menu modal */}

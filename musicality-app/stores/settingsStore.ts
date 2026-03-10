@@ -20,6 +20,10 @@ interface SettingsState {
   setDownbeatOffset: (trackId: string, beatIndex: number) => void;
   clearDownbeatOffset: (trackId: string) => void;
 
+  // Grid display mode: page (classic) vs scroll (rhythm-game style)
+  gridScrollMode: boolean;
+  toggleGridScrollMode: () => void;
+
   // Cue sound settings
   cueType: CueType;
   setCueType: (type: CueType) => void;
@@ -86,6 +90,9 @@ export const useSettingsStore = create<SettingsState>()(
           const { [trackId]: _, ...rest } = state.downbeatOffsets;
           return { downbeatOffsets: rest };
         }),
+
+      gridScrollMode: false,
+      toggleGridScrollMode: () => set((state) => ({ gridScrollMode: !state.gridScrollMode })),
 
       cueType: 'off',
       setCueType: (type) => set({ cueType: type, cueEnabled: type !== 'off' }),
@@ -301,6 +308,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
       partialize: (state) => ({
         danceStyle: state.danceStyle,
+        gridScrollMode: state.gridScrollMode,
         lookAheadMs: state.lookAheadMs,
         downbeatOffsets: state.downbeatOffsets,
         cueType: state.cueType,

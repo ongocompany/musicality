@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Colors, Spacing, FontSize, getPhraseColor, blendColors } from '../../constants/theme';
-import { CountInfo, getBeatTypeLabel } from '../../utils/beatCounter';
+import { CountInfo } from '../../utils/beatCounter';
 
 interface CountDisplayProps {
   countInfo: CountInfo | null;
@@ -63,19 +63,29 @@ export function CountDisplay({ countInfo, hasAnalysis }: CountDisplayProps) {
     countColor = isTapOrPause ? Colors.tapAccent : Colors.beatPulse;
   }
 
+  // Emphasize counts 1 and 5
+  const isEmphasis = countInfo.count === 1 || countInfo.count === 5;
+  const emphasisFontSize = isEmphasis ? FontSize.count * 1.25 : FontSize.count;
+
   return (
     <View style={styles.container}>
       <Animated.Text
         style={[
           styles.count,
-          { color: countColor, transform: [{ scale: pulseAnim }] },
+          {
+            color: countColor,
+            fontSize: emphasisFontSize,
+            transform: [{ scale: pulseAnim }],
+          },
+          isEmphasis ? {
+            textShadowColor: countColor,
+            textShadowOffset: { width: 0, height: 0 },
+            textShadowRadius: 24,
+          } : undefined,
         ]}
       >
         {countInfo.count}
       </Animated.Text>
-      <Text style={[styles.label, { color: countColor }]}>
-        {getBeatTypeLabel(countInfo.beatType)}
-      </Text>
     </View>
   );
 }
@@ -87,19 +97,12 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
   },
   count: {
-    fontSize: FontSize.count,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
   countMuted: {
     color: Colors.textMuted,
-  },
-  label: {
-    fontSize: FontSize.lg,
-    fontWeight: '700',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    marginTop: Spacing.xs,
+    fontSize: FontSize.count,
   },
   labelMuted: {
     color: Colors.textMuted,

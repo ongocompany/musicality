@@ -103,6 +103,8 @@ export default function PlayerScreen() {
   const setDraftBoundaries = useSettingsStore((s) => s.setDraftBoundaries);
   const clearDraft = useSettingsStore((s) => s.clearDraft);
   const saveDraftAsEdition = useSettingsStore((s) => s.saveDraftAsEdition);
+  const gridScrollMode = useSettingsStore((s) => s.gridScrollMode);
+  const toggleGridScrollMode = useSettingsStore((s) => s.toggleGridScrollMode);
 
   const onYtStateChange = useCallback((state: string) => {
     youtubePlayer.onStateChange(state);
@@ -342,11 +344,20 @@ export default function PlayerScreen() {
           <Text style={styles.compactTitle} numberOfLines={1}>{currentTrack.title}</Text>
           <View style={styles.headerMeta}>
             {analysis && (
-              <View style={styles.bpmBadge}>
-                <Text style={styles.bpmText}>
-                  {Math.round(analysis.bpm)} BPM
-                </Text>
-              </View>
+              <>
+                <TouchableOpacity onPress={toggleGridScrollMode} style={styles.scrollModeBtn}>
+                  <Ionicons
+                    name={gridScrollMode ? 'swap-vertical' : 'grid-outline'}
+                    size={16}
+                    color={gridScrollMode ? Colors.primary : Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+                <View style={styles.bpmBadge}>
+                  <Text style={styles.bpmText}>
+                    {Math.round(analysis.bpm)} BPM
+                  </Text>
+                </View>
+              </>
             )}
             {isYouTube && analysis && (
               <TouchableOpacity
@@ -422,6 +433,7 @@ export default function PlayerScreen() {
                   onMergeWithPrevious={handleMergeWithPrevious}
                   loopStart={loopStart}
                   loopEnd={loopEnd}
+                  scrollMode={gridScrollMode}
                 />
               </View>
             )}
@@ -500,6 +512,7 @@ export default function PlayerScreen() {
                   onMergeWithPrevious={handleMergeWithPrevious}
                   loopStart={loopStart}
                   loopEnd={loopEnd}
+                  scrollMode={gridScrollMode}
                 />
               </View>
             )}
@@ -539,6 +552,7 @@ export default function PlayerScreen() {
               onMergeWithPrevious={handleMergeWithPrevious}
               loopStart={loopStart}
               loopEnd={loopEnd}
+              scrollMode={gridScrollMode}
             />
           </View>
         )}
@@ -721,6 +735,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+  },
+  scrollModeBtn: {
+    padding: 4,
+    marginRight: 4,
   },
   bpmBadge: {
     backgroundColor: Colors.primary,

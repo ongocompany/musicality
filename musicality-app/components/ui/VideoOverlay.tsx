@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
-import { Colors, Spacing, FontSize, getPhraseColor, blendColors } from '../../constants/theme';
-import { CountInfo, getBeatTypeLabel } from '../../utils/beatCounter';
+import { View, StyleSheet, Animated } from 'react-native';
+import { Colors, Spacing, getPhraseColor, blendColors } from '../../constants/theme';
+import { CountInfo } from '../../utils/beatCounter';
 
 interface VideoOverlayProps {
   countInfo: CountInfo | null;
@@ -11,7 +11,7 @@ interface VideoOverlayProps {
 /**
  * Semi-transparent count overlay positioned on top of video.
  * Shows the current beat count (1-8) in the bottom-right corner
- * with phrase-aware rainbow coloring and transition hint pulse.
+ * with phrase-aware rainbow coloring. Counts 1 & 5 are emphasized.
  */
 export function VideoOverlay({ countInfo, hasAnalysis }: VideoOverlayProps) {
   // Pulse animation for transition hint
@@ -50,21 +50,30 @@ export function VideoOverlay({ countInfo, hasAnalysis }: VideoOverlayProps) {
     countColor = isTapOrPause ? Colors.tapAccent : Colors.beatPulse;
   }
 
+  // Emphasize counts 1 and 5
+  const isEmphasis = countInfo.count === 1 || countInfo.count === 5;
+  const emphasisFontSize = isEmphasis ? 72 : 56;
+
   return (
     <View style={styles.overlay} pointerEvents="none">
-      {/* Count display */}
       <View style={styles.countContainer}>
         <Animated.Text
           style={[
             styles.count,
-            { color: countColor, transform: [{ scale: pulseAnim }] },
+            {
+              color: countColor,
+              fontSize: emphasisFontSize,
+              transform: [{ scale: pulseAnim }],
+            },
+            isEmphasis ? {
+              textShadowColor: countColor,
+              textShadowOffset: { width: 0, height: 0 },
+              textShadowRadius: 18,
+            } : undefined,
           ]}
         >
           {countInfo.count}
         </Animated.Text>
-        <Text style={[styles.label, { color: countColor }]}>
-          {getBeatTypeLabel(countInfo.beatType)}
-        </Text>
       </View>
     </View>
   );
@@ -83,17 +92,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     alignItems: 'center',
+    justifyContent: 'center',
     minWidth: 80,
   },
   count: {
-    fontSize: 56,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
-  },
-  label: {
-    fontSize: FontSize.md,
-    fontWeight: '700',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
   },
 });

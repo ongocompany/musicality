@@ -12,9 +12,10 @@ interface PhraseGridCellProps {
   onPress: () => void;
   onLongPress: () => void;
   repeatMarker?: 'A' | 'B' | null;
+  rowLabel?: string | null;    // eight-count row number (1,2,3,4) on first cell of each row
 }
 
-function PhraseGridCellInner({ state, color, size, isFlashing, onPress, onLongPress, repeatMarker }: PhraseGridCellProps) {
+function PhraseGridCellInner({ state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel }: PhraseGridCellProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
   const prevStateRef = useRef<CellState>(state);
@@ -153,6 +154,15 @@ function PhraseGridCellInner({ state, color, size, isFlashing, onPress, onLongPr
           delayLongPress={400}
           activeOpacity={0.7}
         >
+          {/* Eight-count row label (first cell only: 1, 2, 3, 4) */}
+          {rowLabel && (
+            <Text style={[
+              styles.rowLabel,
+              { fontSize: Math.max(8, Math.round(size * 0.26)) },
+            ]}>
+              {rowLabel}
+            </Text>
+          )}
           {/* A/B repeat marker badge */}
           {repeatMarker && (
             <View style={styles.markerBadge}>
@@ -175,6 +185,11 @@ const styles = StyleSheet.create({
   },
   glowLayer: {
     position: 'absolute',
+  },
+  rowLabel: {
+    color: 'rgba(255, 255, 255, 0.45)',
+    fontWeight: '700',
+    textAlign: 'center',
   },
   markerBadge: {
     position: 'absolute',

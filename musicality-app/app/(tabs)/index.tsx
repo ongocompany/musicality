@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -117,54 +117,55 @@ function EditionIndicators({ editions }: { editions?: TrackEditions }) {
 }
 
 function TrackItem({
-  track, editions, isSelected, selectMode,
+  track, editions, isSelected, selectMode, isNowPlaying,
   onPress, onLongPress, onAnalyze,
 }: {
   track: Track;
   editions?: TrackEditions;
   isSelected: boolean;
   selectMode: boolean;
+  isNowPlaying: boolean;
   onPress: () => void;
   onLongPress: () => void;
   onAnalyze: () => void;
 }) {
   return (
-    <TouchableOpacity
-      style={[styles.trackItem, isSelected && styles.trackItemSelected]}
-      onPress={onPress}
-      onLongPress={onLongPress}
-    >
-      {selectMode && (
-        <View style={[styles.selectCheck, isSelected && styles.selectCheckActive]}>
-          {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+    <TouchableOpacity onPress={onPress} onLongPress={onLongPress} activeOpacity={0.7}>
+      <View style={[styles.trackItem, isSelected && styles.trackItemSelected, isNowPlaying && styles.trackItemNowPlaying]}>
+        {selectMode && (
+          <View style={[styles.selectCheck, isSelected && styles.selectCheckActive]}>
+            {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+          </View>
+        )}
+        <TrackThumbnail track={track} />
+        <View style={styles.trackInfo}>
+          <Text style={[styles.trackTitle, isNowPlaying && { color: Colors.primary }]} numberOfLines={1}>{track.title}</Text>
+          <View style={styles.trackMetaRow}>
+            <Text style={styles.trackMeta}>
+              {track.mediaType === 'youtube' ? 'YouTube' : `${track.format.toUpperCase()} · ${formatFileSize(track.fileSize)}`}
+            </Text>
+            <AnalysisBadge track={track} />
+            <EditionIndicators editions={editions} />
+          </View>
         </View>
-      )}
-      <TrackThumbnail track={track} />
-      <View style={styles.trackInfo}>
-        <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
-        <View style={styles.trackMetaRow}>
-          <Text style={styles.trackMeta}>
-            {track.mediaType === 'youtube' ? 'YouTube' : `${track.format.toUpperCase()} · ${formatFileSize(track.fileSize)}`}
-          </Text>
-          <AnalysisBadge track={track} />
-          <EditionIndicators editions={editions} />
-        </View>
+        {!selectMode && (
+          isNowPlaying ? (
+            <Ionicons name="volume-high" size={20} color={Colors.primary} />
+          ) : track.mediaType !== 'youtube' && (track.analysisStatus === 'idle' || track.analysisStatus === 'error') ? (
+            <TouchableOpacity style={styles.analyzeButton} onPress={onAnalyze}>
+              <Ionicons name="analytics-outline" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          ) : (
+            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+          )
+        )}
       </View>
-      {!selectMode && (
-        track.mediaType !== 'youtube' && (track.analysisStatus === 'idle' || track.analysisStatus === 'error') ? (
-          <TouchableOpacity style={styles.analyzeButton} onPress={onAnalyze}>
-            <Ionicons name="analytics-outline" size={20} color={Colors.primary} />
-          </TouchableOpacity>
-        ) : (
-          <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-        )
-      )}
     </TouchableOpacity>
   );
 }
 
 function SwipeableTrackItem({
-  track, editions, isSelected, selectMode,
+  track, editions, isSelected, selectMode, isNowPlaying,
   onPress, onLongPress, onAnalyze,
   onSelectEdition, onDeleteEdition, onToggleSelect,
 }: {
@@ -172,6 +173,7 @@ function SwipeableTrackItem({
   editions?: TrackEditions;
   isSelected: boolean;
   selectMode: boolean;
+  isNowPlaying: boolean;
   onPress: () => void;
   onLongPress: () => void;
   onAnalyze: () => void;
@@ -251,6 +253,7 @@ function SwipeableTrackItem({
         editions={editions}
         isSelected={isSelected}
         selectMode={selectMode}
+        isNowPlaying={isNowPlaying}
         onPress={onPress}
         onLongPress={onLongPress}
         onAnalyze={onAnalyze}
@@ -285,6 +288,7 @@ export default function LibraryScreen() {
     setCurrentTrack, setTrackAnalysisStatus, setTrackAnalysis,
     folders, createFolder, renameFolder, deleteFolder, moveTracksToFolder,
     sortBy, sortOrder, setSortBy, setSortOrder,
+    currentTrack, isPlaying,
   } = usePlayerStore();
   const trackEditions = useSettingsStore((s) => s.trackEditions);
   const setActiveEdition = useSettingsStore((s) => s.setActiveEdition);
@@ -662,6 +666,7 @@ export default function LibraryScreen() {
                 editions={trackEditions[item.track.id]}
                 isSelected={selectedTracks.has(item.track.id)}
                 selectMode={selectMode}
+                isNowPlaying={isPlaying && currentTrack?.id === item.track.id}
                 onPress={() => handlePlay(item.track)}
                 onLongPress={() => handleLongPress(item.track)}
                 onAnalyze={() => handleAnalyze(item.track)}
@@ -907,6 +912,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(187, 134, 252, 0.1)',
     borderWidth: 1,
     borderColor: Colors.primary,
+  },
+  trackItemNowPlaying: {
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.primary,
+    backgroundColor: 'rgba(187, 134, 252, 0.08)',
   },
   selectCheck: {
     width: 22,
