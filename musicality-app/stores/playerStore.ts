@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Track } from '../types/track';
+import { Track, Folder, SortField, SortOrder, MediaType } from '../types/track';
 import { AnalysisResult, AnalysisStatus } from '../types/analysis';
 
 interface PlayerState {
@@ -11,6 +11,19 @@ interface PlayerState {
   removeTrack: (id: string) => void;
   renameTrack: (id: string, newTitle: string) => void;
   setTrackThumbnail: (id: string, uri: string) => void;
+
+  // Folders
+  folders: Folder[];
+  createFolder: (name: string, mediaType: MediaType) => string;
+  renameFolder: (id: string, name: string) => void;
+  deleteFolder: (id: string) => void;
+  moveTracksToFolder: (trackIds: string[], folderId: string | undefined) => void;
+
+  // Sorting
+  sortBy: SortField;
+  sortOrder: SortOrder;
+  setSortBy: (field: SortField) => void;
+  setSortOrder: (order: SortOrder) => void;
 
   // Analysis
   setTrackAnalysisStatus: (trackId: string, status: AnalysisStatus) => void;
@@ -31,6 +44,10 @@ interface PlayerState {
   // Seeking (drag in progress)
   isSeeking: boolean;
   setIsSeeking: (seeking: boolean) => void;
+
+  // Video aspect ratio (dynamic from naturalSize)
+  videoAspectRatio: number;
+  setVideoAspectRatio: (ratio: number) => void;
 
   // Loop (A-B repeat)
   loopEnabled: boolean;
@@ -70,6 +87,42 @@ export const usePlayerStore = create<PlayerState>()(
               : state.currentTrack,
         })),
 
+      // Folders
+      folders: [],
+      createFolder: (name, mediaType) => {
+        const id = `folder_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        set((state) => ({
+          folders: [...state.folders, { id, name, mediaType, createdAt: Date.now() }],
+        }));
+        return id;
+      },
+      renameFolder: (id, name) =>
+        set((state) => ({
+          folders: state.folders.map((f) =>
+            f.id === id ? { ...f, name } : f,
+          ),
+        })),
+      deleteFolder: (id) =>
+        set((state) => ({
+          folders: state.folders.filter((f) => f.id !== id),
+          // Move tracks in deleted folder to root
+          tracks: state.tracks.map((t) =>
+            t.folderId === id ? { ...t, folderId: undefined } : t,
+          ),
+        })),
+      moveTracksToFolder: (trackIds, folderId) =>
+        set((state) => ({
+          tracks: state.tracks.map((t) =>
+            trackIds.includes(t.id) ? { ...t, folderId } : t,
+          ),
+        })),
+
+      // Sorting
+      sortBy: 'importedAt',
+      sortOrder: 'desc',
+      setSortBy: (field) => set({ sortBy: field }),
+      setSortOrder: (order) => set({ sortOrder: order }),
+
       // Analysis
       setTrackAnalysisStatus: (trackId, status) =>
         set((state) => ({
@@ -94,7 +147,7 @@ export const usePlayerStore = create<PlayerState>()(
 
       // Playback
       currentTrack: null,
-      setCurrentTrack: (track) => set({ currentTrack: track, position: 0, loopEnabled: false, loopStart: null, loopEnd: null }),
+      setCurrentTrack: (track) => set({ currentTrack: track, position: 0, loopEnabled: false, loopStart: null, loopEnd: null, videoAspectRatio: 16 / 9 }),
       isPlaying: false,
       setIsPlaying: (playing) => set({ isPlaying: playing }),
       position: 0,
@@ -108,6 +161,10 @@ export const usePlayerStore = create<PlayerState>()(
       isSeeking: false,
       setIsSeeking: (seeking) => set({ isSeeking: seeking }),
 
+      // Video aspect ratio
+      videoAspectRatio: 16 / 9,
+      setVideoAspectRatio: (ratio) => set({ videoAspectRatio: ratio }),
+
       // Loop
       loopEnabled: false,
       loopStart: null,
@@ -119,9 +176,37 @@ export const usePlayerStore = create<PlayerState>()(
     }),
     {
       name: 'musicality-tracks',
+      version: 3,
       storage: createJSONStorage(() => AsyncStorage),
-      // Only persist the tracks array (playback state is transient)
-      partialize: (state) => ({ tracks: state.tracks }),
+      partialize: (state) => ({
+        tracks: state.tracks,
+        folders: state.folders,
+        sortBy: state.sortBy,
+        sortOrder: state.sortOrder,
+      }),
+      migrate: (persistedState: any, version: number) => {
+        let state = persistedState;
+        if (version < 2) {
+          // v1 → v2: add folders, sortBy, sortOrder defaults
+          state = {
+            ...state,
+            folders: state.folders ?? [],
+            sortBy: state.sortBy ?? 'importedAt',
+            sortOrder: state.sortOrder ?? 'desc',
+          };
+        }
+        if (version < 3) {
+          // v2 → v3: add mediaType to folders (default 'audio')
+          state = {
+            ...state,
+            folders: (state.folders ?? []).map((f: any) => ({
+              ...f,
+              mediaType: f.mediaType ?? 'audio',
+            })),
+          };
+        }
+        return state as PlayerState;
+      },
       // Reset stuck 'analyzing' status on rehydration
       onRehydrateStorage: () => (state) => {
         if (!state) return;

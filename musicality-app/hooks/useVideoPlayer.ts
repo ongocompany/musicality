@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react';
-import { Video, AVPlaybackStatus } from 'expo-av';
+import { Video, AVPlaybackStatus, VideoReadyForDisplayEvent } from 'expo-av';
 import { usePlayerStore } from '../stores/playerStore';
 
 /**
@@ -96,6 +96,18 @@ export function useVideoPlayer() {
     videoRef.current.setRateAsync(playbackRate, true).catch(() => {});
   }, [playbackRate]);
 
+  // Capture video natural aspect ratio from onReadyForDisplay event
+  const onReadyForDisplay = useCallback((event: VideoReadyForDisplayEvent) => {
+    const { width, height } = event.naturalSize;
+    if (width > 0 && height > 0) {
+      const ratio = width / height;
+      const store = usePlayerStore.getState();
+      if (Math.abs(store.videoAspectRatio - ratio) > 0.01) {
+        store.setVideoAspectRatio(ratio);
+      }
+    }
+  }, []);
+
   // Cleanup on track change
   useEffect(() => {
     return () => {
@@ -103,5 +115,5 @@ export function useVideoPlayer() {
     };
   }, [currentTrack?.id]);
 
-  return { videoRef, togglePlay, seekTo, onPlaybackStatusUpdate };
+  return { videoRef, togglePlay, seekTo, onPlaybackStatusUpdate, onReadyForDisplay };
 }

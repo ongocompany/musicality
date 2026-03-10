@@ -32,9 +32,13 @@ function getMediaType(mimeType: string | undefined, name: string): MediaType {
   return 'audio';
 }
 
-export async function pickMediaFile(): Promise<Track | null> {
+export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Track | null> {
+  const types = filterType === 'audio' ? AUDIO_TYPES
+    : filterType === 'video' ? ['video/*']
+    : ALL_MEDIA_TYPES;
+
   const result = await DocumentPicker.getDocumentAsync({
-    type: ALL_MEDIA_TYPES,
+    type: types,
     copyToCacheDirectory: true,
   });
 

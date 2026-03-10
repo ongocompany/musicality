@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Phrase } from '../../types/analysis';
 import { getPhraseColor, Colors, FontSize, Spacing } from '../../constants/theme';
 import { WaveformOverlay } from './WaveformOverlay';
@@ -8,6 +8,7 @@ interface SectionTimelineProps {
   duration: number;       // seconds
   currentTimeMs: number;  // milliseconds
   waveformPeaks?: number[];
+  onSeekToPhrase?: (timeMs: number) => void;
 }
 
 /**
@@ -15,7 +16,7 @@ interface SectionTimelineProps {
  * Current phrase gets a bright border; short phrases hide labels.
  * Optionally overlays a waveform visualization.
  */
-export function SectionTimeline({ phrases, duration, currentTimeMs, waveformPeaks }: SectionTimelineProps) {
+export function SectionTimeline({ phrases, duration, currentTimeMs, waveformPeaks, onSeekToPhrase }: SectionTimelineProps) {
   if (!phrases || phrases.length === 0 || duration <= 0) return null;
 
   const currentTimeSec = currentTimeMs / 1000;
@@ -34,8 +35,10 @@ export function SectionTimeline({ phrases, duration, currentTimeMs, waveformPeak
           const showLabel = widthPct > 4; // hide label if phrase < 4% of total
 
           return (
-            <View
+            <TouchableOpacity
               key={`phrase-${phrase.index}`}
+              activeOpacity={0.7}
+              onPress={() => onSeekToPhrase?.(phrase.startTime * 1000)}
               style={[
                 styles.segment,
                 {
@@ -56,7 +59,7 @@ export function SectionTimeline({ phrases, duration, currentTimeMs, waveformPeak
                   {phrase.index + 1}
                 </Text>
               )}
-            </View>
+            </TouchableOpacity>
           );
         })}
         {/* Waveform layer (on top of phrase segments) */}

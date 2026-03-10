@@ -49,9 +49,20 @@ export default function PlayerScreen() {
     setTrackAnalysis,
   } = usePlayerStore();
 
+  const videoAspectRatio = usePlayerStore((s) => s.videoAspectRatio);
+
   const isVideo = currentTrack?.mediaType === 'video';
   const isYouTube = currentTrack?.mediaType === 'youtube';
   const isVisual = isVideo || isYouTube;
+
+  // Dynamic grid rows for video mode based on aspect ratio
+  const videoGridRows = useMemo(() => {
+    if (isYouTube) return 5;                  // YouTube always landscape
+    if (!isVideo) return 8;
+    if (videoAspectRatio >= 1.5) return 5;    // landscape (16:9+)
+    if (videoAspectRatio >= 1.0) return 4;    // square~landscape
+    return 4;                                  // portrait
+  }, [isVideo, isYouTube, videoAspectRatio]);
 
   const audioPlayer = useAudioPlayer();
   const videoPlayer = useVideoPlayer();
@@ -337,6 +348,18 @@ export default function PlayerScreen() {
                 </Text>
               </View>
             )}
+            {isYouTube && analysis && (
+              <TouchableOpacity
+                style={styles.analyzeBtn}
+                onPress={() => {
+                  setTrackAnalysisStatus(currentTrack.id, 'idle');
+                  resetTapTempo();
+                }}
+              >
+                <Ionicons name="refresh" size={16} color={Colors.text} />
+                <Text style={styles.analyzeBtnText}>Re-tap</Text>
+              </TouchableOpacity>
+            )}
             {!isYouTube && (!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
               <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyze}>
                 <Ionicons name="analytics-outline" size={16} color={Colors.text} />
@@ -380,31 +403,105 @@ export default function PlayerScreen() {
                 </View>
               )}
             </View>
+
+            {/* Analysis done → PhraseGrid */}
+            {currentTrack.analysisStatus === 'done' && (
+              <View style={styles.videoCountSection}>
+                <PhraseGrid
+                  rows={videoGridRows}
+                  countInfo={countInfo}
+                  phraseMap={phraseMap ?? null}
+                  hasAnalysis={!!analysis}
+                  beats={analysis?.beats ?? []}
+                  isPlaying={isPlaying}
+                  onTapBeat={handleGridTapBeat}
+                  onStartPhraseHere={handleStartPhraseHere}
+                  onSetLoopPoint={handleSetLoopPoint}
+                  onClearLoop={clearLoop}
+                  onSeekAndPlay={handleSeekAndPlay}
+                  onMergeWithPrevious={handleMergeWithPrevious}
+                  loopStart={loopStart}
+                  loopEnd={loopEnd}
+                />
+              </View>
+            )}
+
+            {/* No analysis → Tap Tempo UI */}
+            {currentTrack.analysisStatus !== 'done' && (
+              <View style={styles.tapTempoSection}>
+                {/* Row 1: TAP button + BPM display */}
+                <View style={styles.tapTempoRow}>
+                  <TouchableOpacity style={styles.tapButton} onPress={recordTap} activeOpacity={0.6}>
+                    <Ionicons name="hand-left" size={24} color={Colors.text} />
+                    <Text style={styles.tapButtonText}>TAP</Text>
+                  </TouchableOpacity>
+                  <View style={styles.tapBpmContainer}>
+                    <TouchableOpacity onPress={() => adjustBpm(-1)} style={styles.bpmAdjust}>
+                      <Ionicons name="remove-circle-outline" size={28} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                    <Text style={styles.tapBpmValue}>{tapBpm > 0 ? tapBpm : '--'}</Text>
+                    <Text style={styles.tapBpmLabel}>BPM</Text>
+                    <TouchableOpacity onPress={() => adjustBpm(1)} style={styles.bpmAdjust}>
+                      <Ionicons name="add-circle-outline" size={28} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {/* Row 2: "지금이 1" full-width button */}
+                <TouchableOpacity
+                  style={[styles.nowIsOneButtonWide, tapBpm <= 0 && styles.disabledButton]}
+                  onPress={handleNowIsOne}
+                  disabled={tapBpm <= 0}
+                >
+                  <Ionicons name="locate" size={20} color={tapBpm > 0 ? Colors.tapAccent : Colors.textMuted} />
+                  <Text style={[styles.nowIsOneTextInline, tapBpm <= 0 && { color: Colors.textMuted }]}>
+                    지금이 1
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.tapTempoHint}>
+                  TAP으로 BPM을 맞추고, 영상의 1박에 "지금이 1"을 누르세요
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
         {/* ② Video Player */}
         {isVideo && (
           <View style={styles.videoSection}>
-            <View style={styles.videoContainer}>
+            <View style={[styles.videoContainer, { aspectRatio: videoAspectRatio }]}>
               <Video
                 ref={videoPlayer.videoRef}
                 source={{ uri: currentTrack.uri }}
                 style={styles.video}
                 resizeMode={ResizeMode.CONTAIN}
                 shouldPlay={false}
-                progressUpdateIntervalMillis={50}
+                progressUpdateIntervalMillis={100}
                 onPlaybackStatusUpdate={videoPlayer.onPlaybackStatusUpdate}
+                onReadyForDisplay={videoPlayer.onReadyForDisplay}
               />
               {currentTrack.analysisStatus === 'done' && (
                 <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
               )}
             </View>
             {currentTrack.analysisStatus === 'done' && (
-              <TouchableOpacity style={styles.nowIsOneButton} onPress={handleNowIsOne}>
-                <Ionicons name="locate-outline" size={18} color={Colors.tapAccent} />
-                <Text style={styles.nowIsOneText}>지금이 1</Text>
-              </TouchableOpacity>
+              <View style={styles.videoCountSection}>
+                <PhraseGrid
+                  rows={videoGridRows}
+                  countInfo={countInfo}
+                  phraseMap={phraseMap ?? null}
+                  hasAnalysis={!!analysis}
+                  beats={analysis?.beats ?? []}
+                  isPlaying={isPlaying}
+                  onTapBeat={handleGridTapBeat}
+                  onStartPhraseHere={handleStartPhraseHere}
+                  onSetLoopPoint={handleSetLoopPoint}
+                  onClearLoop={clearLoop}
+                  onSeekAndPlay={handleSeekAndPlay}
+                  onMergeWithPrevious={handleMergeWithPrevious}
+                  loopStart={loopStart}
+                  loopEnd={loopEnd}
+                />
+              </View>
             )}
           </View>
         )}
@@ -497,44 +594,6 @@ export default function PlayerScreen() {
           </View>
         )}
 
-        {/* ④ YouTube Tap Tempo */}
-        {isYouTube && (
-          <View style={styles.tapTempoSection}>
-            <Text style={styles.sectionLabel}>Tap Tempo</Text>
-            <View style={styles.tapTempoRow}>
-              <TouchableOpacity style={styles.tapButton} onPress={recordTap} activeOpacity={0.6}>
-                <Ionicons name="hand-left" size={24} color={Colors.text} />
-                <Text style={styles.tapButtonText}>TAP</Text>
-              </TouchableOpacity>
-              <View style={styles.tapBpmContainer}>
-                <TouchableOpacity onPress={() => adjustBpm(-1)} style={styles.bpmAdjust}>
-                  <Ionicons name="remove-circle-outline" size={28} color={Colors.textSecondary} />
-                </TouchableOpacity>
-                <Text style={styles.tapBpmValue}>{tapBpm > 0 ? tapBpm : '--'}</Text>
-                <Text style={styles.tapBpmLabel}>BPM</Text>
-                <TouchableOpacity onPress={() => adjustBpm(1)} style={styles.bpmAdjust}>
-                  <Ionicons name="add-circle-outline" size={28} color={Colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity
-                style={[styles.nowIsOneButtonInline, tapBpm <= 0 && styles.disabledButton]}
-                onPress={handleNowIsOne}
-                disabled={tapBpm <= 0}
-              >
-                <Ionicons name="locate" size={20} color={tapBpm > 0 ? Colors.tapAccent : Colors.textMuted} />
-                <Text style={[styles.nowIsOneTextInline, tapBpm <= 0 && { color: Colors.textMuted }]}>
-                  지금이 1
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.tapTempoHint}>
-              {!analysis
-                ? 'TAP으로 BPM을 맞추고, 영상의 1박에 "지금이 1"을 누르세요'
-                : `${Math.round(analysis.bpm)} BPM · 카운트 활성`}
-            </Text>
-          </View>
-        )}
-
         {/* ⑤ Seek Bar + Time */}
         <View style={[styles.seekSection, isVisual && { paddingHorizontal: Spacing.lg }]}>
           <SeekBar
@@ -560,6 +619,7 @@ export default function PlayerScreen() {
               phrases={phraseMap.phrases}
               duration={analysis.duration}
               currentTimeMs={position}
+              onSeekToPhrase={seekTo}
             />
           )}
         </View>
@@ -688,12 +748,16 @@ const styles = StyleSheet.create({
   videoSection: { alignItems: 'center' },
   videoContainer: {
     width: '100%',
-    aspectRatio: 9 / 16,
     maxHeight: 480,
     backgroundColor: '#000',
     overflow: 'hidden',
   },
   video: { width: '100%', height: '100%' },
+  videoCountSection: {
+    width: '100%',
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.sm,
+  },
   youtubeContainer: { width: '100%', backgroundColor: '#000' },
   youtubeOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 10 },
 
@@ -782,6 +846,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceLight,
     borderWidth: 1,
     borderColor: Colors.tapAccent,
+  },
+  nowIsOneButtonWide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: Colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: Colors.tapAccent,
+    marginTop: Spacing.sm,
   },
   nowIsOneTextInline: {
     color: Colors.tapAccent,

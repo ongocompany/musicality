@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Animated, LayoutChangeEvent, Modal, Pressable, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors, Spacing, FontSize, getPhraseColor } from '../../constants/theme';
@@ -20,19 +20,22 @@ interface PhraseGridProps {
   onMergeWithPrevious: (globalBeatIndex: number) => void;
   loopStart: number | null;
   loopEnd: number | null;
+  rows?: number; // default 8
 }
 
 const COLS = 8;
-const ROWS = 8;
-const CELLS_PER_PAGE = COLS * ROWS; // 64
+const HALF_COLS = 4; // visual grouping: 1234 | 5678
+const COL_GROUP_GAP = 6; // gap between the two 4-beat groups
+const DEFAULT_ROWS = 8;
 const MIN_CELL_SIZE = 20;
 
 export function PhraseGrid({
   countInfo, phraseMap, hasAnalysis, beats, isPlaying,
   onTapBeat, onStartPhraseHere, onSetLoopPoint, onClearLoop,
   onSeekAndPlay, onMergeWithPrevious,
-  loopStart, loopEnd,
+  loopStart, loopEnd, rows,
 }: PhraseGridProps) {
+  const CELLS_PER_PAGE = COLS * (rows ?? DEFAULT_ROWS);
   const [containerWidth, setContainerWidth] = useState(0);
   const [flashCellIndex, setFlashCellIndex] = useState<number | null>(null);
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -121,10 +124,12 @@ export function PhraseGrid({
     prevPageIndexRef.current = pageIndex;
   }, [countInfo?.phraseIndex, pageIndex]);
 
-  // Cell size (width-based, fixed 8×8)
+  // Cell size (width-based, 4+4 grouped layout)
+  const rowCount = rows ?? DEFAULT_ROWS;
+  const groupGapsPerRow = Math.floor((COLS - 1) / HALF_COLS); // 1 group gap per row
   const cellSize = useMemo(() => {
     if (containerWidth <= 0) return 0;
-    const margins = COLS * CELL_GAP;
+    const margins = COLS * CELL_GAP + groupGapsPerRow * COL_GROUP_GAP;
     const available = containerWidth - margins;
     return Math.max(Math.floor(available / COLS), MIN_CELL_SIZE);
   }, [containerWidth]);
@@ -270,17 +275,24 @@ export function PhraseGrid({
     return (
       <View style={styles.container}>
         <View style={styles.placeholderGrid} onLayout={onLayout}>
-          {containerWidth > 0 && Array.from({ length: CELLS_PER_PAGE }, (_, i) => (
-            <PhraseGridCell
-              key={i}
-              state="upcoming"
-              color={Colors.surfaceLight}
-              size={cellSize}
-              isFlashing={false}
-              onPress={() => {}}
-              onLongPress={() => {}}
-            />
-          ))}
+          {containerWidth > 0 && Array.from({ length: CELLS_PER_PAGE }, (_, i) => {
+            const colInRow = i % COLS;
+            return (
+              <React.Fragment key={i}>
+                {colInRow === HALF_COLS && (
+                  <View style={{ width: COL_GROUP_GAP }} />
+                )}
+                <PhraseGridCell
+                  state="upcoming"
+                  color={Colors.surfaceLight}
+                  size={cellSize}
+                  isFlashing={false}
+                  onPress={() => {}}
+                  onLongPress={() => {}}
+                />
+              </React.Fragment>
+            );
+          })}
           <View style={styles.placeholderOverlay}>
             <Text style={styles.placeholderText}>Analyze to see counts</Text>
           </View>
@@ -316,18 +328,25 @@ export function PhraseGrid({
           { opacity: gridOpacity, transform: [{ scale: gridScale }] },
         ]}
       >
-        {containerWidth > 0 && cellSize > 0 && Array.from({ length: CELLS_PER_PAGE }, (_, i) => (
-          <PhraseGridCell
-            key={i}
-            state={getCellState(i)}
-            color={phraseColor}
-            size={cellSize}
-            isFlashing={flashCellIndex === i}
-            onPress={() => handleCellTap(i)}
-            onLongPress={() => handleCellLongPress(i)}
-            repeatMarker={getRepeatMarker(i)}
-          />
-        ))}
+        {containerWidth > 0 && cellSize > 0 && Array.from({ length: CELLS_PER_PAGE }, (_, i) => {
+          const colInRow = i % COLS;
+          return (
+            <React.Fragment key={i}>
+              {colInRow === HALF_COLS && (
+                <View style={{ width: COL_GROUP_GAP }} />
+              )}
+              <PhraseGridCell
+                state={getCellState(i)}
+                color={phraseColor}
+                size={cellSize}
+                isFlashing={flashCellIndex === i}
+                onPress={() => handleCellTap(i)}
+                onLongPress={() => handleCellLongPress(i)}
+                repeatMarker={getRepeatMarker(i)}
+              />
+            </React.Fragment>
+          );
+        })}
       </Animated.View>
 
       {/* Context menu modal */}
