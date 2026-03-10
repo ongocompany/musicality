@@ -100,6 +100,14 @@ export function useAudioPlayer() {
       await soundRef.current.pauseAsync();
       setIsPlaying(false);
     } else {
+      // If track finished (position at/near end), restart from beginning
+      if (
+        status.durationMillis &&
+        status.positionMillis >= status.durationMillis - 500
+      ) {
+        await soundRef.current.setPositionAsync(0);
+        setPosition(0);
+      }
       await soundRef.current.playAsync();
       setIsPlaying(true);
     }
