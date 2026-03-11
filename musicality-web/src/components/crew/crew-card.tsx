@@ -5,17 +5,21 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Crew } from '@/lib/types';
-import { countryToFlag } from '@/lib/utils';
+import { cn, countryToFlag } from '@/lib/utils';
 
 interface CrewCardProps {
   crew: Crew;
   showCaptainBadge?: boolean;
+  isCaptain?: boolean;
 }
 
-export function CrewCard({ crew, showCaptainBadge }: CrewCardProps) {
+export function CrewCard({ crew, showCaptainBadge, isCaptain }: CrewCardProps) {
   return (
     <Link href={`/crews/${crew.id}`}>
-      <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+      <Card className={cn(
+        "hover:border-primary/50 transition-colors cursor-pointer h-full",
+        isCaptain && "border-accent/60 hover:border-accent"
+      )}>
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
             <Avatar className="h-12 w-12 rounded-lg">

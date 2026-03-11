@@ -1,77 +1,161 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase-client';
-import { fetchDiscoverCrews } from '@/lib/api';
+import { fetchMyCrews, fetchDiscoverCrews } from '@/lib/api';
 import { CrewCard } from '@/components/crew/crew-card';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { useAuth } from '@/hooks/use-auth';
 import type { Crew } from '@/lib/types';
 
-export default function DiscoverPage() {
-  const [crews, setCrews] = useState<Crew[]>([]);
+export default function HomePage() {
+  const [myCrews, setMyCrews] = useState<Crew[]>([]);
+  const [allCrews, setAllCrews] = useState<Crew[]>([]);
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loadingMy, setLoadingMy] = useState(true);
+  const [loadingAll, setLoadingAll] = useState(true);
+  const { user } = useAuth();
   const supabase = createClient();
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async (q?: string) => {
-    setLoading(true);
-    try {
-      const data = await fetchDiscoverCrews(supabase, q);
-      setCrews(data);
-    } catch (err) {
-      console.error('Failed to load crews:', err);
-    } finally {
-      setLoading(false);
+  // Focus search when navigating to /#search
+  useEffect(() => {
+    if (window.location.hash === '#search') {
+      searchRef.current?.focus();
     }
-  }, [supabase]);
+  }, []);
+
+  const loadMyCrews = useCallback(async () => {
+    if (!user) {
+      setMyCrews([]);
+      setLoadingMy(false);
+      return;
+    }
+    setLoadingMy(true);
+    try {
+      const data = await fetchMyCrews(supabase);
+      setMyCrews(data);
+    } catch (err) {
+      console.error('Failed to load my crews:', err);
+    } finally {
+      setLoadingMy(false);
+    }
+  }, [supabase, user]);
+
+  const loadAllCrews = useCallback(
+    async (q?: string) => {
+      setLoadingAll(true);
+      try {
+        const data = await fetchDiscoverCrews(supabase, q);
+        setAllCrews(data);
+      } catch (err) {
+        console.error('Failed to load crews:', err);
+      } finally {
+        setLoadingAll(false);
+      }
+    },
+    [supabase],
+  );
 
   useEffect(() => {
-    load();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    loadMyCrews();
+    loadAllCrews();
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
-      load(search);
+      loadAllCrews(search);
     }, 300);
     return () => clearTimeout(timer);
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Exclude my crews from "all crews" to avoid duplicates
+  const myCrewIds = new Set(myCrews.map((c) => c.id));
+  const otherCrews = allCrews.filter((c) => !myCrewIds.has(c.id));
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Discover Crews</h1>
-        <p className="text-muted-foreground mt-1">
-          Find dance crews and share PhraseNotes together
-        </p>
+    <div className="space-y-6">
+      {/* Search */}
+      <div id="search">
+        <Input
+          ref={searchRef}
+          placeholder="Search crews by name, style, region..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full"
+        />
       </div>
 
-      <Input
-        placeholder="Search crews..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="max-w-sm"
-      />
+      {/* My Crews Section */}
+      {user && (
+        <>
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-foreground">My Crews</h2>
+              <Link href="/crews/create">
+                <Button size="sm" variant="ghost" className="text-primary hover:text-primary/80 gap-1">
+                  <span>+</span> Create
+                </Button>
+              </Link>
+            </div>
 
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-32 animate-pulse rounded-lg bg-muted"
-            />
-          ))}
-        </div>
-      ) : crews.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          {search ? 'No crews found matching your search' : 'No crews yet. Be the first to create one!'}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {crews.map((crew) => (
-            <CrewCard key={crew.id} crew={crew} />
-          ))}
-        </div>
+            {loadingMy ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="h-28 animate-pulse rounded-lg bg-muted" />
+                ))}
+              </div>
+            ) : myCrews.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                <p>No crews yet. Create or join one!</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {myCrews.map((crew) => (
+                  <CrewCard
+                    key={crew.id}
+                    crew={crew}
+                    isCaptain={crew.captainId === user?.id}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <Separator className="bg-border/50" />
+        </>
       )}
+
+      {/* All Crews Section */}
+      <section>
+        <h2 className="text-lg font-semibold text-foreground mb-3">
+          {search ? 'Search Results' : 'Discover Crews'}
+        </h2>
+
+        {loadingAll ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-28 animate-pulse rounded-lg bg-muted" />
+            ))}
+          </div>
+        ) : otherCrews.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">
+            {search
+              ? 'No crews found matching your search'
+              : 'No other crews yet'}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {otherCrews.map((crew) => (
+              <CrewCard key={crew.id} crew={crew} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

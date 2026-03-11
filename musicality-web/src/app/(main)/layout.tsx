@@ -1,6 +1,4 @@
-import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
-import { MobileNav } from '@/components/layout/mobile-nav';
 
 export default function MainLayout({
   children,
@@ -9,12 +7,8 @@ export default function MainLayout({
 }) {
   return (
     <div className="min-h-screen">
-      <Sidebar />
-      <div className="md:pl-60">
-        <Header />
-        <main className="p-4 md:p-6 pb-20 md:pb-6">{children}</main>
-      </div>
-      <MobileNav />
+      <Header />
+      <main className="max-w-4xl mx-auto px-4 py-6">{children}</main>
     </div>
   );
 }
