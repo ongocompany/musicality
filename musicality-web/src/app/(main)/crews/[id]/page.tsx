@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, use } from 'react';
+import { useEffect, useState, useCallback, useRef, use } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-client';
 import {
@@ -9,7 +9,10 @@ import {
   fetchSongThreads,
   fetchGeneralPosts,
   fetchPostReplies,
+  fetchUserLikes,
   createGeneralPost,
+  togglePostLike,
+  uploadPostMedia,
   joinCrew,
   leaveCrew,
   requestJoinCrew,
@@ -25,6 +28,207 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { cn, countryToFlag, timeAgo } from '@/lib/utils';
 import type { Crew, CrewMember, SongThread, GeneralPost } from '@/lib/types';
+import { MEDIA_LIMITS } from '@/lib/types';
+
+// ─── YouTube Helpers ────────────────────────────────────
+
+function extractYouTubeId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function extractYouTubeIds(text: string): string[] {
+  const urlRegex = /https?:\/\/[^\s]+/g;
+  const urls = text.match(urlRegex) ?? [];
+  const ids: string[] = [];
+  for (const url of urls) {
+    const id = extractYouTubeId(url);
+    if (id && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+function YouTubeEmbed({ videoId }: { videoId: string }) {
+  return (
+    <div className="mt-2 rounded-lg overflow-hidden aspect-video max-w-md">
+      <iframe
+        src={`https://www.youtube.com/embed/${videoId}`}
+        className="w-full h-full"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+        loading="lazy"
+      />
+    </div>
+  );
+}
+
+// ─── Media Preview ──────────────────────────────────────
+
+function MediaGallery({ urls }: { urls: string[] }) {
+  if (urls.length === 0) return null;
+
+  const isVideo = (url: string) =>
+    /\.(mp4|mov|webm)(\?|$)/i.test(url);
+
+  return (
+    <div className={cn(
+      "mt-2 gap-2",
+      urls.length === 1 ? "flex" : "grid grid-cols-2",
+    )}>
+      {urls.map((url, i) =>
+        isVideo(url) ? (
+          <video
+            key={i}
+            src={url}
+            controls
+            className="rounded-lg max-h-72 w-full object-cover bg-black"
+            preload="metadata"
+          />
+        ) : (
+          <img
+            key={i}
+            src={url}
+            alt=""
+            className="rounded-lg max-h-72 w-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+            loading="lazy"
+            onClick={() => window.open(url, '_blank')}
+          />
+        )
+      )}
+    </div>
+  );
+}
+
+// ─── File Picker Button ─────────────────────────────────
+
+function MediaPicker({
+  onFiles,
+  disabled,
+}: {
+  onFiles: (files: File[]) => void;
+  disabled?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const allTypes = [...MEDIA_LIMITS.ALLOWED_IMAGE_TYPES, ...MEDIA_LIMITS.ALLOWED_VIDEO_TYPES];
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    // Validate
+    const errors: string[] = [];
+    const valid: File[] = [];
+
+    for (const f of files.slice(0, MEDIA_LIMITS.MAX_FILES)) {
+      const isImage = MEDIA_LIMITS.ALLOWED_IMAGE_TYPES.includes(f.type as typeof MEDIA_LIMITS.ALLOWED_IMAGE_TYPES[number]);
+      const isVideo = MEDIA_LIMITS.ALLOWED_VIDEO_TYPES.includes(f.type as typeof MEDIA_LIMITS.ALLOWED_VIDEO_TYPES[number]);
+
+      if (!isImage && !isVideo) {
+        errors.push(`${f.name}: unsupported format`);
+        continue;
+      }
+      if (isImage && f.size > MEDIA_LIMITS.IMAGE_MAX_SIZE) {
+        errors.push(`${f.name}: image must be under 5MB`);
+        continue;
+      }
+      if (isVideo && f.size > MEDIA_LIMITS.VIDEO_MAX_SIZE) {
+        errors.push(`${f.name}: video must be under 50MB`);
+        continue;
+      }
+      valid.push(f);
+    }
+
+    if (files.length > MEDIA_LIMITS.MAX_FILES) {
+      errors.push(`Max ${MEDIA_LIMITS.MAX_FILES} files allowed`);
+    }
+    if (errors.length > 0) {
+      toast.error(errors.join('\n'));
+    }
+    if (valid.length > 0) {
+      onFiles(valid);
+    }
+
+    // Reset input
+    if (inputRef.current) inputRef.current.value = '';
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={allTypes.join(',')}
+        multiple
+        className="hidden"
+        onChange={handleChange}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={disabled}
+        className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+        title="Attach image or video"
+      >
+        {/* Image icon */}
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+          <circle cx="9" cy="9" r="2"/>
+          <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+        </svg>
+      </button>
+    </>
+  );
+}
+
+// ─── Staged File Preview ────────────────────────────────
+
+function StagedFiles({
+  files,
+  onRemove,
+}: {
+  files: File[];
+  onRemove: (index: number) => void;
+}) {
+  if (files.length === 0) return null;
+
+  return (
+    <div className="flex gap-2 mt-2 flex-wrap">
+      {files.map((f, i) => {
+        const isVideo = f.type.startsWith('video/');
+        const preview = isVideo ? null : URL.createObjectURL(f);
+        const sizeMB = (f.size / 1024 / 1024).toFixed(1);
+        return (
+          <div key={i} className="relative group">
+            {preview ? (
+              <img
+                src={preview}
+                alt=""
+                className="h-16 w-16 rounded-lg object-cover border border-border"
+              />
+            ) : (
+              <div className="h-16 w-16 rounded-lg border border-border bg-muted flex flex-col items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect width="15" height="14" x="1" y="5" rx="2" ry="2"/></svg>
+                <span className="text-[10px] text-muted-foreground mt-0.5">{sizeMB}MB</span>
+              </div>
+            )}
+            <button
+              onClick={() => onRemove(i)}
+              className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              x
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // ─── Thread-style Post Item ─────────────────────────────
 
@@ -33,12 +237,16 @@ function PostItem({
   crewId,
   currentUserId,
   onReplyPosted,
+  likedSet,
+  onToggleLike,
   depth = 0,
 }: {
   post: GeneralPost;
   crewId: string;
   currentUserId?: string;
   onReplyPosted: () => void;
+  likedSet: Set<string>;
+  onToggleLike: (postId: string) => void;
   depth?: number;
 }) {
   const supabase = createClient();
@@ -48,14 +256,16 @@ function PostItem({
   const [replies, setReplies] = useState<GeneralPost[]>([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
   const [showReplies, setShowReplies] = useState(false);
-  const [replyCount, setReplyCount] = useState(post.replies?.length ?? 0);
+  const [localReplyCount, setLocalReplyCount] = useState(post.replyCount);
+  const [localLikeCount, setLocalLikeCount] = useState(post.likeCount);
+  const isLiked = likedSet.has(post.id);
 
   const loadReplies = useCallback(async () => {
     setLoadingReplies(true);
     try {
       const data = await fetchPostReplies(supabase, post.id);
       setReplies(data);
-      setReplyCount(data.length);
+      setLocalReplyCount(data.length);
     } catch (err) {
       console.error(err);
     } finally {
@@ -70,7 +280,6 @@ function PostItem({
       await createGeneralPost(supabase, crewId, replyContent, post.id);
       setReplyContent('');
       setShowReplyInput(false);
-      // Reload replies
       await loadReplies();
       setShowReplies(true);
       onReplyPosted();
@@ -79,6 +288,16 @@ function PostItem({
     } finally {
       setPosting(false);
     }
+  }
+
+  function handleLike() {
+    if (!currentUserId) {
+      toast.error('Please sign in first');
+      return;
+    }
+    // Optimistic update
+    setLocalLikeCount((c) => isLiked ? Math.max(0, c - 1) : c + 1);
+    onToggleLike(post.id);
   }
 
   function toggleReplies() {
@@ -91,8 +310,9 @@ function PostItem({
   const displayName = post.profile?.displayName || 'Unknown';
   const avatarUrl = post.profile?.avatarUrl ?? undefined;
   const initial = displayName[0]?.toUpperCase() ?? '?';
-  const hasReplies = replyCount > 0;
-  const maxDepth = 3; // Limit nesting depth
+  const hasReplies = localReplyCount > 0;
+  const maxDepth = 3;
+  const youtubeIds = extractYouTubeIds(post.content);
 
   return (
     <div className={cn("group", depth > 0 && "ml-12")}>
@@ -105,7 +325,6 @@ function PostItem({
               {initial}
             </AvatarFallback>
           </Avatar>
-          {/* Vertical connecting line */}
           {(hasReplies || showReplyInput) && (
             <div className="w-0.5 flex-1 bg-border mt-1.5 min-h-[16px]" />
           )}
@@ -128,28 +347,84 @@ function PostItem({
             {post.content}
           </p>
 
-          {/* Actions */}
-          <div className="flex items-center gap-4 mt-2">
-            {/* Reply button */}
-            {currentUserId && depth < maxDepth && (
-              <button
-                onClick={() => setShowReplyInput(!showReplyInput)}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+          {/* Media gallery */}
+          <MediaGallery urls={post.mediaUrls} />
+
+          {/* YouTube embeds */}
+          {youtubeIds.map((vid) => (
+            <YouTubeEmbed key={vid} videoId={vid} />
+          ))}
+
+          {/* ─── Action bar: Like · Reply · Views ─── */}
+          <div className="flex items-center gap-5 mt-3">
+            {/* Like */}
+            <button
+              onClick={handleLike}
+              className={cn(
+                "flex items-center gap-1.5 text-xs transition-colors",
+                isLiked
+                  ? "text-red-400 hover:text-red-300"
+                  : "text-muted-foreground hover:text-red-400"
+              )}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill={isLiked ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                Reply
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+              </svg>
+              {localLikeCount > 0 && <span>{localLikeCount}</span>}
+            </button>
+
+            {/* Reply */}
+            {depth < maxDepth && (
+              <button
+                onClick={() => currentUserId ? setShowReplyInput(!showReplyInput) : toast.error('Please sign in first')}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                {localReplyCount > 0 && <span>{localReplyCount}</span>}
               </button>
             )}
-            {/* Show replies toggle */}
-            {hasReplies && (
-              <button
-                onClick={toggleReplies}
-                className="text-xs text-primary hover:text-primary/80 transition-colors font-medium"
-              >
-                {showReplies ? 'Hide replies' : `${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`}
-              </button>
+
+            {/* Views */}
+            {post.viewCount > 0 && depth === 0 && (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                {post.viewCount}
+              </span>
             )}
           </div>
+
+          {/* Reply thread toggle */}
+          {hasReplies && !showReplies && (
+            <button
+              onClick={toggleReplies}
+              className="mt-1 text-xs text-primary hover:text-primary/80 transition-colors font-medium"
+            >
+              {localReplyCount} {localReplyCount === 1 ? 'reply' : 'replies'}
+            </button>
+          )}
+          {showReplies && hasReplies && (
+            <button
+              onClick={toggleReplies}
+              className="mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Hide replies
+            </button>
+          )}
 
           {/* Reply input */}
           {showReplyInput && (
@@ -195,6 +470,8 @@ function PostItem({
                 crewId={crewId}
                 currentUserId={currentUserId}
                 onReplyPosted={loadReplies}
+                likedSet={likedSet}
+                onToggleLike={onToggleLike}
                 depth={depth + 1}
               />
             ))
@@ -218,21 +495,47 @@ function PostComposer({
 }) {
   const supabase = createClient();
   const [content, setContent] = useState('');
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [posting, setPosting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
 
   async function handlePost() {
-    if (!content.trim()) return;
+    if (!content.trim() && stagedFiles.length === 0) return;
     setPosting(true);
     try {
-      await createGeneralPost(supabase, crewId, content);
+      // Upload media files first
+      let mediaUrls: string[] = [];
+      if (stagedFiles.length > 0) {
+        setUploadProgress(`Uploading ${stagedFiles.length} file(s)...`);
+        const uploads = await Promise.all(
+          stagedFiles.map((f) => uploadPostMedia(supabase, f)),
+        );
+        mediaUrls = uploads;
+      }
+
+      setUploadProgress('');
+      await createGeneralPost(supabase, crewId, content, undefined, mediaUrls);
       setContent('');
+      setStagedFiles([]);
       onPosted();
       toast.success('Posted!');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to post');
     } finally {
       setPosting(false);
+      setUploadProgress('');
     }
+  }
+
+  function addFiles(files: File[]) {
+    setStagedFiles((prev) => {
+      const combined = [...prev, ...files];
+      return combined.slice(0, MEDIA_LIMITS.MAX_FILES);
+    });
+  }
+
+  function removeFile(index: number) {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
   const displayName = profile?.displayName || 'You';
@@ -259,23 +562,39 @@ function PostComposer({
             className="mt-2 min-h-[44px] text-sm bg-transparent border-none shadow-none p-0 focus-visible:ring-0 focus-visible:border-none resize-none"
             rows={1}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Enter' && !e.shiftKey && stagedFiles.length === 0) {
                 e.preventDefault();
                 handlePost();
               }
             }}
           />
+          <StagedFiles files={stagedFiles} onRemove={removeFile} />
         </div>
       </div>
-      <div className="flex justify-end mt-2">
-        <Button
-          size="sm"
-          onClick={handlePost}
-          disabled={posting || !content.trim()}
-          className="rounded-full px-5"
-        >
-          {posting ? 'Posting...' : 'Post'}
-        </Button>
+
+      {/* Bottom bar: media picker + post button */}
+      <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/50">
+        <div className="flex items-center gap-2">
+          <MediaPicker onFiles={addFiles} disabled={posting || stagedFiles.length >= MEDIA_LIMITS.MAX_FILES} />
+          <span className="text-[11px] text-muted-foreground">
+            IMG 5MB · VID 50MB
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {uploadProgress && (
+            <span className="text-xs text-muted-foreground animate-pulse">
+              {uploadProgress}
+            </span>
+          )}
+          <Button
+            size="sm"
+            onClick={handlePost}
+            disabled={posting || (!content.trim() && stagedFiles.length === 0)}
+            className="rounded-full px-5"
+          >
+            {posting ? 'Posting...' : 'Post'}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -291,6 +610,7 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
   const [members, setMembers] = useState<CrewMember[]>([]);
   const [threads, setThreads] = useState<SongThread[]>([]);
   const [posts, setPosts] = useState<GeneralPost[]>([]);
+  const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
 
@@ -311,6 +631,12 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
       setMembers(m);
       setThreads(t);
       setPosts(p);
+
+      // Fetch likes for posts
+      if (p.length > 0) {
+        const likes = await fetchUserLikes(supabase, p.map((x) => x.id));
+        setLikedSet(likes);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -322,12 +648,30 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
     try {
       const p = await fetchGeneralPosts(supabase, id);
       setPosts(p);
+      if (p.length > 0) {
+        const likes = await fetchUserLikes(supabase, p.map((x) => x.id));
+        setLikedSet(likes);
+      }
     } catch (err) {
       console.error(err);
     }
   }, [supabase, id]);
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleToggleLike(postId: string) {
+    try {
+      const nowLiked = await togglePostLike(supabase, postId);
+      setLikedSet((prev) => {
+        const next = new Set(prev);
+        if (nowLiked) next.add(postId);
+        else next.delete(postId);
+        return next;
+      });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
 
   async function handleJoin() {
     if (!user) { toast.error('Please sign in first'); return; }
@@ -444,16 +788,10 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
 
         {/* Board tab — Threads.com style */}
         <TabsContent value="board" className="mt-4 space-y-4">
-          {/* Composer — only for members */}
           {isMember && (
-            <PostComposer
-              crewId={id}
-              profile={profile}
-              onPosted={reloadPosts}
-            />
+            <PostComposer crewId={id} profile={profile} onPosted={reloadPosts} />
           )}
 
-          {/* Posts */}
           {posts.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground text-sm">
               <p>No posts yet. Start a conversation!</p>
@@ -467,6 +805,8 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
                     crewId={id}
                     currentUserId={user?.id}
                     onReplyPosted={reloadPosts}
+                    likedSet={likedSet}
+                    onToggleLike={handleToggleLike}
                   />
                 </div>
               ))}
@@ -476,7 +816,6 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
 
         {/* Songs tab — read-only */}
         <TabsContent value="songs" className="space-y-3 mt-4">
-          {/* App-only notice */}
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 text-sm text-muted-foreground">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
             Song threads are created in the Ritmo app. You can browse them here.

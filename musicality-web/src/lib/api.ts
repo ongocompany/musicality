@@ -109,6 +109,10 @@ function mapGeneralPost(row: any): GeneralPost {
     userId: row.user_id,
     content: row.content,
     parentId: row.parent_id ?? null,
+    mediaUrls: row.media_urls ?? [],
+    likeCount: row.like_count ?? 0,
+    replyCount: row.reply_count ?? 0,
+    viewCount: row.view_count ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     profile: row.profiles ? mapProfile(row.profiles) : undefined,
@@ -481,6 +485,7 @@ export async function createGeneralPost(
   crewId: string,
   content: string,
   parentId?: string,
+  mediaUrls?: string[],
 ): Promise<GeneralPost> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -492,6 +497,7 @@ export async function createGeneralPost(
       user_id: user.id,
       content: content.trim(),
       parent_id: parentId ?? null,
+      media_urls: mediaUrls ?? [],
     })
     .select('*')
     .single();
@@ -508,6 +514,52 @@ export async function deleteGeneralPost(supabase: SupabaseClient, postId: string
     .eq('id', postId);
 
   if (error) throw new Error(error.message);
+}
+
+// ─── Likes ───────────────────────────────────────────────
+
+/** Toggle like on a post. Returns true if now liked, false if unliked. */
+export async function togglePostLike(supabase: SupabaseClient, postId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('toggle_post_like', { p_post_id: postId });
+  if (error) throw new Error(error.message);
+  return data as boolean;
+}
+
+/** Check which posts the current user has liked (batch). */
+export async function fetchUserLikes(supabase: SupabaseClient, postIds: string[]): Promise<Set<string>> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || postIds.length === 0) return new Set();
+
+  const { data } = await supabase
+    .from('post_likes')
+    .select('post_id')
+    .eq('user_id', user.id)
+    .in('post_id', postIds);
+
+  return new Set((data ?? []).map((r: any) => r.post_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+// ─── Post Media Upload ──────────────────────────────────
+
+export async function uploadPostMedia(
+  supabase: SupabaseClient,
+  file: File,
+): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const timestamp = Date.now();
+  const path = `${user.id}/${timestamp}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from('post-media')
+    .upload(path, file, { contentType: file.type });
+
+  if (error) throw new Error(error.message);
+
+  const { data } = supabase.storage.from('post-media').getPublicUrl(path);
+  return data.publicUrl;
 }
 
 // ─── Storage ────────────────────────────────────────────

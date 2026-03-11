@@ -109,8 +109,22 @@ export interface GeneralPost {
   userId: string;
   content: string;
   parentId: string | null;
+  mediaUrls: string[];
+  likeCount: number;
+  replyCount: number;
+  viewCount: number;
+  liked?: boolean; // client-side: did current user like this?
   createdAt: string;
   updatedAt: string;
   profile?: Profile;
   replies?: GeneralPost[];
 }
+
+// ─── Media Upload ──────────────────────────────────────
+export const MEDIA_LIMITS = {
+  IMAGE_MAX_SIZE: 5 * 1024 * 1024,   // 5MB
+  VIDEO_MAX_SIZE: 50 * 1024 * 1024,  // 50MB
+  MAX_FILES: 4,
+  ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+  ALLOWED_VIDEO_TYPES: ['video/mp4', 'video/quicktime', 'video/webm'],
+} as const;
