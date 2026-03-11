@@ -11,6 +11,7 @@ import {
   fetchPostReplies,
   fetchUserLikes,
   createGeneralPost,
+  deleteGeneralPost,
   togglePostLike,
   uploadPostMedia,
   joinCrew,
@@ -52,6 +53,14 @@ function extractYouTubeIds(text: string): string[] {
     if (id && !ids.includes(id)) ids.push(id);
   }
   return ids;
+}
+
+/** Remove YouTube URLs from displayed text (they render as iframes instead) */
+function stripYouTubeUrls(text: string): string {
+  return text
+    .replace(/https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?[^\s]*|embed\/[^\s]*|shorts\/[^\s]*)|youtu\.be\/[^\s]*)/g, '')
+    .replace(/\n{3,}/g, '\n\n') // collapse excess blank lines
+    .trim();
 }
 
 function YouTubeEmbed({ videoId }: { videoId: string }) {
@@ -236,7 +245,9 @@ function PostItem({
   post,
   crewId,
   currentUserId,
+  captainId,
   onReplyPosted,
+  onDeleted,
   likedSet,
   onToggleLike,
   depth = 0,
@@ -244,7 +255,9 @@ function PostItem({
   post: GeneralPost;
   crewId: string;
   currentUserId?: string;
+  captainId?: string;
   onReplyPosted: () => void;
+  onDeleted: () => void;
   likedSet: Set<string>;
   onToggleLike: (postId: string) => void;
   depth?: number;
@@ -253,12 +266,14 @@ function PostItem({
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [replyContent, setReplyContent] = useState('');
   const [posting, setPosting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [replies, setReplies] = useState<GeneralPost[]>([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
   const [showReplies, setShowReplies] = useState(false);
   const [localReplyCount, setLocalReplyCount] = useState(post.replyCount);
   const [localLikeCount, setLocalLikeCount] = useState(post.likeCount);
   const isLiked = likedSet.has(post.id);
+  const canDelete = currentUserId === post.userId || currentUserId === captainId;
 
   const loadReplies = useCallback(async () => {
     setLoadingReplies(true);
@@ -298,6 +313,20 @@ function PostItem({
     // Optimistic update
     setLocalLikeCount((c) => isLiked ? Math.max(0, c - 1) : c + 1);
     onToggleLike(post.id);
+  }
+
+  async function handleDelete() {
+    if (!confirm('Delete this post?')) return;
+    setDeleting(true);
+    try {
+      await deleteGeneralPost(supabase, post.id);
+      toast.success('Post deleted');
+      onDeleted();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function toggleReplies() {
@@ -342,10 +371,15 @@ function PostItem({
             </span>
           </div>
 
-          {/* Body */}
-          <p className="text-sm text-foreground/90 mt-1 whitespace-pre-wrap leading-relaxed">
-            {post.content}
-          </p>
+          {/* Body — hide YouTube URLs when embeds are shown */}
+          {(() => {
+            const displayText = youtubeIds.length > 0 ? stripYouTubeUrls(post.content) : post.content;
+            return displayText ? (
+              <p className="text-sm text-foreground/90 mt-1 whitespace-pre-wrap leading-relaxed">
+                {displayText}
+              </p>
+            ) : null;
+          })()}
 
           {/* Media gallery */}
           <MediaGallery urls={post.mediaUrls} />
@@ -405,6 +439,22 @@ function PostItem({
                 </svg>
                 {post.viewCount}
               </span>
+            )}
+
+            {/* Delete */}
+            {canDelete && (
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors ml-auto disabled:opacity-50"
+                title={currentUserId === post.userId ? 'Delete my post' : 'Delete as captain'}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18"/>
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                </svg>
+              </button>
             )}
           </div>
 
@@ -469,7 +519,9 @@ function PostItem({
                 post={reply}
                 crewId={crewId}
                 currentUserId={currentUserId}
+                captainId={captainId}
                 onReplyPosted={loadReplies}
+                onDeleted={loadReplies}
                 likedSet={likedSet}
                 onToggleLike={onToggleLike}
                 depth={depth + 1}
@@ -804,7 +856,9 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
                     post={p}
                     crewId={id}
                     currentUserId={user?.id}
+                    captainId={crew?.captainId}
                     onReplyPosted={reloadPosts}
+                    onDeleted={reloadPosts}
                     likedSet={likedSet}
                     onToggleLike={handleToggleLike}
                   />
