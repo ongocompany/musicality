@@ -7,8 +7,12 @@
 export interface Profile {
   id: string;
   displayName: string;
+  nickname: string | null;
   avatarUrl: string | null;
+  phone: string | null;
   danceStyle: string;
+  lastActiveAt: string | null;
+  nicknameChangedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,7 +47,25 @@ export interface CreateCrewInput {
 }
 
 // ─── Crew Member ────────────────────────────────────────
-export type MemberRole = 'captain' | 'member';
+export type MemberRole = 'captain' | 'moderator' | 'regular' | 'member' | 'seedling';
+
+/** Role level for permission checks (higher = more authority) */
+export const ROLE_LEVELS: Record<MemberRole, number> = {
+  seedling: 0,
+  member: 1,
+  regular: 2,
+  moderator: 3,
+  captain: 4,
+} as const;
+
+/** Badge config per role */
+export const ROLE_CONFIG: Record<MemberRole, { label: string; color: string; emoji: string }> = {
+  seedling:   { label: 'Seedling',   color: 'bg-green-500/20 text-green-400 border-green-500/30',     emoji: '🌱' },
+  member:     { label: 'Member',     color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',        emoji: '🔵' },
+  regular:    { label: 'Regular',    color: 'bg-purple-500/20 text-purple-400 border-purple-500/30',   emoji: '🟣' },
+  moderator:  { label: 'Moderator',  color: 'bg-orange-500/20 text-orange-400 border-orange-500/30',   emoji: '🛡️' },
+  captain:    { label: 'Captain',    color: 'bg-red-500/20 text-red-400 border-red-500/30',            emoji: '👑' },
+} as const;
 
 export interface CrewMember {
   id: string;

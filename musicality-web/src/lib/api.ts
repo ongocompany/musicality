@@ -23,8 +23,12 @@ function mapProfile(row: any): Profile {
   return {
     id: row.id,
     displayName: row.display_name ?? '',
+    nickname: row.nickname ?? null,
     avatarUrl: row.avatar_url ?? null,
+    phone: row.phone ?? null,
     danceStyle: row.dance_style ?? 'bachata',
+    lastActiveAt: row.last_active_at ?? null,
+    nicknameChangedAt: row.nickname_changed_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -162,19 +166,39 @@ export async function fetchMyProfile(supabase: SupabaseClient): Promise<Profile 
 
 export async function updateProfile(
   supabase: SupabaseClient,
-  updates: { displayName?: string; avatarUrl?: string; danceStyle?: string },
+  updates: { displayName?: string; nickname?: string; avatarUrl?: string; phone?: string; danceStyle?: string },
 ): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
   const payload: Record<string, unknown> = {};
   if (updates.displayName !== undefined) payload.display_name = updates.displayName;
+  if (updates.nickname !== undefined) {
+    payload.nickname = updates.nickname;
+    payload.nickname_changed_at = new Date().toISOString();
+  }
   if (updates.avatarUrl !== undefined) payload.avatar_url = updates.avatarUrl;
+  if (updates.phone !== undefined) payload.phone = updates.phone;
   if (updates.danceStyle !== undefined) payload.dance_style = updates.danceStyle;
   payload.updated_at = new Date().toISOString();
 
   const { error } = await supabase.from('profiles').update(payload).eq('id', user.id);
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.message.includes('profiles_nickname_unique')) {
+      throw new Error('This nickname is already taken');
+    }
+    throw new Error(error.message);
+  }
+}
+
+/** Check if a nickname is available */
+export async function checkNicknameAvailable(supabase: SupabaseClient, nickname: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id')
+    .ilike('nickname', nickname)
+    .limit(1);
+  return (data ?? []).length === 0;
 }
 
 // ─── Crews ──────────────────────────────────────────────
@@ -295,15 +319,44 @@ export async function leaveCrew(supabase: SupabaseClient, crewId: string): Promi
 }
 
 export async function kickMember(supabase: SupabaseClient, crewId: string, userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('crew_members')
-    .delete()
-    .eq('crew_id', crewId)
-    .eq('user_id', userId)
-    .neq('role', 'captain');
-
+  const { error } = await supabase.rpc('kick_member', {
+    p_crew_id: crewId,
+    p_target_user_id: userId,
+  });
   if (error) throw new Error(error.message);
-  await supabase.rpc('leave_crew', { p_crew_id: crewId });
+}
+
+/** Change a member's role (captain/moderator only) */
+export async function changeMemberRole(
+  supabase: SupabaseClient,
+  crewId: string,
+  targetUserId: string,
+  newRole: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('change_member_role', {
+    p_crew_id: crewId,
+    p_target_user_id: targetUserId,
+    p_new_role: newRole,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Transfer captainship to another member */
+export async function transferCaptainship(
+  supabase: SupabaseClient,
+  crewId: string,
+  newCaptainId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('transfer_captainship', {
+    p_crew_id: crewId,
+    p_new_captain_id: newCaptainId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Touch last_active_at on profile */
+export async function touchLastActive(supabase: SupabaseClient): Promise<void> {
+  await supabase.rpc('touch_last_active');
 }
 
 // ─── Join Requests ──────────────────────────────────────

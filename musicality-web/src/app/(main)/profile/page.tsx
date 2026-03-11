@@ -1,18 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase-client';
-import { updateProfile, uploadProfileAvatar, fetchMyCrews } from '@/lib/api';
+import { updateProfile, uploadProfileAvatar, fetchMyCrews, checkNicknameAvailable } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CrewCard } from '@/components/crew/crew-card';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import type { Crew } from '@/lib/types';
 
 const DANCE_STYLES = ['bachata', 'salsa', 'kizomba', 'zouk', 'other'];
@@ -23,13 +24,21 @@ export default function ProfilePage() {
   const { user, profile, loading: authLoading, refreshProfile, signOut } = useAuth();
 
   const [displayName, setDisplayName] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [phone, setPhone] = useState('');
   const [danceStyle, setDanceStyle] = useState('bachata');
   const [saving, setSaving] = useState(false);
   const [crews, setCrews] = useState<Crew[]>([]);
 
+  // Nickname availability
+  const [nicknameStatus, setNicknameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [nicknameTimer, setNicknameTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.displayName);
+      setNickname(profile.nickname ?? '');
+      setPhone(profile.phone ?? '');
       setDanceStyle(profile.danceStyle);
     }
   }, [profile]);
@@ -46,11 +55,66 @@ export default function ProfilePage() {
     }
   }, [authLoading, user, router]);
 
+  // Debounced nickname availability check
+  const checkNickname = useCallback((value: string) => {
+    if (nicknameTimer) clearTimeout(nicknameTimer);
+
+    // Same as current — no need to check
+    if (value === (profile?.nickname ?? '')) {
+      setNicknameStatus('idle');
+      return;
+    }
+
+    if (!value.trim() || value.length < 2) {
+      setNicknameStatus('idle');
+      return;
+    }
+
+    // Validate format: alphanumeric + underscore, 2-20 chars
+    if (!/^[a-zA-Z0-9_]{2,20}$/.test(value)) {
+      setNicknameStatus('idle');
+      return;
+    }
+
+    setNicknameStatus('checking');
+    const timer = setTimeout(async () => {
+      try {
+        const available = await checkNicknameAvailable(supabase, value);
+        setNicknameStatus(available ? 'available' : 'taken');
+      } catch {
+        setNicknameStatus('idle');
+      }
+    }, 500);
+    setNicknameTimer(timer);
+  }, [supabase, profile?.nickname, nicknameTimer]);
+
+  function handleNicknameChange(value: string) {
+    // Only allow valid characters
+    const cleaned = value.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20);
+    setNickname(cleaned);
+    checkNickname(cleaned);
+  }
+
   async function handleSave() {
+    if (nicknameStatus === 'taken') {
+      toast.error('Nickname is already taken');
+      return;
+    }
+    if (nickname && !/^[a-zA-Z0-9_]{2,20}$/.test(nickname)) {
+      toast.error('Nickname must be 2-20 characters (letters, numbers, underscore)');
+      return;
+    }
+
     setSaving(true);
     try {
-      await updateProfile(supabase, { displayName, danceStyle });
+      await updateProfile(supabase, {
+        displayName,
+        nickname: nickname || undefined,
+        phone: phone || undefined,
+        danceStyle,
+      });
       await refreshProfile();
+      setNicknameStatus('idle');
       toast.success('Profile updated!');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed');
@@ -112,6 +176,9 @@ export default function ProfilePage() {
             </label>
             <div>
               <p className="font-medium">{profile?.displayName || 'Set your name'}</p>
+              {profile?.nickname && (
+                <p className="text-sm text-primary">@{profile.nickname}</p>
+              )}
               <p className="text-sm text-muted-foreground">{user?.email}</p>
             </div>
           </div>
@@ -123,6 +190,56 @@ export default function ProfilePage() {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               maxLength={30}
+            />
+          </div>
+
+          {/* Nickname */}
+          <div className="space-y-2">
+            <Label>
+              Nickname
+              <span className="text-xs text-muted-foreground ml-2">
+                (unique across all crews)
+              </span>
+            </Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
+              <Input
+                value={nickname}
+                onChange={(e) => handleNicknameChange(e.target.value)}
+                className="pl-7"
+                placeholder="your_nickname"
+                maxLength={20}
+              />
+              {nicknameStatus !== 'idle' && (
+                <span className={cn(
+                  "absolute right-3 top-1/2 -translate-y-1/2 text-xs",
+                  nicknameStatus === 'checking' && "text-muted-foreground",
+                  nicknameStatus === 'available' && "text-green-400",
+                  nicknameStatus === 'taken' && "text-destructive",
+                )}>
+                  {nicknameStatus === 'checking' && 'Checking...'}
+                  {nicknameStatus === 'available' && 'Available'}
+                  {nicknameStatus === 'taken' && 'Taken'}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              2-20 characters. Letters, numbers, underscore only.
+            </p>
+          </div>
+
+          {/* Phone */}
+          <div className="space-y-2">
+            <Label>
+              Phone
+              <span className="text-xs text-muted-foreground ml-2">(optional)</span>
+            </Label>
+            <Input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+82 10-1234-5678"
+              maxLength={20}
             />
           </div>
 
@@ -143,7 +260,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <Button onClick={handleSave} disabled={saving} className="w-full">
+          <Button onClick={handleSave} disabled={saving || nicknameStatus === 'taken'} className="w-full">
             {saving ? 'Saving...' : 'Save Profile'}
           </Button>
         </CardContent>

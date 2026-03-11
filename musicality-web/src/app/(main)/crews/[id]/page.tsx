@@ -28,8 +28,8 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { cn, countryToFlag, timeAgo } from '@/lib/utils';
-import type { Crew, CrewMember, SongThread, GeneralPost } from '@/lib/types';
-import { MEDIA_LIMITS } from '@/lib/types';
+import type { Crew, CrewMember, SongThread, GeneralPost, MemberRole } from '@/lib/types';
+import { MEDIA_LIMITS, ROLE_CONFIG, ROLE_LEVELS } from '@/lib/types';
 
 // ─── YouTube Helpers ────────────────────────────────────
 
@@ -245,7 +245,8 @@ function PostItem({
   post,
   crewId,
   currentUserId,
-  captainId,
+  myRole,
+  members,
   onReplyPosted,
   onDeleted,
   likedSet,
@@ -255,7 +256,8 @@ function PostItem({
   post: GeneralPost;
   crewId: string;
   currentUserId?: string;
-  captainId?: string;
+  myRole?: MemberRole;
+  members: CrewMember[];
   onReplyPosted: () => void;
   onDeleted: () => void;
   likedSet: Set<string>;
@@ -273,7 +275,11 @@ function PostItem({
   const [localReplyCount, setLocalReplyCount] = useState(post.replyCount);
   const [localLikeCount, setLocalLikeCount] = useState(post.likeCount);
   const isLiked = likedSet.has(post.id);
-  const canDelete = currentUserId === post.userId || currentUserId === captainId;
+  const isOwnPost = currentUserId === post.userId;
+  const canModerate = myRole === 'captain' || myRole === 'moderator';
+  const canDelete = isOwnPost || canModerate;
+  const postMember = members.find((m) => m.userId === post.userId);
+  const postRole = postMember?.role as MemberRole | undefined;
 
   const loadReplies = useCallback(async () => {
     setLoadingReplies(true);
@@ -361,11 +367,19 @@ function PostItem({
 
         {/* Content */}
         <div className="flex-1 min-w-0 pb-4">
-          {/* Author + time */}
+          {/* Author + role badge + time */}
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-foreground">
               {displayName}
             </span>
+            {postRole && postRole !== 'seedling' && (
+              <span className={cn(
+                "text-[10px] px-1.5 py-0.5 rounded-full border font-medium",
+                ROLE_CONFIG[postRole].color,
+              )}>
+                {ROLE_CONFIG[postRole].emoji} {ROLE_CONFIG[postRole].label}
+              </span>
+            )}
             <span className="text-xs text-muted-foreground">
               {timeAgo(post.createdAt)}
             </span>
@@ -447,7 +461,7 @@ function PostItem({
                 onClick={handleDelete}
                 disabled={deleting}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors ml-auto disabled:opacity-50"
-                title={currentUserId === post.userId ? 'Delete my post' : 'Delete as captain'}
+                title={isOwnPost ? 'Delete my post' : 'Delete as ' + (myRole ?? 'moderator')}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 6h18"/>
@@ -519,7 +533,8 @@ function PostItem({
                 post={reply}
                 crewId={crewId}
                 currentUserId={currentUserId}
-                captainId={captainId}
+                myRole={myRole}
+                members={members}
                 onReplyPosted={loadReplies}
                 onDeleted={loadReplies}
                 likedSet={likedSet}
@@ -668,6 +683,8 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
 
   const myMember = members.find((m) => m.userId === user?.id);
   const isCaptain = crew?.captainId === user?.id;
+  const isModerator = myMember?.role === 'moderator';
+  const canManage = isCaptain || isModerator;
   const isMember = !!myMember;
 
   const load = useCallback(async () => {
@@ -812,7 +829,7 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              {isCaptain ? (
+              {canManage ? (
                 <Link href={`/crews/${id}/manage`}>
                   <Button variant="outline" size="sm">Manage</Button>
                 </Link>
@@ -856,7 +873,8 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
                     post={p}
                     crewId={id}
                     currentUserId={user?.id}
-                    captainId={crew?.captainId}
+                    myRole={myMember?.role as MemberRole | undefined}
+                    members={members}
                     onReplyPosted={reloadPosts}
                     onDeleted={reloadPosts}
                     likedSet={likedSet}
@@ -910,27 +928,34 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
               <CardTitle className="text-lg">Members</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {members.map((m) => (
-                <div key={m.id}>
-                  <div className="flex items-center gap-3 py-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={m.profile?.avatarUrl ?? undefined} />
-                      <AvatarFallback className="text-xs bg-primary/20 text-primary">
-                        {(m.profile?.displayName ?? '?')[0].toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm font-medium flex-1">
-                      {m.profile?.displayName ?? 'Unknown'}
-                    </span>
-                    {m.role === 'captain' && (
-                      <Badge variant="default" className="text-xs bg-primary/80">
-                        Captain
-                      </Badge>
-                    )}
+              {members
+                .sort((a, b) => (ROLE_LEVELS[b.role as MemberRole] ?? 0) - (ROLE_LEVELS[a.role as MemberRole] ?? 0))
+                .map((m) => {
+                const roleKey = m.role as MemberRole;
+                const rc = ROLE_CONFIG[roleKey];
+                return (
+                  <div key={m.id}>
+                    <div className="flex items-center gap-3 py-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={m.profile?.avatarUrl ?? undefined} />
+                        <AvatarFallback className="text-xs bg-primary/20 text-primary">
+                          {(m.profile?.displayName ?? '?')[0].toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium flex-1">
+                        {m.profile?.displayName ?? 'Unknown'}
+                      </span>
+                      <span className={cn(
+                        "text-[10px] px-1.5 py-0.5 rounded-full border font-medium",
+                        rc.color,
+                      )}>
+                        {rc.emoji} {rc.label}
+                      </span>
+                    </div>
+                    <Separator />
                   </div>
-                  <Separator />
-                </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         </TabsContent>
