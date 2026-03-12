@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase-client';
-import { updateProfile, uploadProfileAvatar, fetchMyCrews, checkNicknameAvailable, deleteMyAccount } from '@/lib/api';
+import { updateProfile, uploadProfileAvatar, fetchMyCrews, checkNicknameAvailable, deleteMyAccount, fetchBlockedUsers, toggleBlock } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { CrewCard } from '@/components/crew/crew-card';
+import { FollowListDialog } from '@/components/social/follow-list-dialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import type { Crew } from '@/lib/types';
+import type { Crew, UserBlock } from '@/lib/types';
 
 const DANCE_STYLES = ['bachata', 'salsa', 'kizomba', 'zouk', 'other'];
 
@@ -35,6 +36,10 @@ export default function ProfilePage() {
   const [nicknameStatus, setNicknameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [nicknameTimer, setNicknameTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
+  // Blocked users
+  const [blockedUsers, setBlockedUsers] = useState<UserBlock[]>([]);
+  const [blockedLoading, setBlockedLoading] = useState(false);
+
   // Account deletion
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -52,6 +57,8 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user) {
       fetchMyCrews(supabase).then(setCrews).catch(console.error);
+      setBlockedLoading(true);
+      fetchBlockedUsers(supabase).then(setBlockedUsers).catch(console.error).finally(() => setBlockedLoading(false));
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -209,6 +216,24 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          {/* Follower / Following counts */}
+          {profile && (
+            <div className="flex gap-6 text-sm">
+              <FollowListDialog userId={user!.id} type="followers" count={profile.followerCount}>
+                <button className="hover:underline cursor-pointer">
+                  <span className="font-semibold">{profile.followerCount}</span>{' '}
+                  <span className="text-muted-foreground">followers</span>
+                </button>
+              </FollowListDialog>
+              <FollowListDialog userId={user!.id} type="following" count={profile.followingCount}>
+                <button className="hover:underline cursor-pointer">
+                  <span className="font-semibold">{profile.followingCount}</span>{' '}
+                  <span className="text-muted-foreground">following</span>
+                </button>
+              </FollowListDialog>
+            </div>
+          )}
+
           {/* Display Name */}
           <div className="space-y-2">
             <Label>이름</Label>
@@ -309,6 +334,52 @@ export default function ProfilePage() {
       <Button variant="outline" className="w-full" onClick={handleSignOut}>
         로그아웃
       </Button>
+
+      {/* Blocked Users */}
+      <Separator />
+      <Card>
+        <CardContent className="p-6 space-y-4">
+          <h3 className="text-sm font-semibold">차단한 사용자</h3>
+          {blockedLoading ? (
+            <div className="h-8 animate-pulse rounded bg-muted" />
+          ) : blockedUsers.length === 0 ? (
+            <p className="text-xs text-muted-foreground">차단한 사용자가 없습니다</p>
+          ) : (
+            <div className="space-y-2">
+              {blockedUsers.map((block) => {
+                const bp = block.profile;
+                return (
+                  <div key={block.id} className="flex items-center gap-3 py-1">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={bp?.avatarUrl ?? undefined} />
+                      <AvatarFallback className="text-xs bg-primary/20 text-primary">
+                        {(bp?.displayName ?? '?')[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm flex-1 truncate">{bp?.displayName ?? 'Unknown'}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={async () => {
+                        try {
+                          await toggleBlock(supabase, block.blockedId);
+                          setBlockedUsers((prev) => prev.filter((b) => b.id !== block.id));
+                          toast.success('차단이 해제되었습니다');
+                        } catch {
+                          toast.error('차단 해제에 실패했습니다');
+                        }
+                      }}
+                    >
+                      차단 해제
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Delete Account */}
       <Separator />

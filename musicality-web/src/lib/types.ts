@@ -13,6 +13,8 @@ export interface Profile {
   danceStyle: string;
   lastActiveAt: string | null;
   nicknameChangedAt: string | null;
+  followerCount: number;
+  followingCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -150,3 +152,62 @@ export const MEDIA_LIMITS = {
   ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
   ALLOWED_VIDEO_TYPES: ['video/mp4', 'video/quicktime', 'video/webm'],
 } as const;
+
+// ─── Social: Follow ────────────────────────────────────
+export interface UserFollow {
+  id: string;
+  followerId: string;
+  followingId: string;
+  createdAt: string;
+  profile?: Profile;
+}
+
+// ─── Social: Block ─────────────────────────────────────
+export interface UserBlock {
+  id: string;
+  blockerId: string;
+  blockedId: string;
+  createdAt: string;
+  profile?: Profile;
+}
+
+// ─── Social: Private Note ──────────────────────────────
+export interface UserNote {
+  id: string;
+  authorId: string;
+  targetUserId: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Social: Direct Message ────────────────────────────
+export interface DirectMessage {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  content: string;
+  readAt: string | null;
+  archivedBySender: boolean;
+  archivedByRecipient: boolean;
+  deletedBySender: boolean;
+  deletedByRecipient: boolean;
+  createdAt: string;
+}
+
+// ─── Conversation Thread (aggregated) ──────────────────
+export interface ConversationThread {
+  otherUserId: string;
+  otherProfile: Profile;
+  lastMessage: DirectMessage;
+  unreadCount: number;
+}
+
+// ─── User Social Context (for popover) ─────────────────
+export interface UserSocialContext {
+  isFollowing: boolean;
+  isBlocked: boolean;
+  note: UserNote | null;
+  followerCount: number;
+  followingCount: number;
+}

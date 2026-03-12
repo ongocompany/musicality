@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase-client';
 import { fetchThreadNotes, postPhraseNote } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserProfilePopover } from '@/components/social/user-profile-popover';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -102,12 +103,14 @@ export default function ThreadDetailPage({
             <Card key={note.id}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={note.profile?.avatarUrl ?? undefined} />
-                    <AvatarFallback className="text-xs bg-primary/20 text-primary">
-                      {(note.profile?.displayName ?? '?')[0].toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserProfilePopover userId={note.userId} profile={note.profile}>
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={note.profile?.avatarUrl ?? undefined} />
+                      <AvatarFallback className="text-xs bg-primary/20 text-primary">
+                        {(note.profile?.displayName ?? '?')[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </UserProfilePopover>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">

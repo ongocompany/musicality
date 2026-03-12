@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
+import { useUnreadMessages } from '@/hooks/use-unread-messages';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +19,7 @@ import { cn } from '@/lib/utils';
 
 export function Header() {
   const { user, profile, loading, signOut } = useAuth();
+  const { unreadCount } = useUnreadMessages();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -154,6 +156,22 @@ export function Header() {
             )}
           </Button>
 
+          {/* DM badge */}
+          {user && (
+            <Link href="/messages">
+              <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+                </svg>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center h-4 min-w-[16px] rounded-full bg-primary text-[9px] font-bold text-primary-foreground px-1">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </Button>
+            </Link>
+          )}
+
           {/* Auth */}
           {loading ? (
             <div className="h-8 w-8 animate-pulse rounded-full bg-muted shrink-0" />
@@ -173,6 +191,16 @@ export function Header() {
                 </Link>
                 <Link href="/crews">
                   <DropdownMenuItem className="cursor-pointer">My Crews</DropdownMenuItem>
+                </Link>
+                <Link href="/messages">
+                  <DropdownMenuItem className="cursor-pointer">
+                    Messages
+                    {unreadCount > 0 && (
+                      <span className="ml-auto inline-flex items-center justify-center h-4 min-w-[16px] rounded-full bg-primary text-[9px] font-bold text-primary-foreground px-1">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </DropdownMenuItem>
                 </Link>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="cursor-pointer" onClick={signOut}>Sign Out</DropdownMenuItem>

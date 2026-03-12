@@ -13,6 +13,12 @@ import type {
   CreateThreadInput,
   ThreadPhraseNote,
   GeneralPost,
+  UserFollow,
+  UserBlock,
+  UserNote,
+  DirectMessage,
+  ConversationThread,
+  UserSocialContext,
 } from './types';
 
 // ─── Mappers (snake_case → camelCase) ───────────────────
@@ -29,6 +35,8 @@ function mapProfile(row: any): Profile {
     danceStyle: row.dance_style ?? 'bachata',
     lastActiveAt: row.last_active_at ?? null,
     nicknameChangedAt: row.nickname_changed_at ?? null,
+    followerCount: row.follower_count ?? 0,
+    followingCount: row.following_count ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -127,7 +135,7 @@ function mapGeneralPost(row: any): GeneralPost {
 // ─── Helpers ─────────────────────────────────────────────
 
 /** Batch-fetch profiles by user IDs and return a map of userId → Profile */
-async function fetchProfilesByIds(
+export async function fetchProfilesByIds(
   supabase: SupabaseClient,
   userIds: string[],
 ): Promise<Map<string, Profile>> {
@@ -659,4 +667,321 @@ export async function uploadProfileAvatar(
 
   const { data } = supabase.storage.from('crew-thumbnails').getPublicUrl(path);
   return `${data.publicUrl}?t=${Date.now()}`;
+}
+
+// ─── Social Mappers ─────────────────────────────────────
+
+function mapUserFollow(row: any): UserFollow {
+  return {
+    id: row.id,
+    followerId: row.follower_id,
+    followingId: row.following_id,
+    createdAt: row.created_at,
+  };
+}
+
+function mapUserBlock(row: any): UserBlock {
+  return {
+    id: row.id,
+    blockerId: row.blocker_id,
+    blockedId: row.blocked_id,
+    createdAt: row.created_at,
+  };
+}
+
+function mapUserNote(row: any): UserNote {
+  return {
+    id: row.id,
+    authorId: row.author_id,
+    targetUserId: row.target_user_id,
+    content: row.content,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapDirectMessage(row: any): DirectMessage {
+  return {
+    id: row.id,
+    senderId: row.sender_id,
+    recipientId: row.recipient_id,
+    content: row.content,
+    readAt: row.read_at ?? null,
+    archivedBySender: row.archived_by_sender ?? false,
+    archivedByRecipient: row.archived_by_recipient ?? false,
+    deletedBySender: row.deleted_by_sender ?? false,
+    deletedByRecipient: row.deleted_by_recipient ?? false,
+    createdAt: row.created_at,
+  };
+}
+
+// ─── Social: User Context ───────────────────────────────
+
+export async function fetchUserSocialContext(
+  supabase: SupabaseClient,
+  targetUserId: string,
+): Promise<UserSocialContext> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const [followRes, blockRes, noteRes, profileRes] = await Promise.all([
+    supabase.from('user_follows').select('id').eq('follower_id', user.id).eq('following_id', targetUserId).maybeSingle(),
+    supabase.from('user_blocks').select('id').eq('blocker_id', user.id).eq('blocked_id', targetUserId).maybeSingle(),
+    supabase.from('user_notes').select('*').eq('author_id', user.id).eq('target_user_id', targetUserId).maybeSingle(),
+    supabase.from('profiles').select('follower_count, following_count').eq('id', targetUserId).single(),
+  ]);
+
+  return {
+    isFollowing: !!followRes.data,
+    isBlocked: !!blockRes.data,
+    note: noteRes.data ? mapUserNote(noteRes.data) : null,
+    followerCount: profileRes.data?.follower_count ?? 0,
+    followingCount: profileRes.data?.following_count ?? 0,
+  };
+}
+
+// ─── Social: Follow ─────────────────────────────────────
+
+export async function toggleFollow(supabase: SupabaseClient, targetUserId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('toggle_follow', { p_target_user_id: targetUserId });
+  if (error) throw new Error(error.message);
+  return data as boolean;
+}
+
+export async function fetchFollowers(supabase: SupabaseClient, userId: string): Promise<UserFollow[]> {
+  const { data, error } = await supabase
+    .from('user_follows')
+    .select('*')
+    .eq('following_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.follower_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapUserFollow(row), profile: profileMap.get(row.follower_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+export async function fetchFollowing(supabase: SupabaseClient, userId: string): Promise<UserFollow[]> {
+  const { data, error } = await supabase
+    .from('user_follows')
+    .select('*')
+    .eq('follower_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.following_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapUserFollow(row), profile: profileMap.get(row.following_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+// ─── Social: Block ──────────────────────────────────────
+
+export async function toggleBlock(supabase: SupabaseClient, targetUserId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('toggle_block', { p_target_user_id: targetUserId });
+  if (error) throw new Error(error.message);
+  return data as boolean;
+}
+
+export async function fetchBlockedUsers(supabase: SupabaseClient): Promise<UserBlock[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('user_blocks')
+    .select('*')
+    .eq('blocker_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.blocked_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapUserBlock(row), profile: profileMap.get(row.blocked_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+// ─── Social: Notes ──────────────────────────────────────
+
+export async function upsertUserNote(
+  supabase: SupabaseClient,
+  targetUserId: string,
+  content: string,
+): Promise<UserNote> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('user_notes')
+    .upsert(
+      {
+        author_id: user.id,
+        target_user_id: targetUserId,
+        content: content.trim(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'author_id,target_user_id' },
+    )
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return mapUserNote(data);
+}
+
+export async function deleteUserNote(supabase: SupabaseClient, targetUserId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('user_notes')
+    .delete()
+    .eq('author_id', user.id)
+    .eq('target_user_id', targetUserId);
+
+  if (error) throw new Error(error.message);
+}
+
+// ─── Social: Direct Messages ────────────────────────────
+
+export async function sendMessage(
+  supabase: SupabaseClient,
+  recipientId: string,
+  content: string,
+): Promise<string> {
+  const { data, error } = await supabase.rpc('send_message', {
+    p_recipient_id: recipientId,
+    p_content: content.trim(),
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function fetchConversations(supabase: SupabaseClient): Promise<ConversationThread[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Get all messages involving the user, ordered by most recent
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('*')
+    .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+
+  // Group by conversation partner
+  const conversationMap = new Map<string, { messages: any[]; unread: number }>();
+
+  for (const row of rows) {
+    const isSender = row.sender_id === user.id;
+    // Skip deleted messages
+    if (isSender && row.deleted_by_sender) continue;
+    if (!isSender && row.deleted_by_recipient) continue;
+
+    const otherId = isSender ? row.recipient_id : row.sender_id;
+
+    if (!conversationMap.has(otherId)) {
+      conversationMap.set(otherId, { messages: [], unread: 0 });
+    }
+    const conv = conversationMap.get(otherId)!;
+    conv.messages.push(row);
+    if (!isSender && !row.read_at) conv.unread++;
+  }
+
+  // Fetch profiles for all conversation partners
+  const otherIds = Array.from(conversationMap.keys());
+  if (otherIds.length === 0) return [];
+
+  const profileMap = await fetchProfilesByIds(supabase, otherIds);
+
+  // Build conversation threads sorted by most recent message
+  const threads: ConversationThread[] = [];
+  for (const [otherId, conv] of conversationMap) {
+    const profile = profileMap.get(otherId);
+    if (!profile) continue;
+
+    threads.push({
+      otherUserId: otherId,
+      otherProfile: profile,
+      lastMessage: mapDirectMessage(conv.messages[0]),
+      unreadCount: conv.unread,
+    });
+  }
+
+  return threads.sort(
+    (a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime(),
+  );
+}
+
+export async function fetchConversation(
+  supabase: SupabaseClient,
+  otherUserId: string,
+): Promise<DirectMessage[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('*')
+    .or(
+      `and(sender_id.eq.${user.id},recipient_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},recipient_id.eq.${user.id})`,
+    )
+    .order('created_at', { ascending: true });
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? [])
+    .filter((row: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      const isSender = row.sender_id === user.id;
+      if (isSender && row.deleted_by_sender) return false;
+      if (!isSender && row.deleted_by_recipient) return false;
+      return true;
+    })
+    .map(mapDirectMessage);
+}
+
+export async function markMessagesRead(supabase: SupabaseClient, senderId: string): Promise<void> {
+  const { error } = await supabase.rpc('mark_messages_read', { p_sender_id: senderId });
+  if (error) throw new Error(error.message);
+}
+
+export async function fetchUnreadMessageCount(supabase: SupabaseClient): Promise<number> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { count, error } = await supabase
+    .from('direct_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('recipient_id', user.id)
+    .is('read_at', null)
+    .eq('deleted_by_recipient', false);
+
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+export async function deleteMessage(supabase: SupabaseClient, messageId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Soft-delete: mark as deleted for this user
+  const { data: msg } = await supabase
+    .from('direct_messages')
+    .select('sender_id, recipient_id')
+    .eq('id', messageId)
+    .single();
+
+  if (!msg) throw new Error('Message not found');
+
+  const update: Record<string, boolean> = {};
+  if (msg.sender_id === user.id) update.deleted_by_sender = true;
+  if (msg.recipient_id === user.id) update.deleted_by_recipient = true;
+
+  if (Object.keys(update).length === 0) throw new Error('Not authorized');
+
+  const { error } = await supabase
+    .from('direct_messages')
+    .update(update)
+    .eq('id', messageId);
+
+  if (error) throw new Error(error.message);
 }

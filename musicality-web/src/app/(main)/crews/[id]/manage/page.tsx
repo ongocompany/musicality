@@ -16,6 +16,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserProfilePopover } from '@/components/social/user-profile-popover';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -343,12 +344,14 @@ export default function ManageCrewPage({ params }: { params: Promise<{ id: strin
           <CardContent className="space-y-3">
             {requests.map((req) => (
               <div key={req.id} className="flex items-center gap-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={req.profile?.avatarUrl ?? undefined} />
-                  <AvatarFallback className="text-xs bg-primary/20 text-primary">
-                    {(req.profile?.displayName ?? '?')[0].toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                <UserProfilePopover userId={req.userId} profile={req.profile}>
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={req.profile?.avatarUrl ?? undefined} />
+                    <AvatarFallback className="text-xs bg-primary/20 text-primary">
+                      {(req.profile?.displayName ?? '?')[0].toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </UserProfilePopover>
                 <div className="flex-1">
                   <span className="text-sm font-medium">
                     {req.profile?.displayName ?? 'Unknown'}
@@ -386,12 +389,14 @@ export default function ManageCrewPage({ params }: { params: Promise<{ id: strin
               <div key={m.id}>
                 <div className="flex items-center gap-3 py-3">
                   {/* Avatar */}
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src={m.profile?.avatarUrl ?? undefined} />
-                    <AvatarFallback className="text-xs bg-primary/20 text-primary">
-                      {(m.profile?.displayName ?? '?')[0].toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserProfilePopover userId={m.userId} profile={m.profile}>
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={m.profile?.avatarUrl ?? undefined} />
+                      <AvatarFallback className="text-xs bg-primary/20 text-primary">
+                        {(m.profile?.displayName ?? '?')[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </UserProfilePopover>
 
                   {/* Name + nickname */}
                   <div className="flex-1 min-w-0">
