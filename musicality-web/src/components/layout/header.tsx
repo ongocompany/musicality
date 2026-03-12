@@ -186,9 +186,6 @@ export function Header() {
                 </Avatar>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
-                <Link href="/profile">
-                  <DropdownMenuItem className="cursor-pointer">Profile</DropdownMenuItem>
-                </Link>
                 <Link href="/crews">
                   <DropdownMenuItem className="cursor-pointer">My Crews</DropdownMenuItem>
                 </Link>
@@ -201,6 +198,12 @@ export function Header() {
                       </span>
                     )}
                   </DropdownMenuItem>
+                </Link>
+                <Link href="/calendar">
+                  <DropdownMenuItem className="cursor-pointer">Calendar</DropdownMenuItem>
+                </Link>
+                <Link href="/profile">
+                  <DropdownMenuItem className="cursor-pointer">My Page</DropdownMenuItem>
                 </Link>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="cursor-pointer" onClick={signOut}>Sign Out</DropdownMenuItem>

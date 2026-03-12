@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase-client';
 import {
   updateProfile, uploadProfileAvatar, fetchMyCrews, checkNicknameAvailable, deleteMyAccount, fetchBlockedUsers, toggleBlock,
-  fetchPersonalEvents, fetchSavedEvents, createPersonalEvent, updatePersonalEvent, deletePersonalEvent,
 } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -15,21 +14,17 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { CrewCard } from '@/components/crew/crew-card';
 import { FollowListDialog } from '@/components/social/follow-list-dialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import type { Crew, UserBlock, CalendarEvent, CreateEventInput } from '@/lib/types';
-import { CalendarGrid } from '@/components/calendar/calendar-grid';
-import { EventCard } from '@/components/calendar/event-card';
-import { EventFormDialog } from '@/components/calendar/event-form-dialog';
+import type { Crew, UserBlock } from '@/lib/types';
 
 const DANCE_STYLES = ['bachata', 'salsa', 'kizomba', 'zouk', 'other'];
 
 export default function ProfilePage() {
   const router = useRouter();
   const supabase = createClient();
-  const { user, profile, loading: authLoading, refreshProfile, signOut } = useAuth();
+  const { user, profile, loading: authLoading, refreshProfile } = useAuth();
 
   const [displayName, setDisplayName] = useState('');
   const [nickname, setNickname] = useState('');
@@ -46,16 +41,6 @@ export default function ProfilePage() {
   const [blockedUsers, setBlockedUsers] = useState<UserBlock[]>([]);
   const [blockedLoading, setBlockedLoading] = useState(false);
 
-  // Calendar
-  const calNow = new Date();
-  const [calYear, setCalYear] = useState(calNow.getFullYear());
-  const [calMonth, setCalMonth] = useState(calNow.getMonth() + 1);
-  const [calSelectedDate, setCalSelectedDate] = useState<string | null>(null);
-  const [myEvents, setMyEvents] = useState<CalendarEvent[]>([]);
-  const [calLoading, setCalLoading] = useState(false);
-  const [showEventForm, setShowEventForm] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
-
   // Account deletion
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -70,33 +55,11 @@ export default function ProfilePage() {
     }
   }, [profile]);
 
-  const loadCalendar = useCallback(async (y: number, m: number) => {
-    setCalLoading(true);
-    try {
-      const [personalResult, savedResult] = await Promise.allSettled([
-        fetchPersonalEvents(supabase, y, m),
-        fetchSavedEvents(supabase, y, m),
-      ]);
-      const personal = personalResult.status === 'fulfilled' ? personalResult.value : [];
-      const saved = savedResult.status === 'fulfilled' ? savedResult.value : [];
-      // Merge: personal + saved crew events
-      setMyEvents([...personal, ...saved].sort((a, b) => {
-        if (a.eventDate !== b.eventDate) return a.eventDate.localeCompare(b.eventDate);
-        return (a.eventTime ?? '').localeCompare(b.eventTime ?? '');
-      }));
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setCalLoading(false);
-    }
-  }, [supabase]);
-
   useEffect(() => {
     if (user) {
       fetchMyCrews(supabase).then(setCrews).catch(console.error);
       setBlockedLoading(true);
       fetchBlockedUsers(supabase).then(setBlockedUsers).catch(console.error).finally(() => setBlockedLoading(false));
-      loadCalendar(calYear, calMonth);
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -110,7 +73,6 @@ export default function ProfilePage() {
   const checkNickname = useCallback((value: string) => {
     if (nicknameTimer) clearTimeout(nicknameTimer);
 
-    // Same as current — no need to check
     if (value === (profile?.nickname ?? '')) {
       setNicknameStatus('idle');
       return;
@@ -121,7 +83,6 @@ export default function ProfilePage() {
       return;
     }
 
-    // Validate format: alphanumeric + underscore, 2-20 chars
     if (!/^[a-zA-Z0-9_]{2,20}$/.test(value)) {
       setNicknameStatus('idle');
       return;
@@ -140,7 +101,6 @@ export default function ProfilePage() {
   }, [supabase, profile?.nickname, nicknameTimer]);
 
   function handleNicknameChange(value: string) {
-    // Only allow valid characters
     const cleaned = value.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20);
     setNickname(cleaned);
     checkNickname(cleaned);
@@ -187,11 +147,6 @@ export default function ProfilePage() {
     }
   }
 
-  async function handleSignOut() {
-    await signOut();
-    router.push('/');
-  }
-
   // Check if user is captain of any crew
   const captainCrews = crews.filter((c) => c.captainId === user?.id);
   const isCaptainOfAny = captainCrews.length > 0;
@@ -222,8 +177,9 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Profile</h1>
+      <h1 className="text-2xl font-bold">My Page</h1>
 
+      {/* Profile Edit */}
       <Card>
         <CardContent className="p-6 space-y-6">
           {/* Avatar */}
@@ -354,113 +310,6 @@ export default function ProfilePage() {
           </Button>
         </CardContent>
       </Card>
-
-      {/* My Calendar */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">내 캘린더</h2>
-          <Button size="sm" variant="outline" onClick={() => { setEditingEvent(null); setShowEventForm(true); }}>
-            + 일정 추가
-          </Button>
-        </div>
-
-        <Card>
-          <CardContent className="p-4 space-y-4">
-            <CalendarGrid
-              year={calYear}
-              month={calMonth}
-              selectedDate={calSelectedDate}
-              eventDates={new Set(myEvents.map((e) => e.eventDate))}
-              onSelectDate={setCalSelectedDate}
-              onChangeMonth={(y, m) => {
-                setCalYear(y);
-                setCalMonth(m);
-                loadCalendar(y, m);
-              }}
-            />
-
-            {calSelectedDate && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground">
-                  {(() => {
-                    const d = new Date(calSelectedDate + 'T00:00:00');
-                    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-                    return `${d.getMonth() + 1}월 ${d.getDate()}일 (${weekdays[d.getDay()]})`;
-                  })()}
-                </h4>
-                {myEvents
-                  .filter((e) => e.eventDate === calSelectedDate)
-                  .map((event) => (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      canEdit={!event.crewId}
-                      isSaved={!!event.crewId}
-                      onEdit={(ev) => { setEditingEvent(ev); setShowEventForm(true); }}
-                      onDelete={async (eventId) => {
-                        if (!confirm('이 일정을 삭제하시겠습니까?')) return;
-                        try {
-                          await deletePersonalEvent(supabase, eventId);
-                          toast.success('일정 삭제됨');
-                          loadCalendar(calYear, calMonth);
-                        } catch (err: unknown) {
-                          toast.error(err instanceof Error ? err.message : '삭제 실패');
-                        }
-                      }}
-                    />
-                  ))}
-                {myEvents.filter((e) => e.eventDate === calSelectedDate).length === 0 && (
-                  <p className="text-center py-4 text-muted-foreground text-xs">일정 없음</p>
-                )}
-              </div>
-            )}
-
-            {calLoading && (
-              <div className="flex items-center justify-center py-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {showEventForm && (
-          <EventFormDialog
-            initialDate={calSelectedDate ?? undefined}
-            editEvent={editingEvent}
-            onSubmit={async (input: CreateEventInput) => {
-              if (editingEvent) {
-                await updatePersonalEvent(supabase, editingEvent.id, input);
-                toast.success('일정 수정됨');
-              } else {
-                await createPersonalEvent(supabase, input);
-                toast.success('일정 추가됨');
-              }
-              setShowEventForm(false);
-              setEditingEvent(null);
-              loadCalendar(calYear, calMonth);
-            }}
-            onClose={() => { setShowEventForm(false); setEditingEvent(null); }}
-          />
-        )}
-      </div>
-
-      {/* My Crews */}
-      {crews.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">내 크루</h2>
-          {crews.map((crew) => (
-            <CrewCard
-              key={crew.id}
-              crew={crew}
-              showCaptainBadge={crew.captainId === user?.id}
-            />
-          ))}
-        </div>
-      )}
-
-      <Button variant="outline" className="w-full" onClick={handleSignOut}>
-        로그아웃
-      </Button>
 
       {/* Blocked Users */}
       <Separator />

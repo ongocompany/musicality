@@ -18,7 +18,8 @@ const NAV_ITEMS = [
   { href: '/', label: 'Discover', icon: '🔍' },
   { href: '/crews', label: 'My Crews', icon: '👥', auth: true },
   { href: '/messages', label: 'Messages', icon: '💬', auth: true },
-  { href: '/profile', label: 'Profile', icon: '👤', auth: true },
+  { href: '/calendar', label: 'Calendar', icon: '📅', auth: true },
+  { href: '/profile', label: 'My Page', icon: '👤', auth: true },
 ];
 
 export function Sidebar() {
@@ -82,7 +83,7 @@ export function Sidebar() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <Link href="/profile">
-                <DropdownMenuItem className="cursor-pointer">Profile</DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer">My Page</DropdownMenuItem>
               </Link>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="cursor-pointer" onClick={signOut}>Sign Out</DropdownMenuItem>
