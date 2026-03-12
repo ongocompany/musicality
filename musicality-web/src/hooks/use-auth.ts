@@ -21,10 +21,12 @@ export function useAuth() {
   }, [supabase]);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getUser().then(({ data: { user: u } }) => {
+    // Get initial session — wait for profile before marking as loaded
+    supabase.auth.getUser().then(async ({ data: { user: u } }) => {
       setUser(u);
-      if (u) loadProfile();
+      if (u) {
+        try { await loadProfile(); } catch {}
+      }
       setLoading(false);
     });
 

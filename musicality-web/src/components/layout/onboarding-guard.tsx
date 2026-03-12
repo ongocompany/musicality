@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/use-auth';
 /**
  * Client-side safety net: if user is logged in but hasn't completed
  * onboarding (no nickname), redirect them to /onboarding.
- * This catches cases where the auth callback didn't redirect properly.
+ * Shows a loading screen while checking — never flashes main content.
  */
 export function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
@@ -15,26 +15,33 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Wait until auth is fully loaded
     if (loading) return;
-    // Not logged in — nothing to guard
     if (!user) return;
-    // Already on onboarding page — don't redirect loop
     if (pathname === '/onboarding') return;
 
-    // User is logged in but no nickname set → needs onboarding
-    // profile === null means either not loaded yet or doesn't exist — both need onboarding
-    // profile.nickname === null means profile exists but onboarding not completed
+    // User is logged in but no nickname → needs onboarding
     if (!profile?.nickname) {
-      // Small delay to allow profile to load on first render
-      const timer = setTimeout(() => {
-        if (!profile?.nickname) {
-          router.replace('/onboarding');
-        }
-      }, 1500);
-      return () => clearTimeout(timer);
+      router.replace('/onboarding');
     }
   }, [loading, user, profile, pathname, router]);
+
+  // Still loading auth + profile
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  // Logged in but no nickname — show loading while redirecting to onboarding
+  if (user && !profile?.nickname) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return <>{children}</>;
 }
