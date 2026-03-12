@@ -276,10 +276,12 @@ function PostItem({
   const [localLikeCount, setLocalLikeCount] = useState(post.likeCount);
   const isLiked = likedSet.has(post.id);
   const isOwnPost = currentUserId === post.userId;
-  const canModerate = myRole === 'captain' || myRole === 'moderator';
-  const canDelete = isOwnPost || canModerate;
   const postMember = members.find((m) => m.userId === post.userId);
   const postRole = postMember?.role as MemberRole | undefined;
+  const myLevel = ROLE_LEVELS[myRole ?? 'seedling'] ?? 0;
+  const postLevel = ROLE_LEVELS[postRole ?? 'seedling'] ?? 0;
+  // Can delete: own post, OR captain/moderator deleting lower-ranked member's post
+  const canDelete = isOwnPost || (myLevel >= 3 && myLevel > postLevel);
 
   const loadReplies = useCallback(async () => {
     setLoadingReplies(true);
