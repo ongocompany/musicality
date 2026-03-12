@@ -126,7 +126,7 @@ export function Header() {
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="크루 검색..."
-                className="pl-8 pr-2 h-9 text-sm bg-muted/50 border-border/50"
+                className="pl-8 pr-2 h-9 text-sm bg-muted/50 border-border/50 focus-visible:ring-0"
               />
             </div>
           </div>
