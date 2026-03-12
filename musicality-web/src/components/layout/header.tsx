@@ -48,15 +48,15 @@ export function Header() {
                   </AvatarFallback>
                 </Avatar>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>
-                  <Link href="/profile">Profile</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Link href="/crews">My Crews</Link>
-                </DropdownMenuItem>
+              <DropdownMenuContent align="end" className="w-40">
+                <Link href="/profile">
+                  <DropdownMenuItem className="cursor-pointer">Profile</DropdownMenuItem>
+                </Link>
+                <Link href="/crews">
+                  <DropdownMenuItem className="cursor-pointer">My Crews</DropdownMenuItem>
+                </Link>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={signOut}>Sign Out</DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onClick={signOut}>Sign Out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (

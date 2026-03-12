@@ -78,11 +78,11 @@ export function Sidebar() {
                 </span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem>
-                <Link href="/profile">Profile</Link>
-              </DropdownMenuItem>
+              <Link href="/profile">
+                <DropdownMenuItem className="cursor-pointer">Profile</DropdownMenuItem>
+              </Link>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={signOut}>Sign Out</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" onClick={signOut}>Sign Out</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
