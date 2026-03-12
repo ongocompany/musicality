@@ -1,0 +1,688 @@
+import { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+  RefreshControl,
+  Image,
+} from 'react-native';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { getLocales } from 'expo-localization';
+import { useAuthStore } from '../../stores/authStore';
+import { useCommunityStore } from '../../stores/communityStore';
+import { uploadCrewThumbnail } from '../../services/communityApi';
+import { Colors, Spacing, FontSize } from '../../constants/theme';
+import type { CrewType } from '../../types/community';
+
+function getDeviceCountry(): string {
+  try {
+    const locales = getLocales();
+    return locales[0]?.regionCode?.toUpperCase() ?? 'US';
+  } catch {
+    return 'US';
+  }
+}
+
+function countryToFlag(code: string): string {
+  if (code === 'global') return '🌐';
+  return code
+    .toUpperCase()
+    .split('')
+    .map((ch) => String.fromCodePoint(ch.charCodeAt(0) + 127397))
+    .join('');
+}
+
+export default function ManageCrewScreen() {
+  const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuthStore();
+  const {
+    crewCache,
+    activeCrewMembers,
+    activePendingRequests,
+    loading,
+    fetchCrewDetail,
+    fetchCrewMembers,
+    fetchJoinRequests,
+    updateCrew,
+    kickMember,
+    approveRequest,
+    rejectRequest,
+  } = useCommunityStore();
+
+  const crew = id ? crewCache[id] : undefined;
+  const isCaptain = crew?.captainId === user?.id;
+
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editType, setEditType] = useState<CrewType>('open');
+  const [editLimit, setEditLimit] = useState('50');
+  const [editRegion, setEditRegion] = useState('global');
+  const [isEditing, setIsEditing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
+
+  const deviceCountry = getDeviceCountry();
+
+  // Initialize form from crew data
+  useEffect(() => {
+    if (crew) {
+      setEditName(crew.name);
+      setEditDesc(crew.description);
+      setEditType(crew.crewType);
+      setEditLimit(String(crew.memberLimit));
+      setEditRegion(crew.region || 'global');
+    }
+  }, [crew?.id]);
+
+  // Fetch data on mount
+  useEffect(() => {
+    if (!id) return;
+    fetchCrewMembers(id);
+    fetchJoinRequests(id);
+  }, [id]);
+
+  const onRefresh = useCallback(async () => {
+    if (!id) return;
+    setRefreshing(true);
+    await Promise.all([fetchCrewDetail(id), fetchCrewMembers(id), fetchJoinRequests(id)]);
+    setRefreshing(false);
+  }, [id]);
+
+  const handleSave = async () => {
+    if (!id || !crew) return;
+    try {
+      await updateCrew(id, {
+        name: editName.trim(),
+        description: editDesc.trim(),
+        crewType: editType,
+        memberLimit: Math.max(2, Math.min(200, parseInt(editLimit) || 50)),
+        region: editRegion,
+      });
+      setIsEditing(false);
+      Alert.alert('Saved', 'Crew settings updated.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update crew');
+    }
+  };
+
+  const handleKick = (memberId: string, memberName: string) => {
+    if (!id) return;
+    Alert.alert('Remove Member', `Remove "${memberName}" from the crew?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            // Find the userId from the member's record
+            const member = activeCrewMembers.find((m) => m.id === memberId);
+            if (member) {
+              await kickMember(id, member.userId);
+            }
+          } catch (err: any) {
+            Alert.alert('Error', err.message);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleApprove = async (requestId: string) => {
+    try {
+      await approveRequest(requestId);
+      if (id) fetchCrewMembers(id);
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    }
+  };
+
+  const handleReject = async (requestId: string) => {
+    try {
+      await rejectRequest(requestId);
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    }
+  };
+
+  const handlePickThumbnail = async () => {
+    if (!id) return;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+
+      setUploadingThumb(true);
+      const publicUrl = await uploadCrewThumbnail(id, result.assets[0].uri);
+      await updateCrew(id, { thumbnailUrl: publicUrl });
+      Alert.alert('Done', 'Thumbnail updated!');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to upload thumbnail');
+    } finally {
+      setUploadingThumb(false);
+    }
+  };
+
+  if (!crew || !isCaptain) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Manage Crew' }} />
+        <View style={styles.center}>
+          <Text style={styles.emptyText}>Not authorized</Text>
+        </View>
+      </>
+    );
+  }
+
+  const pendingCount = activePendingRequests.length;
+
+  return (
+    <>
+      <Stack.Screen options={{ title: `Manage: ${crew.name}` }} />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+        }
+      >
+        {/* ── Thumbnail ── */}
+        <View style={styles.thumbSection}>
+          <TouchableOpacity style={styles.thumbPicker} onPress={handlePickThumbnail} disabled={uploadingThumb} activeOpacity={0.7}>
+            {uploadingThumb ? (
+              <ActivityIndicator size="small" color={Colors.primary} />
+            ) : crew.thumbnailUrl ? (
+              <Image source={{ uri: crew.thumbnailUrl }} style={styles.thumbImage} />
+            ) : (
+              <Ionicons name="camera-outline" size={28} color={Colors.textMuted} />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handlePickThumbnail} disabled={uploadingThumb}>
+            <Text style={styles.thumbLabel}>
+              {crew.thumbnailUrl ? 'Change Thumbnail' : 'Add Thumbnail'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Crew Settings ── */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Crew Settings</Text>
+          {!isEditing ? (
+            <TouchableOpacity onPress={() => setIsEditing(true)}>
+              <Ionicons name="create-outline" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={handleSave} disabled={loading.updateCrew}>
+              {loading.updateCrew ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Text style={styles.saveText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {isEditing ? (
+          <View style={styles.editForm}>
+            <View style={styles.field}>
+              <Text style={styles.label}>Crew Name</Text>
+              <TextInput
+                style={styles.input}
+                value={editName}
+                onChangeText={setEditName}
+                maxLength={40}
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.label}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={editDesc}
+                onChangeText={setEditDesc}
+                maxLength={200}
+                multiline
+                numberOfLines={3}
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.label}>Crew Type</Text>
+              <View style={styles.toggleRow}>
+                <TouchableOpacity
+                  style={[styles.toggleButton, editType === 'open' && styles.toggleActive]}
+                  onPress={() => setEditType('open')}
+                >
+                  <Text style={[styles.toggleText, editType === 'open' && styles.toggleTextActive]}>Open</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.toggleButton, editType === 'closed' && styles.toggleActive]}
+                  onPress={() => setEditType('closed')}
+                >
+                  <Text style={[styles.toggleText, editType === 'closed' && styles.toggleTextActive]}>Closed</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.label}>Member Limit (2-200)</Text>
+              <TextInput
+                style={[styles.input, { width: 100 }]}
+                value={editLimit}
+                onChangeText={setEditLimit}
+                keyboardType="number-pad"
+                maxLength={3}
+              />
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.label}>Region</Text>
+              <View style={styles.chipRow}>
+                <TouchableOpacity
+                  style={[styles.chip, editRegion === 'global' && styles.chipActive]}
+                  onPress={() => setEditRegion('global')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.chipText, editRegion === 'global' && styles.chipTextActive]}>
+                    🌐 Global
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.chip, editRegion === deviceCountry && styles.chipActive]}
+                  onPress={() => setEditRegion(deviceCountry)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.chipText, editRegion === deviceCountry && styles.chipTextActive]}>
+                    {countryToFlag(deviceCountry)} {deviceCountry}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.infoCard}>
+            <InfoRow label="Type" value={crew.crewType === 'open' ? 'Open' : 'Closed'} />
+            <InfoRow label="Members" value={`${crew.memberCount}/${crew.memberLimit}`} />
+            <InfoRow label="Dance Style" value={crew.danceStyle} />
+            <InfoRow label="Region" value={`${countryToFlag(crew.region || 'global')} ${crew.region === 'global' ? 'Global' : crew.region || 'Global'}`} />
+            <InfoRow label="Invite Code" value={crew.inviteCode || '—'} />
+          </View>
+        )}
+
+        {/* ── Pending Requests ── */}
+        {crew.crewType === 'closed' && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Join Requests {pendingCount > 0 ? `(${pendingCount})` : ''}
+              </Text>
+            </View>
+
+            {activePendingRequests.length === 0 ? (
+              <View style={styles.emptyBlock}>
+                <Text style={styles.emptySubtext}>No pending requests</Text>
+              </View>
+            ) : (
+              <View style={styles.listBlock}>
+                {activePendingRequests.map((req) => (
+                  <View key={req.id} style={styles.requestRow}>
+                    <View style={styles.avatar}>
+                      <Ionicons name="person" size={16} color={Colors.textMuted} />
+                    </View>
+                    <View style={styles.requestInfo}>
+                      <Text style={styles.requestName}>
+                        {req.profile?.displayName || 'Dancer'}
+                      </Text>
+                      {req.message ? (
+                        <Text style={styles.requestMessage} numberOfLines={2}>
+                          {req.message}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <TouchableOpacity
+                      style={styles.approveBtn}
+                      onPress={() => handleApprove(req.id)}
+                    >
+                      <Ionicons name="checkmark" size={18} color="#FFF" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.rejectBtn}
+                      onPress={() => handleReject(req.id)}
+                    >
+                      <Ionicons name="close" size={18} color={Colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        )}
+
+        {/* ── Members ── */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Members ({activeCrewMembers.length})</Text>
+        </View>
+
+        <View style={styles.listBlock}>
+          {activeCrewMembers.map((member) => {
+            const isMe = member.userId === user?.id;
+            const isMemberCaptain = member.role === 'captain';
+            return (
+              <View key={member.id} style={styles.memberRow}>
+                <View style={styles.avatar}>
+                  <Ionicons name="person" size={16} color={Colors.textMuted} />
+                </View>
+                <View style={styles.memberInfo}>
+                  <Text style={styles.memberName}>
+                    {member.profile?.displayName || 'Dancer'}
+                    {isMe ? ' (You)' : ''}
+                  </Text>
+                  {isMemberCaptain && (
+                    <View style={styles.captainBadge}>
+                      <Text style={styles.captainBadgeText}>Captain</Text>
+                    </View>
+                  )}
+                </View>
+                {!isMe && !isMemberCaptain && (
+                  <TouchableOpacity
+                    style={styles.kickBtn}
+                    onPress={() =>
+                      handleKick(member.id, member.profile?.displayName || 'this member')
+                    }
+                  >
+                    <Ionicons name="remove-circle-outline" size={20} color={Colors.error} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    paddingBottom: Spacing.xxl,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.background,
+  },
+  // Thumbnail
+  thumbSection: {
+    alignItems: 'center',
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    gap: 8,
+  },
+  thumbPicker: {
+    width: 80,
+    height: 80,
+    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+    overflow: 'hidden',
+  },
+  thumbImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+  },
+  thumbLabel: {
+    fontSize: FontSize.sm,
+    color: Colors.primary,
+    fontWeight: '500',
+  },
+  // Section headers
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  saveText: {
+    fontSize: FontSize.md,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  // Edit form
+  editForm: {
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.md,
+  },
+  field: {
+    gap: 6,
+  },
+  label: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  input: {
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 10,
+    fontSize: FontSize.md,
+    color: Colors.text,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  textArea: {
+    minHeight: 72,
+    textAlignVertical: 'top',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  toggleButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  toggleActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  toggleText: {
+    fontSize: FontSize.md,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+  },
+  toggleTextActive: {
+    color: '#FFF',
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  chipActive: {
+    backgroundColor: Colors.primary + '30',
+    borderColor: Colors.primary,
+  },
+  chipText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
+  chipTextActive: {
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  // Info card (read-only)
+  infoCard: {
+    marginHorizontal: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 8,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  infoLabel: {
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
+  },
+  infoValue: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  // Lists
+  listBlock: {
+    paddingHorizontal: Spacing.md,
+    gap: 6,
+  },
+  emptyBlock: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: FontSize.lg,
+    color: Colors.textSecondary,
+  },
+  emptySubtext: {
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
+  },
+  // Request row
+  requestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    padding: Spacing.sm,
+    borderRadius: 10,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  requestInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  requestName: {
+    fontSize: FontSize.md,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  requestMessage: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontStyle: 'italic',
+  },
+  approveBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rejectBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  // Member row
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 6,
+  },
+  avatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  memberInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  memberName: {
+    fontSize: FontSize.md,
+    color: Colors.text,
+  },
+  captainBadge: {
+    backgroundColor: Colors.warning + '30',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  captainBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.warning,
+  },
+  kickBtn: {
+    padding: 4,
+  },
+});
