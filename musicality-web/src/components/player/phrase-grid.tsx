@@ -13,6 +13,7 @@ import {
 // ─── Constants ────────────────────────────────────────
 
 const COLS = 8;
+const MAX_VISIBLE_ROWS = 6;  // max rows shown before scrolling
 const SCROLL_ANCHOR_ROW = 2; // keep current beat at row 3 (0-indexed)
 const RENDER_BUFFER = 4;     // extra rows above/below viewport
 const LOOP_TOLERANCE_MS = 20;
@@ -243,7 +244,7 @@ export function PhraseGrid({
       <div
         ref={scrollRef}
         className="overflow-y-auto overflow-x-hidden"
-        style={{ maxHeight: visibleRows * rowHeight + 'px' }}
+        style={{ maxHeight: MAX_VISIBLE_ROWS * rowHeight + 'px' }}
         onScroll={handleScroll}
       >
         <div style={{ height: totalHeight, position: 'relative' }}>
