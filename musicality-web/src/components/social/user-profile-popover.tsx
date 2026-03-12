@@ -33,12 +33,6 @@ export function UserProfilePopover({ userId, profile, children }: Props) {
   const [showNote, setShowNote] = useState(false);
   const [noteText, setNoteText] = useState('');
 
-  // Not logged in or own profile → no popover
-  if (!user) return <>{children}</>;
-  if (user.id === userId) {
-    return <Link href="/profile" className="cursor-pointer">{children}</Link>;
-  }
-
   const loadContext = useCallback(async () => {
     if (ctx) return; // already loaded
     setLoading(true);
@@ -121,6 +115,12 @@ export function UserProfilePopover({ userId, profile, children }: Props) {
       setActionLoading(null);
     }
   };
+
+  // Not logged in or own profile → no popover
+  if (!user) return <>{children}</>;
+  if (user.id === userId) {
+    return <Link href="/profile" className="cursor-pointer">{children}</Link>;
+  }
 
   const displayName = profile?.displayName ?? '사용자';
   const nickname = profile?.nickname;
