@@ -8,18 +8,32 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { data } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (data?.session?.user) {
+    if (error) {
+      console.error('[auth/callback] exchangeCodeForSession error:', error.message);
+      return NextResponse.redirect(`${origin}/login`);
+    }
+
+    const userId = data?.session?.user?.id ?? data?.user?.id;
+
+    if (userId) {
+      // Small delay to allow DB trigger to create profile row
+      await new Promise((r) => setTimeout(r, 500));
+
       // Check if profile is complete (nickname set = onboarding done)
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('nickname')
-        .eq('id', data.session.user.id)
-        .single();
+        .eq('id', userId)
+        .maybeSingle();
 
-      if (!profile?.nickname) {
-        // New user or incomplete profile → onboarding
+      if (profileError) {
+        console.error('[auth/callback] profile query error:', profileError.message);
+      }
+
+      // No profile row yet, or nickname not set → onboarding
+      if (!profile || !profile.nickname) {
         return NextResponse.redirect(`${origin}/onboarding`);
       }
     }
