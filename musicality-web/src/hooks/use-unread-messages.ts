@@ -5,7 +5,14 @@ import { createClient } from '@/lib/supabase-client';
 import { fetchUnreadMessageCount } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 
-const POLL_INTERVAL = 30_000; // 30 seconds
+const POLL_INTERVAL = 10_000; // 10 seconds
+
+// Global event for instant refresh across components
+const REFRESH_EVENT = 'unread-messages-refresh';
+
+export function triggerUnreadRefresh() {
+  window.dispatchEvent(new Event(REFRESH_EVENT));
+}
 
 export function useUnreadMessages() {
   const { user } = useAuth();
@@ -31,10 +38,15 @@ export function useUnreadMessages() {
 
     intervalRef.current = setInterval(refreshUnread, POLL_INTERVAL);
 
+    // Listen for instant refresh events (e.g. after reading messages)
+    const handleRefresh = () => refreshUnread();
+    window.addEventListener(REFRESH_EVENT, handleRefresh);
+
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      window.removeEventListener(REFRESH_EVENT, handleRefresh);
     };
   }, [refreshUnread]);
 

@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { UserProfilePopover } from '@/components/social/user-profile-popover';
+import { triggerUnreadRefresh } from '@/hooks/use-unread-messages';
 
 function formatMessageTime(dateStr: string) {
   const d = new Date(dateStr);
@@ -73,6 +74,7 @@ export default function ConversationPage() {
 
         // Mark as read
         await markMessagesRead(supabase, otherUserId);
+        triggerUnreadRefresh();
       } catch {
         // ignore
       } finally {
@@ -94,6 +96,7 @@ export default function ConversationPage() {
         const msgs = await fetchConversation(supabase, otherUserId);
         setMessages(msgs);
         await markMessagesRead(supabase, otherUserId);
+        triggerUnreadRefresh();
       } catch {
         // ignore
       }
