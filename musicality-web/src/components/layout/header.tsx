@@ -156,6 +156,20 @@ export function Header() {
             )}
           </Button>
 
+          {/* Player link */}
+          {user && (
+            <Link href="/player">
+              <Button variant="ghost" size="icon" className={cn(
+                'h-9 w-9 shrink-0',
+                pathname === '/player' ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+              )}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="6 3 20 12 6 21 6 3" />
+                </svg>
+              </Button>
+            </Link>
+          )}
+
           {/* DM badge */}
           {user && (
             <Link href="/messages">
