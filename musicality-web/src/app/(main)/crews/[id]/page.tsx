@@ -749,6 +749,9 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
 
   async function handleJoin() {
     if (!user) { toast.error('Please sign in first'); return; }
+    if (crew?.crewType === 'open') {
+      if (!confirm(`${crew.name} 크루에 가입하시겠습니까?`)) return;
+    }
     setJoining(true);
     try {
       if (crew?.crewType === 'open') {
