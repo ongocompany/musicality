@@ -26,6 +26,13 @@ import type {
   CalendarEvent,
   CreateEventInput,
   MemberRole,
+  PlayerTrack,
+  PlayerFolder,
+  TrackAnalysis,
+  PhraseEdition,
+  CellNotes,
+  TrackSettings,
+  Section,
 } from './types';
 
 // ─── Mappers (snake_case → camelCase) ───────────────────
@@ -1584,4 +1591,376 @@ export async function toggleSaveEvent(
 
   if (error) throw error;
   return data as boolean;
+}
+
+// ─── Player: Mappers ──────────────────────────────────────
+
+function mapTrackAnalysis(row: any): TrackAnalysis {
+  return {
+    id: row.id,
+    trackId: row.track_id,
+    userId: row.user_id,
+    bpm: row.bpm,
+    beats: row.beats ?? [],
+    downbeats: row.downbeats ?? [],
+    beatsPerBar: row.beats_per_bar ?? 4,
+    confidence: row.confidence ?? 0,
+    sections: (row.sections ?? []) as Section[],
+    phraseBoundaries: row.phrase_boundaries ?? [],
+    waveformPeaks: row.waveform_peaks ?? [],
+    fingerprint: row.fingerprint ?? null,
+    createdAt: row.created_at,
+  };
+}
+
+function mapPlayerTrack(row: any): PlayerTrack {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    mediaType: row.media_type,
+    fingerprint: row.fingerprint ?? null,
+    fileHash: row.file_hash ?? null,
+    fileSize: row.file_size ?? null,
+    format: row.format ?? null,
+    duration: row.duration ?? null,
+    youtubeUrl: row.youtube_url ?? null,
+    youtubeVideoId: row.youtube_video_id ?? null,
+    folderId: row.folder_id ?? null,
+    danceStyle: row.dance_style ?? 'bachata',
+    sortOrder: row.sort_order ?? 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    analysis: row.track_analyses?.[0] ? mapTrackAnalysis(row.track_analyses[0]) : undefined,
+    settings: row.track_settings?.[0] ? mapTrackSettings(row.track_settings[0]) : undefined,
+  };
+}
+
+function mapPlayerFolder(row: any): PlayerFolder {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    mediaType: row.media_type ?? 'audio',
+    sortOrder: row.sort_order ?? 0,
+    createdAt: row.created_at,
+  };
+}
+
+function mapPhraseEdition(row: any): PhraseEdition {
+  return {
+    id: row.id,
+    trackId: row.track_id,
+    userId: row.user_id,
+    editionId: row.edition_id,
+    boundaries: row.boundaries ?? [],
+    isActive: row.is_active ?? false,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapCellNotes(row: any): CellNotes {
+  return {
+    id: row.id,
+    trackId: row.track_id,
+    userId: row.user_id,
+    editionId: row.edition_id ?? 'S',
+    notes: row.notes ?? {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapTrackSettings(row: any): TrackSettings {
+  return {
+    id: row.id,
+    trackId: row.track_id,
+    userId: row.user_id,
+    downbeatOffset: row.downbeat_offset ?? 0,
+    danceStyleOverride: row.dance_style_override ?? null,
+    playbackRate: row.playback_rate ?? 1.0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// ─── Player: Tracks ───────────────────────────────────────
+
+export async function fetchPlayerTracks(supabase: SupabaseClient): Promise<PlayerTrack[]> {
+  const { data, error } = await supabase
+    .from('player_tracks')
+    .select('*, track_analyses(*), track_settings(*)')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapPlayerTrack);
+}
+
+export async function fetchPlayerTrack(supabase: SupabaseClient, trackId: string): Promise<PlayerTrack | null> {
+  const { data, error } = await supabase
+    .from('player_tracks')
+    .select('*, track_analyses(*), track_settings(*)')
+    .eq('id', trackId)
+    .single();
+
+  if (error) return null;
+  return mapPlayerTrack(data);
+}
+
+export async function upsertTrackWithAnalysis(
+  supabase: SupabaseClient,
+  input: {
+    title: string;
+    mediaType: string;
+    fingerprint?: string;
+    fileHash?: string;
+    fileSize?: number;
+    format?: string;
+    duration?: number;
+    youtubeUrl?: string;
+    youtubeVideoId?: string;
+    danceStyle?: string;
+    folderId?: string;
+    bpm?: number;
+    beats?: number[];
+    downbeats?: number[];
+    beatsPerBar?: number;
+    confidence?: number;
+    sections?: Section[];
+    phraseBoundaries?: number[];
+    waveformPeaks?: number[];
+  },
+): Promise<string> {
+  const { data, error } = await supabase.rpc('upsert_track_with_analysis', {
+    p_title: input.title,
+    p_media_type: input.mediaType,
+    p_fingerprint: input.fingerprint ?? null,
+    p_file_hash: input.fileHash ?? null,
+    p_file_size: input.fileSize ?? null,
+    p_format: input.format ?? null,
+    p_duration: input.duration ?? null,
+    p_youtube_url: input.youtubeUrl ?? null,
+    p_youtube_video_id: input.youtubeVideoId ?? null,
+    p_dance_style: input.danceStyle ?? 'bachata',
+    p_folder_id: input.folderId ?? null,
+    p_bpm: input.bpm ?? null,
+    p_beats: input.beats ? JSON.stringify(input.beats) : '[]',
+    p_downbeats: input.downbeats ? JSON.stringify(input.downbeats) : '[]',
+    p_beats_per_bar: input.beatsPerBar ?? 4,
+    p_confidence: input.confidence ?? 0,
+    p_sections: input.sections ? JSON.stringify(input.sections) : '[]',
+    p_phrase_boundaries: input.phraseBoundaries ? JSON.stringify(input.phraseBoundaries) : '[]',
+    p_waveform_peaks: input.waveformPeaks ? JSON.stringify(input.waveformPeaks) : '[]',
+  });
+
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function deletePlayerTrack(supabase: SupabaseClient, trackId: string): Promise<void> {
+  const { error } = await supabase.from('player_tracks').delete().eq('id', trackId);
+  if (error) throw new Error(error.message);
+}
+
+export async function updatePlayerTrack(
+  supabase: SupabaseClient,
+  trackId: string,
+  updates: { title?: string; folderId?: string | null; danceStyle?: string; sortOrder?: number },
+): Promise<void> {
+  const payload: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (updates.title !== undefined) payload.title = updates.title;
+  if (updates.folderId !== undefined) payload.folder_id = updates.folderId;
+  if (updates.danceStyle !== undefined) payload.dance_style = updates.danceStyle;
+  if (updates.sortOrder !== undefined) payload.sort_order = updates.sortOrder;
+
+  const { error } = await supabase.from('player_tracks').update(payload).eq('id', trackId);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Player: Fingerprint Matching ─────────────────────────
+
+export async function matchTrackByFingerprint(
+  supabase: SupabaseClient,
+  fingerprint: string,
+): Promise<TrackAnalysis | null> {
+  const { data, error } = await supabase.rpc('match_track_by_fingerprint', {
+    p_fingerprint: fingerprint,
+  });
+
+  if (error || !data || (Array.isArray(data) && data.length === 0)) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    id: row.analysis_id,
+    trackId: row.track_id,
+    userId: '',
+    bpm: row.bpm,
+    beats: row.beats ?? [],
+    downbeats: row.downbeats ?? [],
+    beatsPerBar: row.beats_per_bar ?? 4,
+    confidence: row.confidence ?? 0,
+    sections: (row.sections ?? []) as Section[],
+    phraseBoundaries: row.phrase_boundaries ?? [],
+    waveformPeaks: row.waveform_peaks ?? [],
+    fingerprint,
+    createdAt: '',
+  };
+}
+
+// ─── Player: Folders ──────────────────────────────────────
+
+export async function fetchPlayerFolders(supabase: SupabaseClient): Promise<PlayerFolder[]> {
+  const { data, error } = await supabase
+    .from('player_folders')
+    .select('*')
+    .order('sort_order')
+    .order('created_at');
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapPlayerFolder);
+}
+
+export async function createPlayerFolder(
+  supabase: SupabaseClient,
+  input: { name: string; mediaType?: string },
+): Promise<PlayerFolder> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('player_folders')
+    .insert({ user_id: user.id, name: input.name, media_type: input.mediaType ?? 'audio' })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return mapPlayerFolder(data);
+}
+
+export async function deletePlayerFolder(supabase: SupabaseClient, folderId: string): Promise<void> {
+  const { error } = await supabase.from('player_folders').delete().eq('id', folderId);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Player: Phrase Editions ──────────────────────────────
+
+export async function fetchPhraseEditions(supabase: SupabaseClient, trackId: string): Promise<PhraseEdition[]> {
+  const { data, error } = await supabase
+    .from('phrase_editions')
+    .select('*')
+    .eq('track_id', trackId)
+    .order('edition_id');
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapPhraseEdition);
+}
+
+export async function upsertPhraseEdition(
+  supabase: SupabaseClient,
+  trackId: string,
+  editionId: string,
+  boundaries: number[],
+  isActive: boolean,
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('phrase_editions')
+    .upsert(
+      {
+        track_id: trackId,
+        user_id: user.id,
+        edition_id: editionId,
+        boundaries: JSON.stringify(boundaries),
+        is_active: isActive,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'track_id,user_id,edition_id' },
+    );
+
+  if (error) throw new Error(error.message);
+}
+
+export async function deletePhraseEdition(supabase: SupabaseClient, editionId: string): Promise<void> {
+  const { error } = await supabase.from('phrase_editions').delete().eq('id', editionId);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Player: Cell Notes ───────────────────────────────────
+
+export async function fetchCellNotes(supabase: SupabaseClient, trackId: string, editionId?: string): Promise<CellNotes | null> {
+  let query = supabase
+    .from('cell_notes')
+    .select('*')
+    .eq('track_id', trackId);
+
+  if (editionId) query = query.eq('edition_id', editionId);
+
+  const { data, error } = await query.maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? mapCellNotes(data) : null;
+}
+
+export async function upsertCellNotes(
+  supabase: SupabaseClient,
+  trackId: string,
+  editionId: string,
+  notes: Record<string, string>,
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('cell_notes')
+    .upsert(
+      {
+        track_id: trackId,
+        user_id: user.id,
+        edition_id: editionId,
+        notes: JSON.stringify(notes),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'track_id,user_id,edition_id' },
+    );
+
+  if (error) throw new Error(error.message);
+}
+
+// ─── Player: Track Settings ──────────────────────────────
+
+export async function fetchTrackSettings(supabase: SupabaseClient, trackId: string): Promise<TrackSettings | null> {
+  const { data, error } = await supabase
+    .from('track_settings')
+    .select('*')
+    .eq('track_id', trackId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data ? mapTrackSettings(data) : null;
+}
+
+export async function upsertTrackSettings(
+  supabase: SupabaseClient,
+  trackId: string,
+  settings: { downbeatOffset?: number; danceStyleOverride?: string | null; playbackRate?: number },
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const payload: Record<string, any> = {
+    track_id: trackId,
+    user_id: user.id,
+    updated_at: new Date().toISOString(),
+  };
+  if (settings.downbeatOffset !== undefined) payload.downbeat_offset = settings.downbeatOffset;
+  if (settings.danceStyleOverride !== undefined) payload.dance_style_override = settings.danceStyleOverride;
+  if (settings.playbackRate !== undefined) payload.playback_rate = settings.playbackRate;
+
+  const { error } = await supabase
+    .from('track_settings')
+    .upsert(payload, { onConflict: 'track_id,user_id' });
+
+  if (error) throw new Error(error.message);
 }

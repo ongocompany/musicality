@@ -284,3 +284,111 @@ export interface CreateEventInput {
   location?: string;
   description?: string;
 }
+
+// ─── Player: Track ──────────────────────────────────────
+
+export type MediaType = 'audio' | 'video' | 'youtube';
+export type AnalysisStatus = 'idle' | 'analyzing' | 'done' | 'error';
+export type DanceStyle = 'bachata' | 'salsa-on1' | 'salsa-on2';
+export type SectionLabel = 'intro' | 'derecho' | 'majao' | 'mambo' | 'bridge' | 'outro';
+export type EditionId = 'S' | '1' | '2' | '3';
+
+export interface PlayerFolder {
+  id: string;
+  userId: string;
+  name: string;
+  mediaType: MediaType;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface PlayerTrack {
+  id: string;
+  userId: string;
+  title: string;
+  mediaType: MediaType;
+  fingerprint: string | null;
+  fileHash: string | null;
+  fileSize: number | null;
+  format: string | null;
+  duration: number | null;
+  youtubeUrl: string | null;
+  youtubeVideoId: string | null;
+  folderId: string | null;
+  danceStyle: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  // Joined
+  analysis?: TrackAnalysis;
+  settings?: TrackSettings;
+}
+
+// ─── Player: Analysis ───────────────────────────────────
+
+export interface Section {
+  label: SectionLabel;
+  startTime: number;
+  endTime: number;
+  confidence: number;
+}
+
+export interface TrackAnalysis {
+  id: string;
+  trackId: string;
+  userId: string;
+  bpm: number;
+  beats: number[];
+  downbeats: number[];
+  beatsPerBar: number;
+  confidence: number;
+  sections: Section[];
+  phraseBoundaries: number[];
+  waveformPeaks: number[];
+  fingerprint: string | null;
+  createdAt: string;
+}
+
+// ─── Player: Phrase Edition ─────────────────────────────
+
+export interface PhraseEdition {
+  id: string;
+  trackId: string;
+  userId: string;
+  editionId: EditionId;
+  boundaries: number[];       // beat indices
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TrackEditions {
+  server: PhraseEdition | null;
+  userEditions: PhraseEdition[];
+  activeEditionId: EditionId;
+}
+
+// ─── Player: Cell Notes ─────────────────────────────────
+
+export interface CellNotes {
+  id: string;
+  trackId: string;
+  userId: string;
+  editionId: EditionId;
+  notes: Record<string, string>;   // beatIndex → memo text (max 30 chars)
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Player: Track Settings ─────────────────────────────
+
+export interface TrackSettings {
+  id: string;
+  trackId: string;
+  userId: string;
+  downbeatOffset: number;
+  danceStyleOverride: string | null;
+  playbackRate: number;
+  createdAt: string;
+  updatedAt: string;
+}
