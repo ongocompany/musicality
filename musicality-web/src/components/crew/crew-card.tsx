@@ -4,21 +4,31 @@ import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import type { Crew } from '@/lib/types';
+import type { Crew, MemberRole } from '@/lib/types';
+import { ROLE_CONFIG } from '@/lib/types';
 import { cn, countryToFlag } from '@/lib/utils';
+
+const ROLE_BORDER: Record<MemberRole, string> = {
+  captain:   'border-red-500/50 hover:border-red-500/80',
+  moderator: 'border-orange-500/50 hover:border-orange-500/80',
+  regular:   'border-purple-500/50 hover:border-purple-500/80',
+  member:    'border-blue-500/50 hover:border-blue-500/80',
+  seedling:  'border-green-500/50 hover:border-green-500/80',
+};
 
 interface CrewCardProps {
   crew: Crew;
-  showCaptainBadge?: boolean;
-  isCaptain?: boolean;
+  memberRole?: MemberRole;
 }
 
-export function CrewCard({ crew, showCaptainBadge, isCaptain }: CrewCardProps) {
+export function CrewCard({ crew, memberRole }: CrewCardProps) {
+  const roleConfig = memberRole ? ROLE_CONFIG[memberRole] : null;
+
   return (
     <Link href={`/crews/${crew.id}`}>
       <Card className={cn(
         "hover:border-primary/50 transition-colors cursor-pointer h-full",
-        isCaptain && "border-accent/60 hover:border-accent"
+        memberRole && ROLE_BORDER[memberRole],
       )}>
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
@@ -31,9 +41,9 @@ export function CrewCard({ crew, showCaptainBadge, isCaptain }: CrewCardProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold truncate">{crew.name}</h3>
-                {showCaptainBadge && (
-                  <Badge variant="default" className="text-[10px] px-1.5 py-0 bg-primary/80">
-                    Captain
+                {roleConfig && (
+                  <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 border", roleConfig.color)}>
+                    {roleConfig.emoji} {roleConfig.label}
                   </Badge>
                 )}
               </div>

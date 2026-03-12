@@ -9,7 +9,7 @@ import { CrewCard } from '@/components/crew/crew-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/use-auth';
-import type { Crew } from '@/lib/types';
+import type { Crew, MemberRole } from '@/lib/types';
 
 export default function HomePage() {
   return (
@@ -20,7 +20,7 @@ export default function HomePage() {
 }
 
 function HomeContent() {
-  const [myCrews, setMyCrews] = useState<Crew[]>([]);
+  const [myCrews, setMyCrews] = useState<(Crew & { myRole: MemberRole })[]>([]);
   const [allCrews, setAllCrews] = useState<Crew[]>([]);
   const [loadingMy, setLoadingMy] = useState(true);
   const [loadingAll, setLoadingAll] = useState(true);
@@ -109,7 +109,7 @@ function HomeContent() {
                   <CrewCard
                     key={crew.id}
                     crew={crew}
-                    isCaptain={crew.captainId === user?.id}
+                    memberRole={crew.myRole}
                   />
                 ))}
               </div>

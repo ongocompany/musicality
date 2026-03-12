@@ -7,10 +7,10 @@ import { fetchMyCrews } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { CrewCard } from '@/components/crew/crew-card';
 import { Button } from '@/components/ui/button';
-import type { Crew } from '@/lib/types';
+import type { Crew, MemberRole } from '@/lib/types';
 
 export default function MyCrewsPage() {
-  const [crews, setCrews] = useState<Crew[]>([]);
+  const [crews, setCrews] = useState<(Crew & { myRole: MemberRole })[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const supabase = createClient();
@@ -64,7 +64,7 @@ export default function MyCrewsPage() {
             <CrewCard
               key={crew.id}
               crew={crew}
-              showCaptainBadge={crew.captainId === user?.id}
+              memberRole={crew.myRole}
             />
           ))}
         </div>

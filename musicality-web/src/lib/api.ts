@@ -25,6 +25,7 @@ import type {
   InboxItem,
   CalendarEvent,
   CreateEventInput,
+  MemberRole,
 } from './types';
 
 // ─── Mappers (snake_case → camelCase) ───────────────────
@@ -217,19 +218,19 @@ export async function checkNicknameAvailable(supabase: SupabaseClient, nickname:
 
 // ─── Crews ──────────────────────────────────────────────
 
-export async function fetchMyCrews(supabase: SupabaseClient): Promise<Crew[]> {
+export async function fetchMyCrews(supabase: SupabaseClient): Promise<(Crew & { myRole: MemberRole })[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
   const { data, error } = await supabase
     .from('crew_members')
-    .select('crew_id, crews(*)')
+    .select('crew_id, role, crews(*)')
     .eq('user_id', user.id);
 
   if (error) throw new Error(error.message);
   return (data ?? [])
     .filter((row: any) => row.crews) // eslint-disable-line @typescript-eslint/no-explicit-any
-    .map((row: any) => mapCrew(row.crews)); // eslint-disable-line @typescript-eslint/no-explicit-any
+    .map((row: any) => ({ ...mapCrew(row.crews), myRole: row.role as MemberRole })); // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 export async function fetchDiscoverCrews(supabase: SupabaseClient, search?: string): Promise<Crew[]> {
