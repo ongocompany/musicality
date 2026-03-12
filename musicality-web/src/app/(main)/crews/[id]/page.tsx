@@ -17,6 +17,12 @@ import {
   joinCrew,
   leaveCrew,
   requestJoinCrew,
+  fetchCrewEvents,
+  fetchUserSavedEventIds,
+  createCrewEvent,
+  updateCrewEvent,
+  deleteCrewEvent,
+  toggleSaveEvent,
 } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -29,8 +35,11 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { cn, countryToFlag, timeAgo } from '@/lib/utils';
-import type { Crew, CrewMember, SongThread, GeneralPost, MemberRole } from '@/lib/types';
+import type { Crew, CrewMember, SongThread, GeneralPost, MemberRole, CalendarEvent, CreateEventInput } from '@/lib/types';
 import { MEDIA_LIMITS, ROLE_CONFIG, ROLE_LEVELS } from '@/lib/types';
+import { CalendarGrid } from '@/components/calendar/calendar-grid';
+import { EventCard } from '@/components/calendar/event-card';
+import { EventFormDialog } from '@/components/calendar/event-form-dialog';
 
 // ─── YouTube Helpers ────────────────────────────────────
 
@@ -686,6 +695,17 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
 
+  // Calendar state
+  const now = new Date();
+  const [calYear, setCalYear] = useState(now.getFullYear());
+  const [calMonth, setCalMonth] = useState(now.getMonth() + 1);
+  const [calSelectedDate, setCalSelectedDate] = useState<string | null>(null);
+  const [calEvents, setCalEvents] = useState<CalendarEvent[]>([]);
+  const [savedEventIds, setSavedEventIds] = useState<Set<string>>(new Set());
+  const [calLoading, setCalLoading] = useState(false);
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+
   const myMember = members.find((m) => m.userId === user?.id);
   const isCaptain = crew?.captainId === user?.id;
   const isModerator = myMember?.role === 'moderator';
@@ -728,6 +748,22 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
       }
     } catch (err) {
       console.error(err);
+    }
+  }, [supabase, id]);
+
+  const loadCalendar = useCallback(async (y: number, m: number) => {
+    setCalLoading(true);
+    try {
+      const [events, savedIds] = await Promise.all([
+        fetchCrewEvents(supabase, id, y, m),
+        fetchUserSavedEventIds(supabase),
+      ]);
+      setCalEvents(events);
+      setSavedEventIds(savedIds);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCalLoading(false);
     }
   }, [supabase, id]);
 
@@ -860,6 +896,7 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
         <TabsList>
           <TabsTrigger value="board">Board ({posts.length})</TabsTrigger>
           <TabsTrigger value="songs">Songs ({threads.length})</TabsTrigger>
+          <TabsTrigger value="calendar" onClick={() => { if (calEvents.length === 0) loadCalendar(calYear, calMonth); }}>일정</TabsTrigger>
           <TabsTrigger value="members">Members ({members.length})</TabsTrigger>
         </TabsList>
 
@@ -926,6 +963,109 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
                 </Card>
               </Link>
             ))
+          )}
+        </TabsContent>
+
+        {/* Calendar tab */}
+        <TabsContent value="calendar" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm">크루 일정</h3>
+            {canManage && (
+              <Button size="sm" variant="outline" onClick={() => { setEditingEvent(null); setShowEventForm(true); }}>
+                + 일정 추가
+              </Button>
+            )}
+          </div>
+
+          <CalendarGrid
+            year={calYear}
+            month={calMonth}
+            selectedDate={calSelectedDate}
+            eventDates={new Set(calEvents.map((e) => e.eventDate))}
+            onSelectDate={setCalSelectedDate}
+            onChangeMonth={(y, m) => {
+              setCalYear(y);
+              setCalMonth(m);
+              loadCalendar(y, m);
+            }}
+          />
+
+          {/* Events for selected date */}
+          {calSelectedDate && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-medium text-muted-foreground">
+                {(() => {
+                  const d = new Date(calSelectedDate + 'T00:00:00');
+                  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+                  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${weekdays[d.getDay()]})`;
+                })()}
+              </h4>
+              {calEvents
+                .filter((e) => e.eventDate === calSelectedDate)
+                .map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    canEdit={canManage}
+                    isSaved={savedEventIds.has(event.id)}
+                    onEdit={(ev) => { setEditingEvent(ev); setShowEventForm(true); }}
+                    onDelete={async (eventId) => {
+                      if (!confirm('이 일정을 삭제하시겠습니까?')) return;
+                      try {
+                        await deleteCrewEvent(supabase, eventId);
+                        toast.success('일정 삭제됨');
+                        loadCalendar(calYear, calMonth);
+                      } catch (err: unknown) {
+                        toast.error(err instanceof Error ? err.message : '삭제 실패');
+                      }
+                    }}
+                    onToggleSave={async (eventId) => {
+                      try {
+                        const saved = await toggleSaveEvent(supabase, eventId);
+                        setSavedEventIds((prev) => {
+                          const next = new Set(prev);
+                          if (saved) next.add(eventId);
+                          else next.delete(eventId);
+                          return next;
+                        });
+                        toast.success(saved ? '내 캘린더에 저장됨' : '저장 취소됨');
+                      } catch (err: unknown) {
+                        toast.error(err instanceof Error ? err.message : '실패');
+                      }
+                    }}
+                  />
+                ))}
+              {calEvents.filter((e) => e.eventDate === calSelectedDate).length === 0 && (
+                <p className="text-center py-4 text-muted-foreground text-xs">일정 없음</p>
+              )}
+            </div>
+          )}
+
+          {calLoading && (
+            <div className="flex items-center justify-center py-4">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          )}
+
+          {/* Event form dialog */}
+          {showEventForm && (
+            <EventFormDialog
+              initialDate={calSelectedDate ?? undefined}
+              editEvent={editingEvent}
+              onSubmit={async (input: CreateEventInput) => {
+                if (editingEvent) {
+                  await updateCrewEvent(supabase, editingEvent.id, input);
+                  toast.success('일정 수정됨');
+                } else {
+                  await createCrewEvent(supabase, id, input);
+                  toast.success('일정 추가됨');
+                }
+                setShowEventForm(false);
+                setEditingEvent(null);
+                loadCalendar(calYear, calMonth);
+              }}
+              onClose={() => { setShowEventForm(false); setEditingEvent(null); }}
+            />
           )}
         </TabsContent>
 

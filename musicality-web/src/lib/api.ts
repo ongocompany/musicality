@@ -23,6 +23,8 @@ import type {
   ChatRoomMember,
   ChatRoomMessage,
   InboxItem,
+  CalendarEvent,
+  CreateEventInput,
 } from './types';
 
 // ─── Mappers (snake_case → camelCase) ───────────────────
@@ -1353,4 +1355,232 @@ export async function fetchTotalUnreadCount(supabase: SupabaseClient): Promise<n
   }
 
   return (dmCount ?? 0) + roomUnread;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Calendar Events
+// ═══════════════════════════════════════════════════════════
+
+function mapCalendarEvent(row: any): CalendarEvent {
+  return {
+    id: row.id,
+    title: row.title,
+    eventDate: row.event_date,
+    eventTime: row.event_time,
+    location: row.location ?? '',
+    description: row.description ?? '',
+    crewId: row.crew_id,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    profile: row.profiles ? mapProfile(row.profiles) : undefined,
+    crewName: row.crews?.name ?? undefined,
+    saved: row.saved,
+  };
+}
+
+/** Fetch crew events for a given month */
+export async function fetchCrewEvents(
+  supabase: SupabaseClient,
+  crewId: string,
+  year: number,
+  month: number,
+): Promise<CalendarEvent[]> {
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endMonth = month === 12 ? 1 : month + 1;
+  const endYear = month === 12 ? year + 1 : year;
+  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+  const { data, error } = await supabase
+    .from('events')
+    .select('*, profiles:created_by(id, display_name, nickname, avatar_url)')
+    .eq('crew_id', crewId)
+    .gte('event_date', startDate)
+    .lt('event_date', endDate)
+    .order('event_date', { ascending: true })
+    .order('event_time', { ascending: true, nullsFirst: false });
+
+  if (error) throw error;
+  return (data ?? []).map(mapCalendarEvent);
+}
+
+/** Fetch personal events for a given month */
+export async function fetchPersonalEvents(
+  supabase: SupabaseClient,
+  year: number,
+  month: number,
+): Promise<CalendarEvent[]> {
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endMonth = month === 12 ? 1 : month + 1;
+  const endYear = month === 12 ? year + 1 : year;
+  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .is('crew_id', null)
+    .gte('event_date', startDate)
+    .lt('event_date', endDate)
+    .order('event_date', { ascending: true })
+    .order('event_time', { ascending: true, nullsFirst: false });
+
+  if (error) throw error;
+  return (data ?? []).map(mapCalendarEvent);
+}
+
+/** Fetch events the user saved from crews */
+export async function fetchSavedEvents(
+  supabase: SupabaseClient,
+  year: number,
+  month: number,
+): Promise<CalendarEvent[]> {
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endMonth = month === 12 ? 1 : month + 1;
+  const endYear = month === 12 ? year + 1 : year;
+  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+  const { data, error } = await supabase
+    .from('user_saved_events')
+    .select('event_id, events:event_id(*, profiles:created_by(id, display_name, nickname, avatar_url), crews:crew_id(name))')
+    .gte('events.event_date', startDate)
+    .lt('events.event_date', endDate);
+
+  if (error) throw error;
+  return (data ?? [])
+    .filter((row: any) => row.events)
+    .map((row: any) => mapCalendarEvent({ ...row.events, saved: true }));
+}
+
+/** Fetch set of event IDs the user has saved (for marking stars) */
+export async function fetchUserSavedEventIds(
+  supabase: SupabaseClient,
+): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from('user_saved_events')
+    .select('event_id');
+  if (error) throw error;
+  return new Set((data ?? []).map((r: any) => r.event_id));
+}
+
+/** Create a personal event */
+export async function createPersonalEvent(
+  supabase: SupabaseClient,
+  input: CreateEventInput,
+): Promise<CalendarEvent> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('events')
+    .insert({
+      title: input.title,
+      event_date: input.eventDate,
+      event_time: input.eventTime ?? null,
+      location: input.location ?? '',
+      description: input.description ?? '',
+      crew_id: null,
+      created_by: user.id,
+    })
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return mapCalendarEvent(data);
+}
+
+/** Update a personal event */
+export async function updatePersonalEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+  input: Partial<CreateEventInput>,
+): Promise<void> {
+  const updates: Record<string, unknown> = {};
+  if (input.title !== undefined) updates.title = input.title;
+  if (input.eventDate !== undefined) updates.event_date = input.eventDate;
+  if (input.eventTime !== undefined) updates.event_time = input.eventTime;
+  if (input.location !== undefined) updates.location = input.location;
+  if (input.description !== undefined) updates.description = input.description;
+  updates.updated_at = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('events')
+    .update(updates)
+    .eq('id', eventId);
+
+  if (error) throw error;
+}
+
+/** Delete a personal event */
+export async function deletePersonalEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('events')
+    .delete()
+    .eq('id', eventId);
+
+  if (error) throw error;
+}
+
+/** Create a crew event (captain/moderator only, via RPC) */
+export async function createCrewEvent(
+  supabase: SupabaseClient,
+  crewId: string,
+  input: CreateEventInput,
+): Promise<string> {
+  const { data, error } = await supabase.rpc('create_crew_event', {
+    p_crew_id: crewId,
+    p_title: input.title,
+    p_event_date: input.eventDate,
+    p_event_time: input.eventTime ?? null,
+    p_location: input.location ?? '',
+    p_description: input.description ?? '',
+  });
+
+  if (error) throw error;
+  return data as string;
+}
+
+/** Update a crew event (captain/moderator only, via RPC) */
+export async function updateCrewEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+  input: Partial<CreateEventInput>,
+): Promise<void> {
+  const { error } = await supabase.rpc('update_crew_event', {
+    p_event_id: eventId,
+    p_title: input.title ?? null,
+    p_event_date: input.eventDate ?? null,
+    p_event_time: input.eventTime ?? null,
+    p_location: input.location ?? null,
+    p_description: input.description ?? null,
+  });
+
+  if (error) throw error;
+}
+
+/** Delete a crew event (captain/moderator only, via RPC) */
+export async function deleteCrewEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('delete_crew_event', {
+    p_event_id: eventId,
+  });
+
+  if (error) throw error;
+}
+
+/** Toggle save/unsave a crew event to personal calendar (via RPC) */
+export async function toggleSaveEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('toggle_save_event', {
+    p_event_id: eventId,
+  });
+
+  if (error) throw error;
+  return data as boolean;
 }

@@ -259,3 +259,28 @@ export interface InboxItem {
   roomMembers?: ChatRoomMember[];
   lastRoomMessage?: ChatRoomMessage;
 }
+
+// ─── Calendar Event ──────────────────────────────────────
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  eventDate: string;
+  eventTime: string | null;
+  location: string;
+  description: string;
+  crewId: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  profile?: Profile;
+  crewName?: string;
+  saved?: boolean;
+}
+
+export interface CreateEventInput {
+  title: string;
+  eventDate: string;
+  eventTime?: string;
+  location?: string;
+  description?: string;
+}
