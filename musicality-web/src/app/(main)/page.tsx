@@ -1,32 +1,33 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase-client';
 import { fetchMyCrews, fetchDiscoverCrews } from '@/lib/api';
 import { CrewCard } from '@/components/crew/crew-card';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import type { Crew } from '@/lib/types';
 
 export default function HomePage() {
+  return (
+    <Suspense>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
   const [myCrews, setMyCrews] = useState<Crew[]>([]);
   const [allCrews, setAllCrews] = useState<Crew[]>([]);
-  const [search, setSearch] = useState('');
   const [loadingMy, setLoadingMy] = useState(true);
   const [loadingAll, setLoadingAll] = useState(true);
   const { user } = useAuth();
   const supabase = createClient();
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  // Focus search when navigating to /#search
-  useEffect(() => {
-    if (window.location.hash === '#search') {
-      searchRef.current?.focus();
-    }
-  }, []);
+  const searchParams = useSearchParams();
+  const search = searchParams.get('q') ?? '';
 
   const loadMyCrews = useCallback(async () => {
     if (!user) {
@@ -65,7 +66,7 @@ export default function HomePage() {
     loadAllCrews();
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounced search
+  // React to search query changes from header
   useEffect(() => {
     const timer = setTimeout(() => {
       loadAllCrews(search);
@@ -79,17 +80,6 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6">
-      {/* Search */}
-      <div id="search">
-        <Input
-          ref={searchRef}
-          placeholder="Search crews by name, style, region..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full"
-        />
-      </div>
-
       {/* My Crews Section */}
       {user && (
         <>
