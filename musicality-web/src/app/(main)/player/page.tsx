@@ -3,6 +3,8 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useWebPlayerStore, type LocalTrack } from '@/stores/web-player-store';
 import { useWebAudioPlayer } from '@/hooks/use-web-audio-player';
+import { useWebVideoPlayer } from '@/hooks/use-web-video-player';
+import { useWebYouTubePlayer, extractYouTubeVideoId } from '@/hooks/use-web-youtube-player';
 import { analyzeTrackWeb } from '@/services/analysis-api';
 import { WaveformBar } from '@/components/player/waveform-bar';
 import { CountDisplay } from '@/components/player/count-display';
@@ -22,7 +24,10 @@ function formatTime(ms: number): string {
 }
 
 const ACCEPTED_AUDIO = '.mp3,.m4a,.wav,.ogg,.flac,.aac,.wma,.opus';
+const ACCEPTED_VIDEO = '.mp4,.mov,.webm,.mkv';
+const ACCEPTED_ALL = `${ACCEPTED_AUDIO},${ACCEPTED_VIDEO}`;
 const SPEED_OPTIONS = [0.5, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0];
+const YT_CONTAINER_ID = 'yt-player-container';
 const DANCE_STYLES: { value: DanceStyle; label: string }[] = [
   { value: 'bachata', label: 'Bachata' },
   { value: 'salsa-on1', label: 'Salsa On1' },
@@ -53,12 +58,20 @@ export default function PlayerPage() {
     clearLoop,
   } = useWebPlayerStore();
 
-  const { togglePlay, seekTo } = useWebAudioPlayer();
+  const audioPlayer = useWebAudioPlayer();
+  const videoPlayer = useWebVideoPlayer();
+  const ytPlayer = useWebYouTubePlayer();
+
+  // Unified controls based on current media type
+  const mediaType = currentTrack?.mediaType ?? 'audio';
+  const togglePlay = mediaType === 'youtube' ? ytPlayer.togglePlay : mediaType === 'video' ? videoPlayer.togglePlay : audioPlayer.togglePlay;
+  const seekTo = mediaType === 'youtube' ? ytPlayer.seekTo : mediaType === 'video' ? videoPlayer.seekTo : audioPlayer.seekTo;
 
   const [dragOver, setDragOver] = useState(false);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const [danceStyle, setDanceStyle] = useState<DanceStyle>('bachata');
   const [offsetBeatIndex, setOffsetBeatIndex] = useState<number | null>(null);
+  const [youtubeUrlInput, setYoutubeUrlInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cellNotes, setCellNotes] = useState<Record<string, string>>({});
   const [userBoundaries, setUserBoundaries] = useState<number[] | null>(null);
@@ -183,7 +196,9 @@ export default function PlayerPage() {
     (files: FileList | File[]) => {
       const fileArr = Array.from(files);
       for (const file of fileArr) {
-        if (!file.type.startsWith('audio/')) continue;
+        const isAudio = file.type.startsWith('audio/');
+        const isVideo = file.type.startsWith('video/');
+        if (!isAudio && !isVideo) continue;
 
         const id = `web_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const fileUrl = URL.createObjectURL(file);
@@ -193,7 +208,7 @@ export default function PlayerPage() {
         const track: LocalTrack = {
           id,
           title,
-          mediaType: 'audio',
+          mediaType: isVideo ? 'video' : 'audio',
           fileUrl,
           file,
           duration: null,
@@ -211,6 +226,43 @@ export default function PlayerPage() {
     },
     [addTrack, setCurrentTrack],
   );
+
+  // ─── YouTube URL handler ────────────────────────────
+
+  const handleAddYouTube = useCallback(() => {
+    const videoId = extractYouTubeVideoId(youtubeUrlInput.trim());
+    if (!videoId) return;
+
+    const id = `yt_${Date.now()}_${videoId}`;
+    const track: LocalTrack = {
+      id,
+      title: `YouTube: ${videoId}`,
+      mediaType: 'youtube',
+      fileUrl: '',
+      duration: null,
+      fileSize: null,
+      format: 'youtube',
+      youtubeUrl: youtubeUrlInput.trim(),
+      youtubeVideoId: videoId,
+      analysisStatus: 'idle',
+    };
+
+    addTrack(track);
+    setCurrentTrack(track);
+    setYoutubeUrlInput('');
+  }, [youtubeUrlInput, addTrack, setCurrentTrack]);
+
+  // Initialize YouTube player when track changes to YouTube type
+  useEffect(() => {
+    if (currentTrack?.mediaType === 'youtube' && currentTrack.youtubeVideoId) {
+      // Small delay to ensure DOM element is rendered
+      const timer = setTimeout(() => {
+        ytPlayer.initPlayer(YT_CONTAINER_ID, currentTrack.youtubeVideoId!);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTrack?.id, currentTrack?.mediaType]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -347,17 +399,19 @@ export default function PlayerPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Player</h1>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          + Add Files
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            + Add Files
+          </Button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
-          accept={ACCEPTED_AUDIO}
+          accept={ACCEPTED_ALL}
           multiple
           className="hidden"
           onChange={(e) => {
@@ -365,6 +419,28 @@ export default function PlayerPage() {
             e.target.value = '';
           }}
         />
+      </div>
+
+      {/* YouTube URL input */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder="YouTube URL (paste and press Enter)"
+          className="flex-1 border border-border rounded-lg px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+          value={youtubeUrlInput}
+          onChange={(e) => setYoutubeUrlInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleAddYouTube();
+          }}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleAddYouTube}
+          disabled={!youtubeUrlInput.trim()}
+        >
+          + YouTube
+        </Button>
       </div>
 
       {/* Drop zone (shown when no tracks) */}
@@ -383,10 +459,10 @@ export default function PlayerPage() {
         >
           <span className="text-4xl mb-3">🎵</span>
           <p className="text-lg font-medium text-foreground">
-            Drag & drop audio files here
+            Drag & drop audio or video files here
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            MP3, M4A, WAV, OGG, FLAC supported
+            MP3, M4A, WAV, FLAC, MP4, MOV, WebM supported
           </p>
         </div>
       )}
@@ -414,7 +490,9 @@ export default function PlayerPage() {
                   {currentTrack.title}
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  {currentTrack.format?.toUpperCase()}
+                  {currentTrack.mediaType === 'youtube'
+                    ? 'YouTube'
+                    : currentTrack.format?.toUpperCase()}
                   {currentTrack.fileSize
                     ? ` · ${(currentTrack.fileSize / (1024 * 1024)).toFixed(1)} MB`
                     : ''}
@@ -422,8 +500,60 @@ export default function PlayerPage() {
                 </p>
               </div>
 
-              {/* Count Display (when analyzed) */}
-              {hasBeats && (
+              {/* Video player */}
+              {currentTrack.mediaType === 'video' && (
+                <div className="relative rounded-lg overflow-hidden bg-black">
+                  <video
+                    ref={videoPlayer.bindVideoElement}
+                    src={currentTrack.fileUrl}
+                    className="w-full max-h-[400px] object-contain"
+                    playsInline
+                    preload="auto"
+                  />
+                  {/* Count overlay on video */}
+                  {hasBeats && (
+                    <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm rounded-xl px-3 py-1.5 pointer-events-none">
+                      <CountDisplay
+                        positionMs={position}
+                        beats={analysis!.beats}
+                        downbeats={analysis!.downbeats}
+                        offsetBeatIndex={offsetBeatIndex}
+                        danceStyle={danceStyle}
+                        sections={analysis!.sections}
+                        bpm={analysis!.bpm}
+                        className="!py-1"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* YouTube player */}
+              {currentTrack.mediaType === 'youtube' && (
+                <div className="relative rounded-lg overflow-hidden bg-black">
+                  <div className="aspect-video">
+                    <div id={YT_CONTAINER_ID} className="w-full h-full" />
+                  </div>
+                  {/* Count overlay on YouTube */}
+                  {hasBeats && (
+                    <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm rounded-xl px-3 py-1.5 pointer-events-none">
+                      <CountDisplay
+                        positionMs={position}
+                        beats={analysis!.beats}
+                        downbeats={analysis!.downbeats}
+                        offsetBeatIndex={offsetBeatIndex}
+                        danceStyle={danceStyle}
+                        sections={analysis!.sections}
+                        bpm={analysis!.bpm}
+                        className="!py-1"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Count Display (audio-only, standalone when analyzed) */}
+              {currentTrack.mediaType === 'audio' && hasBeats && (
                 <CountDisplay
                   positionMs={position}
                   beats={analysis!.beats}
@@ -717,7 +847,9 @@ export default function PlayerPage() {
                     ) : currentTrack?.id === track.id ? (
                       <span className="text-primary text-sm">❚❚</span>
                     ) : (
-                      <span className="text-muted-foreground text-xs">🎵</span>
+                      <span className="text-muted-foreground text-xs">
+                        {track.mediaType === 'youtube' ? '▶' : track.mediaType === 'video' ? '🎬' : '🎵'}
+                      </span>
                     )}
                   </div>
 
