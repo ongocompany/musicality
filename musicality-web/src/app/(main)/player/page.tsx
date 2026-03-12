@@ -3,8 +3,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useWebPlayerStore, type LocalTrack } from '@/stores/web-player-store';
 import { useWebAudioPlayer } from '@/hooks/use-web-audio-player';
+import { analyzeTrackWeb } from '@/services/analysis-api';
+import { WaveformBar } from '@/components/player/waveform-bar';
+import { CountDisplay } from '@/components/player/count-display';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import type { DanceStyle } from '@/utils/beat-counter';
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -17,6 +21,11 @@ function formatTime(ms: number): string {
 
 const ACCEPTED_AUDIO = '.mp3,.m4a,.wav,.ogg,.flac,.aac,.wma,.opus';
 const SPEED_OPTIONS = [0.5, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0];
+const DANCE_STYLES: { value: DanceStyle; label: string }[] = [
+  { value: 'bachata', label: 'Bachata' },
+  { value: 'salsa-on1', label: 'Salsa On1' },
+  { value: 'salsa-on2', label: 'Salsa On2' },
+];
 
 // ─── Main Page ───────────────────────────────────────────
 
@@ -25,6 +34,7 @@ export default function PlayerPage() {
     tracks,
     addTrack,
     removeTrack,
+    updateTrack,
     currentTrack,
     setCurrentTrack,
     isPlaying,
@@ -32,14 +42,12 @@ export default function PlayerPage() {
     duration,
     playbackRate,
     setPlaybackRate,
-    isSeeking,
     setIsSeeking,
     loopEnabled,
     loopStart,
     loopEnd,
     setLoopStart,
     setLoopEnd,
-    toggleLoop,
     clearLoop,
   } = useWebPlayerStore();
 
@@ -47,8 +55,14 @@ export default function PlayerPage() {
 
   const [dragOver, setDragOver] = useState(false);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
-  const seekBarRef = useRef<HTMLDivElement>(null);
+  const [danceStyle, setDanceStyle] = useState<DanceStyle>('bachata');
+  const [offsetBeatIndex, setOffsetBeatIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset offset when track changes
+  useEffect(() => {
+    setOffsetBeatIndex(null);
+  }, [currentTrack?.id]);
 
   // ─── File handling ──────────────────────────────────────
 
@@ -77,7 +91,6 @@ export default function PlayerPage() {
 
         addTrack(track);
 
-        // Auto-select first track
         if (!useWebPlayerStore.getState().currentTrack) {
           setCurrentTrack(track);
         }
@@ -106,38 +119,67 @@ export default function PlayerPage() {
     setDragOver(false);
   }, []);
 
-  // ─── Seek bar interaction ───────────────────────────────
+  // ─── Analysis ────────────────────────────────────────────
 
-  const handleSeekBarInteraction = useCallback(
-    (clientX: number) => {
-      const bar = seekBarRef.current;
-      if (!bar || duration <= 0) return;
-      const rect = bar.getBoundingClientRect();
-      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      seekTo(ratio * duration);
+  const handleAnalyze = useCallback(
+    async (track: LocalTrack) => {
+      if (!track.file || track.analysisStatus === 'analyzing') return;
+
+      updateTrack(track.id, { analysisStatus: 'analyzing' });
+
+      try {
+        const result = await analyzeTrackWeb(track.file);
+        updateTrack(track.id, {
+          analysisStatus: 'done',
+          analysis: {
+            id: '',
+            trackId: track.id,
+            userId: '',
+            bpm: result.bpm,
+            beats: result.beats,
+            downbeats: result.downbeats,
+            beatsPerBar: result.beatsPerBar,
+            confidence: result.confidence,
+            sections: result.sections.map((s) => ({
+              label: s.label as any,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              confidence: s.confidence,
+            })),
+            phraseBoundaries: result.phraseBoundaries,
+            waveformPeaks: result.waveformPeaks,
+            fingerprint: result.fingerprint ?? null,
+            createdAt: new Date().toISOString(),
+          },
+        });
+      } catch (err: any) {
+        updateTrack(track.id, { analysisStatus: 'error' });
+        console.error('Analysis failed:', err.message);
+      }
     },
-    [duration, seekTo],
+    [updateTrack],
   );
 
-  const handleSeekMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      setIsSeeking(true);
-      handleSeekBarInteraction(e.clientX);
+  // ─── "Now is 1" — set current beat as downbeat ─────────
 
-      const onMouseMove = (ev: MouseEvent) => {
-        handleSeekBarInteraction(ev.clientX);
-      };
-      const onMouseUp = (ev: MouseEvent) => {
-        handleSeekBarInteraction(ev.clientX);
-        setIsSeeking(false);
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-      };
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    },
-    [handleSeekBarInteraction, setIsSeeking],
-  );
+  const handleSetDownbeat = useCallback(() => {
+    if (!currentTrack?.analysis) return;
+    const { beats } = currentTrack.analysis;
+    if (beats.length === 0) return;
+
+    // Find nearest beat to current position
+    const posSec = position / 1000;
+    let bestIdx = 0;
+    let bestDist = Math.abs(beats[0] - posSec);
+    for (let i = 1; i < beats.length; i++) {
+      const dist = Math.abs(beats[i] - posSec);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIdx = i;
+      } else break;
+    }
+    setOffsetBeatIndex(bestIdx);
+  }, [currentTrack?.analysis, position]);
 
   // ─── A-B Loop handlers ─────────────────────────────────
 
@@ -155,7 +197,6 @@ export default function PlayerPage() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Ignore if typing in an input
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement
@@ -181,11 +222,12 @@ export default function PlayerPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [togglePlay, seekTo, position, duration]);
 
-  // ─── Render ────────────────────────────────────────────
+  // ─── Derived values ────────────────────────────────────
 
-  const progress = duration > 0 ? (position / duration) * 100 : 0;
-  const loopStartPct = loopStart !== null && duration > 0 ? (loopStart / duration) * 100 : null;
-  const loopEndPct = loopEnd !== null && duration > 0 ? (loopEnd / duration) * 100 : null;
+  const progress = duration > 0 ? position / duration : 0;
+  const analysis = currentTrack?.analysis;
+  const hasWaveform = analysis && analysis.waveformPeaks.length > 0;
+  const hasBeats = analysis && analysis.beats.length > 0;
 
   return (
     <div className="space-y-6">
@@ -244,7 +286,6 @@ export default function PlayerPage() {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
         >
-          {/* Drop overlay when dragging over existing tracks */}
           {dragOver && (
             <div className="rounded-lg border-2 border-dashed border-primary bg-primary/5 p-4 text-center text-sm text-primary">
               Drop to add more files
@@ -254,7 +295,7 @@ export default function PlayerPage() {
           {/* Now Playing */}
           {currentTrack && (
             <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-              {/* Track title */}
+              {/* Track title + analysis status */}
               <div className="text-center">
                 <h2 className="text-lg font-semibold truncate">
                   {currentTrack.title}
@@ -264,62 +305,56 @@ export default function PlayerPage() {
                   {currentTrack.fileSize
                     ? ` · ${(currentTrack.fileSize / (1024 * 1024)).toFixed(1)} MB`
                     : ''}
+                  {analysis ? ` · ${Math.round(analysis.bpm)} BPM` : ''}
                 </p>
               </div>
 
-              {/* Seek bar */}
-              <div className="space-y-1">
-                <div
-                  ref={seekBarRef}
-                  className="relative h-2 rounded-full bg-muted cursor-pointer group"
-                  onMouseDown={handleSeekMouseDown}
-                >
-                  {/* A-B loop range */}
-                  {loopStartPct !== null && loopEndPct !== null && (
-                    <div
-                      className="absolute top-0 bottom-0 bg-primary/20 rounded-full"
-                      style={{
-                        left: `${loopStartPct}%`,
-                        width: `${loopEndPct - loopStartPct}%`,
-                      }}
-                    />
-                  )}
-                  {/* Progress fill */}
-                  <div
-                    className="absolute top-0 left-0 bottom-0 rounded-full bg-primary transition-[width] duration-75"
-                    style={{ width: `${progress}%` }}
+              {/* Count Display (when analyzed) */}
+              {hasBeats && (
+                <CountDisplay
+                  positionMs={position}
+                  beats={analysis!.beats}
+                  downbeats={analysis!.downbeats}
+                  offsetBeatIndex={offsetBeatIndex}
+                  danceStyle={danceStyle}
+                  sections={analysis!.sections}
+                  bpm={analysis!.bpm}
+                />
+              )}
+
+              {/* Waveform or simple seek bar */}
+              {hasWaveform ? (
+                <div className="space-y-1">
+                  <WaveformBar
+                    peaks={analysis!.waveformPeaks}
+                    progress={progress}
+                    duration={duration}
+                    loopStart={loopStart}
+                    loopEnd={loopEnd}
+                    onSeek={seekTo}
+                    onSeekStart={() => setIsSeeking(true)}
+                    onSeekEnd={() => setIsSeeking(false)}
                   />
-                  {/* Thumb */}
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-primary shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ left: `${progress}%` }}
-                  />
-                  {/* A marker */}
-                  {loopStartPct !== null && (
-                    <div
-                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-4 rounded-sm bg-green-500"
-                      style={{ left: `${loopStartPct}%` }}
-                      title={`A: ${formatTime(loopStart!)}`}
-                    />
-                  )}
-                  {/* B marker */}
-                  {loopEndPct !== null && (
-                    <div
-                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-4 rounded-sm bg-red-500"
-                      style={{ left: `${loopEndPct}%` }}
-                      title={`B: ${formatTime(loopEnd!)}`}
-                    />
-                  )}
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{formatTime(position)}</span>
+                    <span>{formatTime(duration)}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{formatTime(position)}</span>
-                  <span>{formatTime(duration)}</span>
-                </div>
-              </div>
+              ) : (
+                <SimpleSeekBar
+                  progress={progress}
+                  duration={duration}
+                  position={position}
+                  loopStart={loopStart}
+                  loopEnd={loopEnd}
+                  onSeek={seekTo}
+                  onSeekStart={() => setIsSeeking(true)}
+                  onSeekEnd={() => setIsSeeking(false)}
+                />
+              )}
 
               {/* Controls */}
               <div className="flex items-center justify-center gap-3">
-                {/* Rewind 5s */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -333,7 +368,6 @@ export default function PlayerPage() {
                   </svg>
                 </Button>
 
-                {/* Play/Pause */}
                 <Button
                   size="icon"
                   className="h-12 w-12 rounded-full"
@@ -352,7 +386,6 @@ export default function PlayerPage() {
                   )}
                 </Button>
 
-                {/* Forward 5s */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -367,8 +400,66 @@ export default function PlayerPage() {
                 </Button>
               </div>
 
-              {/* Secondary controls: Speed + A-B Loop */}
-              <div className="flex items-center justify-center gap-4 flex-wrap">
+              {/* Secondary controls */}
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                {/* Analyze button */}
+                {currentTrack.analysisStatus === 'idle' && currentTrack.file && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => handleAnalyze(currentTrack)}
+                  >
+                    🔍 Analyze
+                  </Button>
+                )}
+                {currentTrack.analysisStatus === 'analyzing' && (
+                  <span className="text-xs text-muted-foreground animate-pulse">
+                    Analyzing...
+                  </span>
+                )}
+                {currentTrack.analysisStatus === 'error' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7 text-destructive"
+                    onClick={() => handleAnalyze(currentTrack)}
+                  >
+                    Retry Analysis
+                  </Button>
+                )}
+
+                {/* "Now is 1" button (when analyzed) */}
+                {hasBeats && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={handleSetDownbeat}
+                    title="Set current position as beat 1"
+                  >
+                    지금이 1
+                  </Button>
+                )}
+
+                {/* Dance style selector */}
+                <div className="flex items-center gap-1">
+                  {DANCE_STYLES.map((s) => (
+                    <button
+                      key={s.value}
+                      className={cn(
+                        'px-2 py-0.5 text-[11px] rounded-full border transition-colors',
+                        danceStyle === s.value
+                          ? 'border-primary bg-primary/10 text-primary font-medium'
+                          : 'border-border text-muted-foreground hover:border-primary/50',
+                      )}
+                      onClick={() => setDanceStyle(s.value)}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+
                 {/* Speed */}
                 <div className="relative">
                   <Button
@@ -465,7 +556,6 @@ export default function PlayerPage() {
                   )}
                   onClick={() => setCurrentTrack(track)}
                 >
-                  {/* Playing indicator */}
                   <div className="w-5 text-center shrink-0">
                     {currentTrack?.id === track.id && isPlaying ? (
                       <span className="text-primary text-sm">▶</span>
@@ -476,7 +566,6 @@ export default function PlayerPage() {
                     )}
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <p
                       className={cn(
@@ -493,10 +582,33 @@ export default function PlayerPage() {
                       {track.fileSize
                         ? ` · ${(track.fileSize / (1024 * 1024)).toFixed(1)} MB`
                         : ''}
+                      {track.analysis ? ` · ${Math.round(track.analysis.bpm)} BPM` : ''}
+                      {track.analysisStatus === 'analyzing' && ' · Analyzing...'}
                     </p>
                   </div>
 
-                  {/* Remove */}
+                  {/* Analyze shortcut */}
+                  {track.analysisStatus === 'idle' && track.file && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAnalyze(track);
+                      }}
+                      title="Analyze"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="m21 21-4.3-4.3" />
+                      </svg>
+                    </Button>
+                  )}
+                  {track.analysisStatus === 'done' && (
+                    <span className="text-[10px] text-green-500 shrink-0">✓</span>
+                  )}
+
                   <Button
                     variant="ghost"
                     size="icon"
@@ -523,6 +635,90 @@ export default function PlayerPage() {
       <div className="text-center text-xs text-muted-foreground space-x-4">
         <span>Space: Play/Pause</span>
         <span>←→: ±5 sec</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Simple seek bar (fallback when no waveform) ─────────
+
+function SimpleSeekBar({
+  progress,
+  duration,
+  position,
+  loopStart,
+  loopEnd,
+  onSeek,
+  onSeekStart,
+  onSeekEnd,
+}: {
+  progress: number;
+  duration: number;
+  position: number;
+  loopStart: number | null;
+  loopEnd: number | null;
+  onSeek: (posMs: number) => void;
+  onSeekStart: () => void;
+  onSeekEnd: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  const posFromX = useCallback(
+    (clientX: number) => {
+      const el = ref.current;
+      if (!el || duration <= 0) return 0;
+      const rect = el.getBoundingClientRect();
+      return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * duration;
+    },
+    [duration],
+  );
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      onSeekStart();
+      onSeek(posFromX(e.clientX));
+      const onMove = (ev: MouseEvent) => onSeek(posFromX(ev.clientX));
+      const onUp = (ev: MouseEvent) => {
+        onSeek(posFromX(ev.clientX));
+        onSeekEnd();
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [onSeek, onSeekStart, onSeekEnd, posFromX],
+  );
+
+  const pct = progress * 100;
+  const loopStartPct = loopStart != null && duration > 0 ? (loopStart / duration) * 100 : null;
+  const loopEndPct = loopEnd != null && duration > 0 ? (loopEnd / duration) * 100 : null;
+
+  return (
+    <div className="space-y-1">
+      <div
+        ref={ref}
+        className="relative h-2 rounded-full bg-muted cursor-pointer group"
+        onMouseDown={handleMouseDown}
+      >
+        {loopStartPct != null && loopEndPct != null && (
+          <div
+            className="absolute top-0 bottom-0 bg-primary/20 rounded-full"
+            style={{ left: `${loopStartPct}%`, width: `${loopEndPct - loopStartPct}%` }}
+          />
+        )}
+        <div
+          className="absolute top-0 left-0 bottom-0 rounded-full bg-primary transition-[width] duration-75"
+          style={{ width: `${pct}%` }}
+        />
+        <div
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-primary shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ left: `${pct}%` }}
+        />
+      </div>
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>{formatTime(position)}</span>
+        <span>{formatTime(duration)}</span>
       </div>
     </div>
   );
