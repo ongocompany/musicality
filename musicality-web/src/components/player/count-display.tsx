@@ -4,11 +4,8 @@ import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import {
   getCountInfo,
-  findCurrentSection,
   type DanceStyle,
-  type CountInfo,
   type Section,
-  type BeatType,
 } from '@/utils/beat-counter';
 
 // ─── Colors per count (rainbow scheme from mobile app) ───
@@ -34,21 +31,6 @@ const COUNT_BG_COLORS: Record<number, string> = {
   8: 'bg-pink-500/15',
 };
 
-const BEAT_TYPE_LABEL: Record<BeatType, string> = {
-  step: 'STEP',
-  tap: 'TAP',
-  pause: 'PAUSE',
-};
-
-const SECTION_LABEL: Record<string, string> = {
-  intro: 'INTRO',
-  derecho: 'DERECHO',
-  majao: 'MAJAO',
-  mambo: 'MAMBO',
-  bridge: 'BRIDGE',
-  outro: 'OUTRO',
-};
-
 interface CountDisplayProps {
   positionMs: number;
   beats: number[];
@@ -57,11 +39,12 @@ interface CountDisplayProps {
   danceStyle: DanceStyle;
   sections?: Section[];
   bpm?: number;
+  phraseIndex?: number;
   className?: string;
 }
 
 /**
- * Dance count display: large count number (1-8) + beat type + section label + BPM.
+ * Dance count display: large count number (1-8) + phrase number + BPM.
  */
 export function CountDisplay({
   positionMs,
@@ -71,16 +54,12 @@ export function CountDisplay({
   danceStyle,
   sections,
   bpm,
+  phraseIndex,
   className,
 }: CountDisplayProps) {
   const countInfo = useMemo(
     () => getCountInfo(positionMs, beats, downbeats, offsetBeatIndex, danceStyle, sections),
     [positionMs, beats, downbeats, offsetBeatIndex, danceStyle, sections],
-  );
-
-  const currentSection = useMemo(
-    () => (sections ? findCurrentSection(positionMs, sections) : null),
-    [positionMs, sections],
   );
 
   if (!countInfo) {
@@ -92,14 +71,14 @@ export function CountDisplay({
     );
   }
 
-  const { count, beatType } = countInfo;
+  const { count } = countInfo;
 
   return (
     <div className={cn('flex flex-col items-center justify-center py-3', className)}>
-      {/* Section label */}
-      {currentSection && (
-        <span className="text-[10px] font-medium tracking-widest uppercase text-muted-foreground mb-1">
-          {SECTION_LABEL[currentSection.label] ?? currentSection.label}
+      {/* Phrase number */}
+      {phraseIndex != null && (
+        <span className="text-[11px] font-medium tracking-wider text-muted-foreground mb-1">
+          Phrase {phraseIndex + 1}
         </span>
       )}
 
@@ -119,20 +98,6 @@ export function CountDisplay({
           {count}
         </span>
       </div>
-
-      {/* Beat type */}
-      <span
-        className={cn(
-          'text-xs font-semibold tracking-wider mt-1.5',
-          beatType === 'tap'
-            ? 'text-green-500'
-            : beatType === 'pause'
-              ? 'text-yellow-500'
-              : 'text-muted-foreground',
-        )}
-      >
-        {BEAT_TYPE_LABEL[beatType]}
-      </span>
 
       {/* 8-count dots */}
       <div className="flex gap-1.5 mt-2">

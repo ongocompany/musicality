@@ -105,8 +105,9 @@ export function PhraseGrid({
   // ─── Cell size ───────────────────────────────────────
 
   const gap = 3;
+  const MAX_CELL_SIZE = 48;
   const cellSize = containerWidth > 0
-    ? Math.max(20, (containerWidth - gap * (COLS + 1)) / COLS)
+    ? Math.min(MAX_CELL_SIZE, Math.max(20, (containerWidth - gap * (COLS + 1)) / COLS))
     : 36;
   const rowHeight = cellSize + gap;
 
