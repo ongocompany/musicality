@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated } from 'react-native';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { SeekBar } from '../../components/ui/SeekBar';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
@@ -16,6 +17,8 @@ import { useVideoPlayer } from '../../hooks/useVideoPlayer';
 import { useYouTubePlayer } from '../../hooks/useYouTubePlayer';
 import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
+import { buildPhraseNoteFile, exportPhraseNote, pickPhraseNoteFile, findMatchingTrack, validatePhraseNote } from '../../services/phraseNoteService';
+import { ImportedPhraseNote } from '../../types/phraseNote';
 import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, CountInfo } from '../../utils/beatCounter';
 import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, phrasesFromBeatIndices } from '../../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
@@ -105,6 +108,15 @@ export default function PlayerScreen() {
   const saveDraftAsEdition = useSettingsStore((s) => s.saveDraftAsEdition);
   const gridScrollMode = useSettingsStore((s) => s.gridScrollMode);
   const toggleGridScrollMode = useSettingsStore((s) => s.toggleGridScrollMode);
+  const cellNotes = useSettingsStore((s) => s.cellNotes);
+  const setCellNote = useSettingsStore((s) => s.setCellNote);
+  const clearCellNote = useSettingsStore((s) => s.clearCellNote);
+  const importedNotes = useSettingsStore((s) => s.importedNotes);
+  const addImportedNote = useSettingsStore((s) => s.addImportedNote);
+  const removeImportedNote = useSettingsStore((s) => s.removeImportedNote);
+  const setActiveImportedNote = useSettingsStore((s) => s.setActiveImportedNote);
+
+  const tracks = usePlayerStore((s) => s.tracks);
 
   const onYtStateChange = useCallback((state: string) => {
     youtubePlayer.onStateChange(state);
@@ -113,7 +125,42 @@ export default function PlayerScreen() {
   const analysis = currentTrack?.analysis;
   const offsetBeatIndex = currentTrack ? (downbeatOffsets[currentTrack.id] ?? null) : null;
 
+  // ─── Imported notes for current track ───
+  const trackImportedNotes = useMemo(() => {
+    if (!currentTrack) return [];
+    return importedNotes.filter(n => n.trackId === currentTrack.id);
+  }, [currentTrack?.id, importedNotes]);
+
+  const activeImportedNote = useMemo(() => {
+    return trackImportedNotes.find(n => n.isActive) ?? null;
+  }, [trackImportedNotes]);
+
+  // ─── Effective beats/analysis: use imported data when active ───
+  const effectiveAnalysisData = useMemo(() => {
+    if (activeImportedNote) {
+      const pn = activeImportedNote.phraseNote;
+      return {
+        beats: pn.analysis.beats,
+        downbeats: pn.analysis.downbeats,
+        duration: pn.music.duration,
+        offsetBeatIndex: pn.analysis.downbeatOffset,
+        boundaries: pn.phrases.boundaries,
+        beatsPerPhrase: pn.phrases.beatsPerPhrase,
+        isImported: true,
+      };
+    }
+    return null;
+  }, [activeImportedNote]);
+
   const phraseMap = useMemo(() => {
+    // ─── Imported PhraseNote active → use its boundaries ───
+    if (effectiveAnalysisData?.isImported) {
+      const { beats, boundaries, duration } = effectiveAnalysisData;
+      if (beats.length > 0 && boundaries.length > 0) {
+        return phrasesFromBeatIndices(beats, boundaries, duration);
+      }
+    }
+
     if (!analysis || analysis.beats.length === 0) return undefined;
 
     // ─── Draft boundaries (unsaved edits) take highest priority ───
@@ -154,14 +201,18 @@ export default function PlayerScreen() {
           ? phrasesFromBoundaries(analysis.beats, analysis.phraseBoundaries, analysis.duration)
           : detectPhrasesRuleBased(analysis.beats, refIdx, defaultBeatsPerPhrase, analysis.duration);
     }
-  }, [analysis, offsetBeatIndex, phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks, currentTrack?.id, trackEditions, draftBoundaries]);
+  }, [analysis, offsetBeatIndex, phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks, currentTrack?.id, trackEditions, draftBoundaries, effectiveAnalysisData]);
 
   // Stable countInfo — only update reference when beatIndex/phraseIndex actually change
   // This prevents PhraseGrid re-renders on every 50ms position tick
   const prevCountRef = useRef<CountInfo | null>(null);
   const countInfo = useMemo(() => {
-    const raw = analysis
-      ? getPhraseCountInfo(position + lookAheadMs, analysis.beats, analysis.downbeats, offsetBeatIndex, danceStyle, phraseMap)
+    // When imported note is active, use its beats/downbeats/offset
+    const effBeats = effectiveAnalysisData?.beats ?? analysis?.beats;
+    const effDownbeats = effectiveAnalysisData?.downbeats ?? analysis?.downbeats;
+    const effOffset = effectiveAnalysisData?.offsetBeatIndex ?? offsetBeatIndex;
+    const raw = effBeats
+      ? getPhraseCountInfo(position + lookAheadMs, effBeats, effDownbeats ?? [], effOffset, danceStyle, phraseMap)
       : null;
     const prev = prevCountRef.current;
     if (prev && raw && prev.beatIndex === raw.beatIndex && prev.phraseIndex === raw.phraseIndex) {
@@ -212,6 +263,11 @@ export default function PlayerScreen() {
     if (!isPlaying) togglePlay();
   }, [seekTo, isPlaying, togglePlay]);
 
+  // Seek only (no play) — for paused cell tap to preview position
+  const handleSeekOnly = useCallback((beatTimeMs: number) => {
+    seekTo(beatTimeMs);
+  }, [seekTo]);
+
   // Merge: remove phrase boundary to merge with previous phrase
   const handleMergeWithPrevious = useCallback((globalBeatIndex: number) => {
     if (!currentTrack || !phraseMap) return;
@@ -220,6 +276,195 @@ export default function PlayerScreen() {
     const newBoundaries = currentBoundaries.filter(b => b !== globalBeatIndex);
     setDraftBoundaries(currentTrack.id, newBoundaries);
   }, [currentTrack, phraseMap, setDraftBoundaries]);
+
+  // ─── Effective beats array (imported or original) ───
+  const effectiveBeats = useMemo(() => {
+    return effectiveAnalysisData?.beats ?? analysis?.beats ?? [];
+  }, [effectiveAnalysisData, analysis]);
+
+  // ─── Cell notes for current track (use imported notes when active) ───
+  const currentCellNotes = useMemo(() => {
+    if (activeImportedNote) {
+      return activeImportedNote.phraseNote.cellNotes;
+    }
+    if (!currentTrack) return undefined;
+    return cellNotes[currentTrack.id];
+  }, [currentTrack?.id, cellNotes, activeImportedNote]);
+
+  // Current beat's note (for persistent banner during playback)
+  const currentBeatNote = useMemo(() => {
+    if (!currentCellNotes || !countInfo || countInfo.beatIndex < 0) return null;
+    return currentCellNotes[String(countInfo.beatIndex)] ?? null;
+  }, [currentCellNotes, countInfo?.beatIndex]);
+
+  const handleSetCellNote = useCallback((beatIndex: number, note: string) => {
+    if (!currentTrack) return;
+    setCellNote(currentTrack.id, beatIndex, note);
+  }, [currentTrack, setCellNote]);
+
+  const handleClearCellNote = useCallback((beatIndex: number) => {
+    if (!currentTrack) return;
+    clearCellNote(currentTrack.id, beatIndex);
+  }, [currentTrack, clearCellNote]);
+
+  // ─── PhraseNote share ───
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [shareAuthorName, setShareAuthorName] = useState('');
+  const router = useRouter();
+
+  const handleSharePhraseNote = useCallback(() => {
+    if (!currentTrack || !analysis || !phraseMap) return;
+    Alert.alert('Share PhraseNote', 'Choose how to share', [
+      {
+        text: 'Share to Crew',
+        onPress: () => {
+          const trackId = currentTrack.id;
+          const offset = downbeatOffsets[trackId] ?? 0;
+          const boundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+          const notes = cellNotes[trackId] ?? {};
+          const pnote = buildPhraseNoteFile({
+            author: '',
+            title: currentTrack.title,
+            analysis,
+            danceStyle,
+            downbeatOffset: offset,
+            boundaries,
+            beatsPerPhrase: phraseMap.beatsPerPhrase,
+            cellNotes: notes,
+          });
+          router.push({
+            pathname: '/community/share-to-crew',
+            params: {
+              phraseNoteData: JSON.stringify(pnote),
+              songTitle: currentTrack.title,
+              bpm: analysis.bpm ? String(Math.round(analysis.bpm)) : '',
+              danceStyle,
+            },
+          });
+        },
+      },
+      {
+        text: 'External Share',
+        onPress: () => {
+          setShareAuthorName('');
+          setShareModalVisible(true);
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [currentTrack, analysis, phraseMap, downbeatOffsets, cellNotes, danceStyle, router]);
+
+  const handleShareConfirm = useCallback(async () => {
+    if (!currentTrack || !analysis || !phraseMap) return;
+    // Build pnote data while modal is still visible
+    const trackId = currentTrack.id;
+    const offset = downbeatOffsets[trackId] ?? 0;
+    const boundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+    const notes = cellNotes[trackId] ?? {};
+    const pnote = buildPhraseNoteFile({
+      author: shareAuthorName,
+      title: currentTrack.title,
+      analysis,
+      danceStyle,
+      downbeatOffset: offset,
+      boundaries,
+      beatsPerPhrase: phraseMap.beatsPerPhrase,
+      cellNotes: notes,
+    });
+    // Close modal first, then wait for dismiss animation before opening share sheet
+    setShareModalVisible(false);
+    await new Promise(resolve => setTimeout(resolve, 400));
+    try {
+      await exportPhraseNote(pnote, currentTrack.title);
+    } catch (err: any) {
+      console.warn('[PhraseNote Share]', err?.message || err);
+      if (err?.message !== 'User did not share') {
+        Alert.alert('Share Error', err?.message || 'Failed to share PhraseNote');
+      }
+    }
+  }, [currentTrack, analysis, phraseMap, downbeatOffsets, cellNotes, danceStyle, shareAuthorName]);
+
+  // ─── Edition picker active state ───
+  // 'source' = 'mine' (original/user editions) or 'imported-{noteId}'
+  const activeSource = useMemo((): string => {
+    if (activeImportedNote) return `imported-${activeImportedNote.id}`;
+    return 'mine';
+  }, [activeImportedNote]);
+
+  const handleSelectMine = useCallback(() => {
+    if (!currentTrack) return;
+    setActiveImportedNote(currentTrack.id, null); // deactivate all imports
+  }, [currentTrack, setActiveImportedNote]);
+
+  const handleSelectImported = useCallback((noteId: string) => {
+    if (!currentTrack) return;
+    setActiveImportedNote(currentTrack.id, noteId);
+  }, [currentTrack, setActiveImportedNote]);
+
+  const handleDeleteImported = useCallback((noteId: string) => {
+    Alert.alert('Delete imported note?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: () => {
+          removeImportedNote(noteId);
+        },
+      },
+    ]);
+  }, [removeImportedNote]);
+
+  // ─── Import PhraseNote flow ───
+  const handleImportPhraseNote = useCallback(async () => {
+    try {
+      const pnote = await pickPhraseNoteFile();
+      if (!pnote) return; // cancelled
+
+      // Try to auto-match track
+      const tracksWithAnalysis = tracks
+        .filter(t => t.analysis)
+        .map(t => ({ id: t.id, analysis: t.analysis! }));
+      let matchedTrackId = findMatchingTrack(tracksWithAnalysis, pnote);
+
+      if (!matchedTrackId && currentTrack) {
+        // No auto-match — ask user if they want to apply to current track
+        await new Promise<void>((resolve) => {
+          Alert.alert(
+            'No matching track found',
+            `Apply "${pnote.metadata.author}'s notes" to the current track "${currentTrack.title}"?`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve() },
+              {
+                text: 'Apply',
+                onPress: () => {
+                  matchedTrackId = currentTrack.id;
+                  resolve();
+                },
+              },
+            ],
+          );
+        });
+      }
+
+      if (!matchedTrackId) return;
+
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const imported: ImportedPhraseNote = {
+        id,
+        trackId: matchedTrackId,
+        phraseNote: pnote,
+        importedAt: Date.now(),
+        isActive: true,
+      };
+
+      // Deactivate other imports for this track, then add new
+      setActiveImportedNote(matchedTrackId, null);
+      addImportedNote(imported);
+
+      Alert.alert('Imported!', `${pnote.metadata.author}'s PhraseNote has been loaded.`);
+    } catch (err: any) {
+      Alert.alert('Import Failed', err.message || 'Could not read PhraseNote file.');
+    }
+  }, [tracks, currentTrack, addImportedNote, setActiveImportedNote]);
 
   // Phrase-based skip back (single tap = current phrase start, double tap = previous phrase)
   const lastBackTapRef = useRef<number>(0);
@@ -357,6 +602,9 @@ export default function PlayerScreen() {
                     {Math.round(analysis.bpm)} BPM
                   </Text>
                 </View>
+                <TouchableOpacity onPress={handleSharePhraseNote} style={styles.scrollModeBtn}>
+                  <Ionicons name="share-outline" size={16} color={Colors.textSecondary} />
+                </TouchableOpacity>
               </>
             )}
             {isYouTube && analysis && (
@@ -423,17 +671,22 @@ export default function PlayerScreen() {
                   countInfo={countInfo}
                   phraseMap={phraseMap ?? null}
                   hasAnalysis={!!analysis}
-                  beats={analysis?.beats ?? []}
+                  beats={effectiveBeats}
                   isPlaying={isPlaying}
                   onTapBeat={handleGridTapBeat}
                   onStartPhraseHere={handleStartPhraseHere}
                   onSetLoopPoint={handleSetLoopPoint}
                   onClearLoop={clearLoop}
                   onSeekAndPlay={handleSeekAndPlay}
+                  onSeekOnly={handleSeekOnly}
                   onMergeWithPrevious={handleMergeWithPrevious}
                   loopStart={loopStart}
                   loopEnd={loopEnd}
                   scrollMode={gridScrollMode}
+                  cellNotes={currentCellNotes}
+                  onSetCellNote={handleSetCellNote}
+                  onClearCellNote={handleClearCellNote}
+                  currentBeatNote={currentBeatNote}
                 />
               </View>
             )}
@@ -502,17 +755,22 @@ export default function PlayerScreen() {
                   countInfo={countInfo}
                   phraseMap={phraseMap ?? null}
                   hasAnalysis={!!analysis}
-                  beats={analysis?.beats ?? []}
+                  beats={effectiveBeats}
                   isPlaying={isPlaying}
                   onTapBeat={handleGridTapBeat}
                   onStartPhraseHere={handleStartPhraseHere}
                   onSetLoopPoint={handleSetLoopPoint}
                   onClearLoop={clearLoop}
                   onSeekAndPlay={handleSeekAndPlay}
+                  onSeekOnly={handleSeekOnly}
                   onMergeWithPrevious={handleMergeWithPrevious}
                   loopStart={loopStart}
                   loopEnd={loopEnd}
                   scrollMode={gridScrollMode}
+                  cellNotes={currentCellNotes}
+                  onSetCellNote={handleSetCellNote}
+                  onClearCellNote={handleClearCellNote}
+                  currentBeatNote={currentBeatNote}
                 />
               </View>
             )}
@@ -542,17 +800,22 @@ export default function PlayerScreen() {
               countInfo={countInfo}
               phraseMap={phraseMap ?? null}
               hasAnalysis={!!analysis}
-              beats={analysis?.beats ?? []}
+              beats={effectiveBeats}
               isPlaying={isPlaying}
               onTapBeat={handleGridTapBeat}
               onStartPhraseHere={handleStartPhraseHere}
               onSetLoopPoint={handleSetLoopPoint}
               onClearLoop={clearLoop}
               onSeekAndPlay={handleSeekAndPlay}
+              onSeekOnly={handleSeekOnly}
               onMergeWithPrevious={handleMergeWithPrevious}
               loopStart={loopStart}
               loopEnd={loopEnd}
               scrollMode={gridScrollMode}
+              cellNotes={currentCellNotes}
+              onSetCellNote={handleSetCellNote}
+              onClearCellNote={handleClearCellNote}
+              currentBeatNote={currentBeatNote}
             />
           </View>
         )}
@@ -638,6 +901,66 @@ export default function PlayerScreen() {
           )}
         </View>
 
+        {/* ⑥b Edition Picker (chips: mine + imported notes) */}
+        {currentTrack.analysisStatus === 'done' && (trackImportedNotes.length > 0 || analysis) && (
+          <View style={styles.editionPickerSection}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.editionPickerScroll}
+            >
+              {/* "Mine" chip — original/user editions */}
+              <TouchableOpacity
+                style={[
+                  styles.editionChip,
+                  activeSource === 'mine' && styles.editionChipActive,
+                ]}
+                onPress={handleSelectMine}
+              >
+                <Text style={[
+                  styles.editionChipText,
+                  activeSource === 'mine' && styles.editionChipTextActive,
+                ]}>
+                  My Edition
+                </Text>
+              </TouchableOpacity>
+
+              {/* Imported note chips */}
+              {trackImportedNotes.map((note) => {
+                const isActive = activeSource === `imported-${note.id}`;
+                return (
+                  <TouchableOpacity
+                    key={note.id}
+                    style={[
+                      styles.editionChip,
+                      styles.editionChipImported,
+                      isActive && styles.editionChipActive,
+                    ]}
+                    onPress={() => handleSelectImported(note.id)}
+                    onLongPress={() => handleDeleteImported(note.id)}
+                    delayLongPress={500}
+                  >
+                    <Text style={[
+                      styles.editionChipText,
+                      isActive && styles.editionChipTextActive,
+                    ]}>
+                      {note.phraseNote.metadata.author} ♪
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* [+] Import button */}
+              <TouchableOpacity
+                style={[styles.editionChip, styles.editionChipAdd]}
+                onPress={handleImportPhraseNote}
+              >
+                <Ionicons name="add" size={16} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        )}
+
         {/* ⑦ Loop A-B inline controls (only visible when loop is being set) */}
         {(loopStart !== null || loopEnd !== null) && (
           <View style={[styles.loopInlineSection, isVisual && { paddingHorizontal: Spacing.lg }]}>
@@ -704,6 +1027,47 @@ export default function PlayerScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Share PhraseNote — author name modal */}
+      <Modal
+        visible={shareModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setShareModalVisible(false); Keyboard.dismiss(); }}
+      >
+        <Pressable
+          style={styles.shareModalBackdrop}
+          onPress={() => { setShareModalVisible(false); Keyboard.dismiss(); }}
+        >
+          <Pressable style={styles.shareModalContainer} onPress={() => {}}>
+            <Text style={styles.shareModalTitle}>Share PhraseNote</Text>
+            <Text style={styles.shareModalSubtitle}>Enter your name (displayed to recipients)</Text>
+            <TextInput
+              style={styles.shareModalInput}
+              value={shareAuthorName}
+              onChangeText={setShareAuthorName}
+              maxLength={30}
+              placeholder="Author name"
+              placeholderTextColor={Colors.textMuted}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleShareConfirm}
+            />
+            <View style={styles.shareModalButtons}>
+              <TouchableOpacity
+                style={styles.shareModalCancel}
+                onPress={() => { setShareModalVisible(false); Keyboard.dismiss(); }}
+              >
+                <Text style={styles.shareModalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.shareModalShare} onPress={handleShareConfirm}>
+                <Ionicons name="share-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
+                <Text style={styles.shareModalShareText}>Share</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -991,6 +1355,120 @@ const styles = StyleSheet.create({
   draftDiscardText: {
     color: Colors.error,
     fontSize: FontSize.sm,
+    fontWeight: '700',
+  },
+  // Share PhraseNote modal
+  shareModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareModalContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    minWidth: 280,
+    maxWidth: '85%',
+    borderWidth: 1,
+    borderColor: Colors.surfaceLight,
+  },
+  shareModalTitle: {
+    color: Colors.text,
+    fontSize: FontSize.lg,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  shareModalSubtitle: {
+    color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  shareModalInput: {
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.surfaceLight,
+    color: Colors.text,
+    fontSize: FontSize.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  shareModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  shareModalCancel: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+  },
+  shareModalCancelText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.md,
+    fontWeight: '600',
+  },
+  shareModalShare: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  shareModalShareText: {
+    color: '#FFFFFF',
+    fontSize: FontSize.md,
+    fontWeight: '700',
+  },
+
+  // ─── Edition Picker ──────────────────────────────
+  editionPickerSection: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  editionPickerScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingRight: Spacing.md,
+  },
+  editionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: Colors.surfaceLight,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  editionChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(187, 134, 252, 0.15)',
+  },
+  editionChipImported: {
+    backgroundColor: 'rgba(45, 212, 191, 0.1)',
+  },
+  editionChipAdd: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderStyle: 'dashed' as any,
+    borderWidth: 1,
+    borderColor: Colors.textMuted,
+  },
+  editionChipText: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '600',
+  },
+  editionChipTextActive: {
+    color: Colors.primary,
     fontWeight: '700',
   },
 });

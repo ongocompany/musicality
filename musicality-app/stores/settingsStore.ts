@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DanceStyle } from '../utils/beatCounter';
 import { CueType } from '../types/cue';
 import { PhraseDetectionMode, EditionId, PhraseEdition, TrackEditions } from '../types/analysis';
+import { ImportedPhraseNote } from '../types/phraseNote';
 
 interface SettingsState {
   // Dance style (global setting)
@@ -42,6 +43,11 @@ interface SettingsState {
   setPhraseMark: (trackId: string, beatIndex: number) => void;
   clearPhraseMark: (trackId: string) => void;
 
+  // ─── Cell Notes (per-beat memos, max 30 chars) ──────
+  cellNotes: Record<string, Record<string, string>>;  // trackId → { beatIndex → note }
+  setCellNote: (trackId: string, beatIndex: number, note: string) => void;
+  clearCellNote: (trackId: string, beatIndex: number) => void;
+
   // ─── Phrase Edition System ───────────────────────────
   trackEditions: Record<string, TrackEditions>;
 
@@ -69,6 +75,12 @@ interface SettingsState {
 
   /** Save current draft as a new user edition, auto-allocate slot */
   saveDraftAsEdition: (trackId: string) => EditionId | null;
+
+  // ─── Imported PhraseNotes (unlimited, separate from editions) ───
+  importedNotes: ImportedPhraseNote[];
+  addImportedNote: (note: ImportedPhraseNote) => void;
+  removeImportedNote: (id: string) => void;
+  setActiveImportedNote: (trackId: string, noteId: string | null) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -115,6 +127,27 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => {
           const { [trackId]: _, ...rest } = state.phraseMarks;
           return { phraseMarks: rest };
+        }),
+
+      // ─── Cell Notes ─────────────────────────────────────
+
+      cellNotes: {},
+      setCellNote: (trackId, beatIndex, note) =>
+        set((state) => {
+          const trackNotes = { ...(state.cellNotes[trackId] || {}) };
+          const trimmed = note.trim().slice(0, 30);
+          if (trimmed) {
+            trackNotes[String(beatIndex)] = trimmed;
+          } else {
+            delete trackNotes[String(beatIndex)];
+          }
+          return { cellNotes: { ...state.cellNotes, [trackId]: trackNotes } };
+        }),
+      clearCellNote: (trackId, beatIndex) =>
+        set((state) => {
+          const trackNotes = { ...(state.cellNotes[trackId] || {}) };
+          delete trackNotes[String(beatIndex)];
+          return { cellNotes: { ...state.cellNotes, [trackId]: trackNotes } };
         }),
 
       // ─── Phrase Edition System ───────────────────────────
@@ -277,15 +310,38 @@ export const useSettingsStore = create<SettingsState>()(
 
         return slotId;
       },
+
+      // ─── Imported PhraseNotes ──────────────────────────
+
+      importedNotes: [],
+
+      addImportedNote: (note) =>
+        set((state) => ({
+          importedNotes: [...state.importedNotes, note],
+        })),
+
+      removeImportedNote: (id) =>
+        set((state) => ({
+          importedNotes: state.importedNotes.filter(n => n.id !== id),
+        })),
+
+      setActiveImportedNote: (trackId, noteId) =>
+        set((state) => ({
+          importedNotes: state.importedNotes.map(n => {
+            if (n.trackId !== trackId) return n;
+            return { ...n, isActive: n.id === noteId };
+          }),
+        })),
     }),
     {
       name: 'musicality-settings',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persistedState: any, version: number) => {
+        let state = { ...persistedState };
         if (version < 2) {
           // Migrate phraseBoundaryOverrides → trackEditions
-          const overrides = persistedState.phraseBoundaryOverrides ?? {};
+          const overrides = state.phraseBoundaryOverrides ?? {};
           const trackEditions: Record<string, TrackEditions> = {};
           for (const [trackId, boundaries] of Object.entries(overrides)) {
             if (Array.isArray(boundaries) && boundaries.length > 0) {
@@ -301,10 +357,14 @@ export const useSettingsStore = create<SettingsState>()(
               };
             }
           }
-          const { phraseBoundaryOverrides, boundaryCorrections, ...rest } = persistedState;
-          return { ...rest, trackEditions };
+          const { phraseBoundaryOverrides, boundaryCorrections, ...rest } = state;
+          state = { ...rest, trackEditions };
         }
-        return persistedState as SettingsState;
+        if (version < 3) {
+          // Add importedNotes array
+          state.importedNotes = state.importedNotes ?? [];
+        }
+        return state as SettingsState;
       },
       partialize: (state) => ({
         danceStyle: state.danceStyle,
@@ -318,6 +378,8 @@ export const useSettingsStore = create<SettingsState>()(
         defaultBeatsPerPhrase: state.defaultBeatsPerPhrase,
         phraseMarks: state.phraseMarks,
         trackEditions: state.trackEditions,
+        cellNotes: state.cellNotes,
+        importedNotes: state.importedNotes,
       }),
     },
   ),

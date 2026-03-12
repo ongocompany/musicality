@@ -37,6 +37,7 @@ export interface AnalysisResult {
   sections?: Section[];      // music structure sections (backward compat)
   phraseBoundaries?: number[]; // phrase boundary timestamps from server (seconds)
   waveformPeaks?: number[];    // normalized amplitude peaks (0-1) for waveform visualization
+  fingerprint?: string;        // Chromaprint audio fingerprint for track identification
 }
 
 export type AnalysisStatus = 'idle' | 'analyzing' | 'done' | 'error';

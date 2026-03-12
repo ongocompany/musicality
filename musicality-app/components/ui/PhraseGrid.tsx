@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, Animated, LayoutChangeEvent, Modal, Pressable, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, LayoutChangeEvent, Modal, Pressable, TouchableOpacity, TextInput, Keyboard, ScrollView, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors, Spacing, FontSize, getPhraseColor } from '../../constants/theme';
 import { CountInfo } from '../../utils/beatCounter';
@@ -17,26 +17,38 @@ interface PhraseGridProps {
   onSetLoopPoint: (beatTimeMs: number) => void;
   onClearLoop: () => void;
   onSeekAndPlay: (beatTimeMs: number) => void;
+  onSeekOnly: (beatTimeMs: number) => void;  // seek without playing (paused tap)
   onMergeWithPrevious: (globalBeatIndex: number) => void;
   loopStart: number | null;
   loopEnd: number | null;
-  rows?: number; // default 8
-  scrollMode?: boolean; // rhythm-game style row scrolling
+  rows?: number; // visible rows (default 8)
+  scrollMode?: boolean; // kept for API compat — grid is always scrollable now
+  // Cell notes (per-beat memos)
+  cellNotes?: Record<string, string>;  // beatIndex(string) → note
+  onSetCellNote?: (beatIndex: number, note: string) => void;
+  onClearCellNote?: (beatIndex: number) => void;
+  // Current beat note (for persistent banner display)
+  currentBeatNote?: string | null;
 }
+
+const noop = (_cellIndex: number) => {};  // stable ref for placeholder
 
 const COLS = 8;
 const DEFAULT_ROWS = 8;
 const MIN_CELL_SIZE = 20;
-const SCROLL_ANCHOR_ROW = 2; // current beat row fixed at 3rd display row (0-indexed)
+const SCROLL_ANCHOR_ROW = 2; // auto-scroll keeps current beat at 3rd visible row (0-indexed)
+const RENDER_BUFFER_ROWS = 4; // extra rows rendered above/below visible area
 
 export function PhraseGrid({
   countInfo, phraseMap, hasAnalysis, beats, isPlaying,
   onTapBeat, onStartPhraseHere, onSetLoopPoint, onClearLoop,
-  onSeekAndPlay, onMergeWithPrevious,
+  onSeekAndPlay, onSeekOnly, onMergeWithPrevious,
   loopStart, loopEnd, rows, scrollMode,
+  cellNotes, onSetCellNote, onClearCellNote,
+  currentBeatNote,
 }: PhraseGridProps) {
   const rowCount = rows ?? DEFAULT_ROWS;
-  const CELLS_PER_PAGE = COLS * rowCount;
+  const CELLS_PER_PAGE = COLS * rowCount; // used only for placeholder
   const [containerWidth, setContainerWidth] = useState(0);
   const [flashCellIndex, setFlashCellIndex] = useState<number | null>(null);
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -48,24 +60,29 @@ export function PhraseGrid({
   // Repeat selection mode ("selecting B")
   const [repeatSelectMode, setRepeatSelectMode] = useState(false);
 
-  // Refresh animation (phrase change OR page/row change)
-  const prevPhraseIndexRef = useRef<number>(-1);
-  const prevPageIndexRef = useRef<number>(0);
-  const refreshAnim = useRef(new Animated.Value(1)).current;
+  // Cell note input modal state
+  const [noteModalVisible, setNoteModalVisible] = useState(false);
+  const [noteModalBeatIndex, setNoteModalBeatIndex] = useState<number>(-1);
+  const [noteModalText, setNoteModalText] = useState('');
 
-  const triggerRefresh = useCallback(() => {
-    refreshAnim.setValue(0);
-    Animated.timing(refreshAnim, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  }, [refreshAnim]);
+  // Tooltip state (show note on tap)
+  const [tooltipText, setTooltipText] = useState<string | null>(null);
+  const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Cleanup flash timeout
+  // ScrollView refs for auto-scroll
+  const scrollViewRef = useRef<ScrollView>(null);
+  const userScrollingRef = useRef(false);
+  const autoScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Virtual windowed rendering — only render visible rows + buffer
+  const [renderStartRow, setRenderStartRow] = useState(0);
+
+  // Cleanup timeouts
   useEffect(() => {
     return () => {
       if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+      if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
+      if (autoScrollTimerRef.current) clearTimeout(autoScrollTimerRef.current);
     };
   }, []);
 
@@ -80,74 +97,11 @@ export function PhraseGrid({
     setContainerWidth(e.nativeEvent.layout.width);
   }, []);
 
-  // Current phrase (for page mode)
-  const currentPhrase = useMemo(() => {
-    if (!phraseMap || !countInfo || countInfo.phraseIndex < 0) return null;
-    return phraseMap.phrases[countInfo.phraseIndex] ?? null;
-  }, [phraseMap, countInfo?.phraseIndex]);
-
-  // Actual beats in current phrase (page mode)
-  const actualBeats = currentPhrase
-    ? currentPhrase.endBeatIndex - currentPhrase.startBeatIndex
-    : CELLS_PER_PAGE;
-
-  // Local beat index within current phrase (0-based, for page mode)
-  const localBeatIndex = useMemo(() => {
-    if (!countInfo || !currentPhrase) return -1;
-    return countInfo.beatIndex - currentPhrase.startBeatIndex;
-  }, [countInfo?.beatIndex, currentPhrase]);
-
-  // Global beat index (for scroll mode cross-phrase view)
+  // ─── Absolute beat indexing (no pagination) ───
   const globalBeatIndex = countInfo?.beatIndex ?? -1;
   const totalBeats = beats.length;
-
-  // ─── Pagination / Scroll logic ───
-  // Scroll mode: global beat space (continuous across phrases)
-  // Page mode: phrase-local beat space
-  const currentBeatRow = scrollMode
-    ? (globalBeatIndex >= 0 ? Math.floor(globalBeatIndex / COLS) : 0)
-    : (localBeatIndex >= 0 ? Math.floor(localBeatIndex / COLS) : 0);
-
-  const startDataRow = useMemo(() => {
-    if (scrollMode) {
-      if (globalBeatIndex < 0) return 0;
-      // Allow negative so current beat always stays at SCROLL_ANCHOR_ROW
-      return currentBeatRow - SCROLL_ANCHOR_ROW;
-    }
-    if (localBeatIndex < 0) return 0;
-    const pageIdx = Math.floor(localBeatIndex / CELLS_PER_PAGE);
-    return pageIdx * rowCount;
-  }, [scrollMode, globalBeatIndex, localBeatIndex, currentBeatRow, CELLS_PER_PAGE, rowCount]);
-
-  const pageStartBeat = startDataRow * COLS;
-
-  // Beat index within current display window (0-based)
-  const pageBeatIndex = scrollMode
-    ? (globalBeatIndex >= 0 ? globalBeatIndex - pageStartBeat : -1)
-    : (localBeatIndex >= 0 ? localBeatIndex - pageStartBeat : -1);
-
-  // Total beats for bounds: global in scroll, phrase-local in page
-  const effectiveTotalBeats = scrollMode ? totalBeats : actualBeats;
-  const beatsOnThisPage = Math.max(0, Math.min(CELLS_PER_PAGE, effectiveTotalBeats - pageStartBeat));
-
-  // For page indicator
-  const pageIndex = scrollMode
-    ? currentBeatRow
-    : (localBeatIndex >= 0 ? Math.floor(localBeatIndex / CELLS_PER_PAGE) : 0);
-
-  // Detect phrase change OR row/page scroll → trigger refresh
-  useEffect(() => {
-    if (!countInfo || countInfo.totalPhrases === 0) return;
-    const phraseChanged = prevPhraseIndexRef.current !== -1 &&
-      prevPhraseIndexRef.current !== countInfo.phraseIndex;
-    const scrollChanged = prevPageIndexRef.current !== startDataRow;
-
-    if (phraseChanged || scrollChanged) {
-      triggerRefresh();
-    }
-    prevPhraseIndexRef.current = countInfo.phraseIndex;
-    prevPageIndexRef.current = startDataRow;
-  }, [countInfo?.phraseIndex, startDataRow]);
+  const totalCells = totalBeats > 0 ? Math.ceil(totalBeats / COLS) * COLS : CELLS_PER_PAGE;
+  const totalDataRows = Math.ceil(totalBeats / COLS);
 
   // Cell size (width-based, uniform spacing)
   const cellSize = useMemo(() => {
@@ -157,66 +111,114 @@ export function PhraseGrid({
     return Math.max(Math.floor(available / COLS), MIN_CELL_SIZE);
   }, [containerWidth]);
 
-  // Phrase color (page mode: single color for entire grid)
-  const phraseColor = useMemo(() => {
-    if (countInfo && countInfo.totalPhrases > 0) {
-      return getPhraseColor(countInfo.phraseIndex);
-    }
-    return Colors.textMuted;
-  }, [countInfo?.phraseIndex, countInfo?.totalPhrases]);
+  const rowHeight = cellSize + CELL_GAP;
+  const visibleHeight = rowCount * rowHeight;
 
-  // Cell state (relative to display window)
+  // ─── Auto-scroll during playback ───
+  useEffect(() => {
+    if (globalBeatIndex < 0 || rowHeight <= 0) return;
+
+    const currentRow = Math.floor(globalBeatIndex / COLS);
+    // Always update render window to track current beat
+    const targetStartRow = Math.max(0, currentRow - SCROLL_ANCHOR_ROW - RENDER_BUFFER_ROWS);
+    setRenderStartRow(prev => prev !== targetStartRow ? targetStartRow : prev);
+
+    // Only auto-scroll the ScrollView when playing and user isn't manually scrolling
+    if (!isPlaying || !scrollViewRef.current || userScrollingRef.current) return;
+    const targetOffset = Math.max(0, (currentRow - SCROLL_ANCHOR_ROW) * rowHeight);
+    scrollViewRef.current.scrollTo({ y: targetOffset, animated: true });
+  }, [globalBeatIndex, isPlaying, rowHeight]);
+
+  // Re-enable auto-scroll when playback starts
+  useEffect(() => {
+    if (isPlaying) {
+      userScrollingRef.current = false;
+      if (autoScrollTimerRef.current) clearTimeout(autoScrollTimerRef.current);
+    }
+  }, [isPlaying]);
+
+  // Track scroll position for virtual windowed rendering
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (rowHeight <= 0) return;
+    const offset = e.nativeEvent.contentOffset.y;
+    const newStartRow = Math.max(0, Math.floor(offset / rowHeight) - RENDER_BUFFER_ROWS);
+    setRenderStartRow(prev => prev !== newStartRow ? newStartRow : prev);
+  }, [rowHeight]);
+
+  const handleScrollBeginDrag = useCallback(() => {
+    userScrollingRef.current = true;
+    if (autoScrollTimerRef.current) clearTimeout(autoScrollTimerRef.current);
+  }, []);
+
+  const handleScrollEndDrag = useCallback(() => {
+    if (autoScrollTimerRef.current) clearTimeout(autoScrollTimerRef.current);
+    autoScrollTimerRef.current = setTimeout(() => {
+      userScrollingRef.current = false;
+    }, 3000);
+  }, []);
+
+  // ─── Virtual render window ───
+  const renderEndRow = Math.min(totalDataRows, renderStartRow + rowCount + RENDER_BUFFER_ROWS * 2);
+  const renderStartCell = renderStartRow * COLS;
+  const renderEndCell = Math.min(totalCells, renderEndRow * COLS);
+  const topSpacerHeight = renderStartRow * rowHeight;
+  const bottomSpacerHeight = Math.max(0, (totalDataRows - renderEndRow) * rowHeight);
+
+  // ─── Cell state (absolute indexing) ───
   const getCellState = useCallback((i: number): CellState => {
-    const dataBeatIndex = pageStartBeat + i;
-    if (dataBeatIndex < 0) return 'hidden';
-    if (dataBeatIndex >= effectiveTotalBeats) return 'hidden';
-    if (!scrollMode && i >= beatsOnThisPage) return 'hidden';
-    if (pageBeatIndex < 0) return 'upcoming';
-    if (i === pageBeatIndex) return 'current';
-    if (i < pageBeatIndex) return 'played';
+    if (i >= totalBeats) return 'hidden';
+    if (globalBeatIndex < 0) return 'upcoming';
+    if (i === globalBeatIndex) return 'current';
+    if (i < globalBeatIndex) return 'played';
     return 'upcoming';
-  }, [pageBeatIndex, beatsOnThisPage, pageStartBeat, effectiveTotalBeats, scrollMode]);
+  }, [globalBeatIndex, totalBeats]);
 
-  // ─── Cell-to-global-beat resolution ───
+  // ─── Cell-to-global-beat (identity for absolute indexing) ───
   const cellToGlobalBeat = useCallback((cellIndex: number): number => {
-    const dataBeat = pageStartBeat + cellIndex;
-    if (scrollMode) {
-      return (dataBeat >= 0 && dataBeat < totalBeats) ? dataBeat : -1;
-    }
-    if (!currentPhrase) return -1;
-    if (dataBeat < 0 || dataBeat >= actualBeats) return -1;
-    return currentPhrase.startBeatIndex + dataBeat;
-  }, [scrollMode, currentPhrase, pageStartBeat, actualBeats, totalBeats]);
+    return cellIndex < totalBeats ? cellIndex : -1;
+  }, [totalBeats]);
 
-  // Per-cell color: scroll mode shows multiple phrase colors
+  // ─── Per-cell phrase color ───
   const getCellPhraseColor = useCallback((cellIndex: number): string => {
-    if (!scrollMode) return phraseColor;
-    if (!phraseMap) return phraseColor;
-    const globalBeat = pageStartBeat + cellIndex;
-    if (globalBeat < 0 || globalBeat >= totalBeats) return Colors.textMuted;
+    if (!phraseMap || cellIndex >= totalBeats) return Colors.textMuted;
     for (let p = 0; p < phraseMap.phrases.length; p++) {
       const phrase = phraseMap.phrases[p];
-      if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
+      if (cellIndex >= phrase.startBeatIndex && cellIndex < phrase.endBeatIndex) {
         return getPhraseColor(p);
       }
     }
     return Colors.textMuted;
-  }, [scrollMode, phraseMap, pageStartBeat, totalBeats, phraseColor]);
+  }, [phraseMap, totalBeats]);
 
   // Per-cell row label: first column shows eight-count row number (1,2,3,4) — resets at phrase boundary
   const getCellRowLabel = useCallback((cellIndex: number): string | null => {
     if (cellIndex % COLS !== 0) return null; // only first column
-    const globalBeat = cellToGlobalBeat(cellIndex);
-    if (globalBeat < 0) return null;
+    if (cellIndex >= totalBeats) return null;
     if (!phraseMap) return null;
     for (const phrase of phraseMap.phrases) {
-      if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
-        const beatInPhrase = globalBeat - phrase.startBeatIndex;
+      if (cellIndex >= phrase.startBeatIndex && cellIndex < phrase.endBeatIndex) {
+        const beatInPhrase = cellIndex - phrase.startBeatIndex;
         return String(Math.floor(beatInPhrase / COLS) + 1);
       }
     }
     return null;
-  }, [cellToGlobalBeat, phraseMap]);
+  }, [totalBeats, phraseMap]);
+
+  // ─── Cell note helpers ───
+  const getCellHasNote = useCallback((cellIndex: number): boolean => {
+    if (!cellNotes) return false;
+    if (cellIndex >= totalBeats) return false;
+    return !!cellNotes[String(cellIndex)];
+  }, [cellNotes, totalBeats]);
+
+  const showTooltip = useCallback((globalBeat: number) => {
+    if (!cellNotes) return;
+    const note = cellNotes[String(globalBeat)];
+    if (!note) return;
+    setTooltipText(note);
+    if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
+    tooltipTimeoutRef.current = setTimeout(() => setTooltipText(null), 3500);
+  }, [cellNotes]);
 
   // ─── Tap handler ───
   const handleCellTap = useCallback((cellIndex: number) => {
@@ -230,12 +232,21 @@ export function PhraseGrid({
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    if (!isPlaying && globalBeat < beats.length) {
-      onSeekAndPlay(beats[globalBeat] * 1000);
+    // Show tooltip if cell has a note
+    showTooltip(globalBeat);
+
+    if (globalBeat < beats.length) {
+      if (isPlaying) {
+        // Playing → seek and continue playing from this beat
+        onSeekAndPlay(beats[globalBeat] * 1000);
+      } else {
+        // Paused → just move position to this beat (no auto-play)
+        onSeekOnly(beats[globalBeat] * 1000);
+      }
     } else {
       onTapBeat(globalBeat);
     }
-  }, [cellToGlobalBeat, isPlaying, beats, onSeekAndPlay, onTapBeat]);
+  }, [cellToGlobalBeat, isPlaying, beats, onSeekAndPlay, onSeekOnly, onTapBeat, showTooltip]);
 
   // ─── Long-press handler ───
   const handleCellLongPress = useCallback((cellIndex: number) => {
@@ -288,6 +299,40 @@ export function PhraseGrid({
     setMenuVisible(false);
   }, [menuGlobalBeat, onMergeWithPrevious]);
 
+  // ─── Cell note menu handlers ───
+  const menuHasNote = useMemo(() => {
+    if (menuGlobalBeat < 0 || !cellNotes) return false;
+    return !!cellNotes[String(menuGlobalBeat)];
+  }, [menuGlobalBeat, cellNotes]);
+
+  const handleAddEditNote = useCallback(() => {
+    if (menuGlobalBeat < 0) return;
+    const existing = cellNotes?.[String(menuGlobalBeat)] ?? '';
+    setNoteModalBeatIndex(menuGlobalBeat);
+    setNoteModalText(existing);
+    setMenuVisible(false);
+    // Small delay so menu closes first
+    setTimeout(() => setNoteModalVisible(true), 200);
+  }, [menuGlobalBeat, cellNotes]);
+
+  const handleSaveNote = useCallback(() => {
+    if (noteModalBeatIndex < 0) return;
+    const trimmed = noteModalText.trim().slice(0, 30);
+    if (trimmed && onSetCellNote) {
+      onSetCellNote(noteModalBeatIndex, trimmed);
+    } else if (!trimmed && onClearCellNote) {
+      onClearCellNote(noteModalBeatIndex);
+    }
+    setNoteModalVisible(false);
+    Keyboard.dismiss();
+  }, [noteModalBeatIndex, noteModalText, onSetCellNote, onClearCellNote]);
+
+  const handleDeleteNote = useCallback(() => {
+    if (menuGlobalBeat < 0 || !onClearCellNote) return;
+    onClearCellNote(menuGlobalBeat);
+    setMenuVisible(false);
+  }, [menuGlobalBeat, onClearCellNote]);
+
   // Is the menu cell the first beat of a phrase?
   const isFirstCellOfPhrase = useMemo(() => {
     if (menuGlobalBeat < 0 || !phraseMap) return false;
@@ -306,31 +351,26 @@ export function PhraseGrid({
   // ─── Repeat marker calculation ───
   const getRepeatMarker = useCallback((cellIndex: number): 'A' | 'B' | null => {
     if (!beats.length) return null;
-    const globalBeat = cellToGlobalBeat(cellIndex);
-    if (globalBeat < 0 || globalBeat >= beats.length) return null;
+    if (cellIndex >= totalBeats) return null;
 
-    const beatTimeMs = beats[globalBeat] * 1000;
+    const beatTimeMs = beats[cellIndex] * 1000;
     // Check within +-20ms tolerance for floating point
     if (loopStart != null && Math.abs(beatTimeMs - loopStart) < 20) return 'A';
     if (loopEnd != null && Math.abs(beatTimeMs - loopEnd) < 20) return 'B';
     return null;
-  }, [cellToGlobalBeat, beats, loopStart, loopEnd]);
+  }, [beats, totalBeats, loopStart, loopEnd]);
 
-  // Animation interpolations
-  const gridOpacity = refreshAnim.interpolate({
-    inputRange: [0, 0.3, 1],
-    outputRange: [0.5, 1, 1],
-  });
-  const gridScale = refreshAnim.interpolate({
-    inputRange: [0, 0.3, 1],
-    outputRange: [0.97, 1, 1],
-  });
-
-  // Total pages/rows for indicator
-  const totalDataRows = Math.ceil(effectiveTotalBeats / COLS);
-  const totalPages = scrollMode
-    ? totalDataRows
-    : Math.ceil(actualBeats / CELLS_PER_PAGE);
+  // Current phrase info for indicator
+  const currentPhraseInfo = useMemo(() => {
+    if (!phraseMap || globalBeatIndex < 0) return null;
+    for (let p = 0; p < phraseMap.phrases.length; p++) {
+      const phrase = phraseMap.phrases[p];
+      if (globalBeatIndex >= phrase.startBeatIndex && globalBeatIndex < phrase.endBeatIndex) {
+        return { index: p, total: phraseMap.phrases.length };
+      }
+    }
+    return null;
+  }, [phraseMap, globalBeatIndex]);
 
   // ─── No analysis placeholder ───
   if (!hasAnalysis) {
@@ -340,12 +380,13 @@ export function PhraseGrid({
           {containerWidth > 0 && Array.from({ length: CELLS_PER_PAGE }, (_, i) => (
                 <PhraseGridCell
                   key={i}
+                  cellIndex={i}
                   state="upcoming"
                   color={Colors.surfaceLight}
                   size={cellSize}
                   isFlashing={false}
-                  onPress={() => {}}
-                  onLongPress={() => {}}
+                  onPress={noop}
+                  onLongPress={noop}
                 />
           ))}
           <View style={styles.placeholderOverlay}>
@@ -367,38 +408,57 @@ export function PhraseGrid({
         </View>
       )}
 
-      {/* Page/row indicator (only when content exceeds one screen) */}
-      {(scrollMode ? totalDataRows > 1 : totalPages > 1) && (
+      {/* Phrase indicator */}
+      {currentPhraseInfo && (
         <View style={styles.pageIndicator}>
           <Text style={styles.pageText}>
-            {scrollMode
-              ? `${currentBeatRow + 1} / ${totalDataRows}`
-              : `${pageIndex + 1} / ${totalPages}`}
+            Phrase {currentPhraseInfo.index + 1} / {currentPhraseInfo.total}
           </Text>
         </View>
       )}
 
-      <Animated.View
-        onLayout={onLayout}
-        style={[
-          styles.grid,
-          { opacity: gridOpacity, transform: [{ scale: gridScale }] },
-        ]}
+      <ScrollView
+        ref={scrollViewRef}
+        style={visibleHeight > 0 ? { maxHeight: visibleHeight } : undefined}
+        showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        onScrollBeginDrag={handleScrollBeginDrag}
+        onScrollEndDrag={handleScrollEndDrag}
+        scrollEventThrottle={100}
+        nestedScrollEnabled={true}
+        bounces={false}
+        overScrollMode="never"
+        scrollEnabled={totalDataRows > rowCount}
+        keyboardShouldPersistTaps="handled"
       >
-        {containerWidth > 0 && cellSize > 0 && Array.from({ length: CELLS_PER_PAGE }, (_, i) => (
-              <PhraseGridCell
-                key={i}
-                state={getCellState(i)}
-                color={getCellPhraseColor(i)}
-                size={cellSize}
-                isFlashing={flashCellIndex === i}
-                onPress={() => handleCellTap(i)}
-                onLongPress={() => handleCellLongPress(i)}
-                repeatMarker={getRepeatMarker(i)}
-                rowLabel={getCellRowLabel(i)}
-              />
-        ))}
-      </Animated.View>
+        {/* Top spacer for virtual scroll */}
+        {topSpacerHeight > 0 && <View style={{ height: topSpacerHeight }} />}
+        <View
+          onLayout={onLayout}
+          style={styles.grid}
+        >
+          {containerWidth > 0 && cellSize > 0 && Array.from({ length: renderEndCell - renderStartCell }, (_, idx) => {
+                const i = renderStartCell + idx;
+                return (
+                  <PhraseGridCell
+                    key={i}
+                    cellIndex={i}
+                    state={getCellState(i)}
+                    color={getCellPhraseColor(i)}
+                    size={cellSize}
+                    isFlashing={flashCellIndex === i}
+                    onPress={handleCellTap}
+                    onLongPress={handleCellLongPress}
+                    repeatMarker={getRepeatMarker(i)}
+                    rowLabel={getCellRowLabel(i)}
+                    hasNote={getCellHasNote(i)}
+                  />
+                );
+          })}
+        </View>
+        {/* Bottom spacer for virtual scroll */}
+        {bottomSpacerHeight > 0 && <View style={{ height: bottomSpacerHeight }} />}
+      </ScrollView>
 
       {/* Context menu modal */}
       <Modal
@@ -409,7 +469,15 @@ export function PhraseGrid({
       >
         <Pressable style={styles.menuBackdrop} onPress={() => setMenuVisible(false)}>
           <View style={styles.menuContainer}>
-            <Text style={styles.menuTitle}>Beat {menuCellIndex + 1}</Text>
+            <Text style={styles.menuTitle}>Beat {menuGlobalBeat + 1}</Text>
+            {/* Show existing note content in context menu */}
+            {menuHasNote && cellNotes && menuGlobalBeat >= 0 && (
+              <View style={styles.menuNotePreview}>
+                <Text style={styles.menuNotePreviewText}>
+                  📝 {cellNotes[String(menuGlobalBeat)]}
+                </Text>
+              </View>
+            )}
 
             {/* Start new phrase here — only when paused */}
             {!isPlaying && (
@@ -441,7 +509,96 @@ export function PhraseGrid({
                 </Text>
               </TouchableOpacity>
             )}
+
+            {/* Separator */}
+            {onSetCellNote && <View style={styles.menuSeparator} />}
+
+            {/* Add/Edit note */}
+            {onSetCellNote && (
+              <TouchableOpacity style={styles.menuOption} onPress={handleAddEditNote}>
+                <Text style={styles.menuOptionText}>
+                  {menuHasNote ? '✏️ Edit memo' : '📝 Add memo'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Delete note — only when note exists */}
+            {menuHasNote && onClearCellNote && (
+              <TouchableOpacity
+                style={[styles.menuOption, styles.menuOptionDanger]}
+                onPress={handleDeleteNote}
+              >
+                <Text style={[styles.menuOptionText, styles.menuOptionDangerText]}>
+                  Delete memo
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
+        </Pressable>
+      </Modal>
+
+      {/* Tooltip for cell notes (tap) */}
+      {tooltipText && (
+        <View style={styles.tooltipContainer}>
+          <View style={styles.tooltip}>
+            <Text style={styles.tooltipText}>📝 {tooltipText}</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Persistent current beat note banner */}
+      {!tooltipText && currentBeatNote && (
+        <View style={styles.noteBanner}>
+          <Text style={styles.noteBannerText} numberOfLines={1}>
+            📝 {currentBeatNote}
+          </Text>
+        </View>
+      )}
+
+      {/* Note input modal */}
+      <Modal
+        visible={noteModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setNoteModalVisible(false); Keyboard.dismiss(); }}
+      >
+        <Pressable
+          style={styles.menuBackdrop}
+          onPress={() => { setNoteModalVisible(false); Keyboard.dismiss(); }}
+        >
+          <Pressable style={styles.noteModalContainer} onPress={() => {}}>
+            <Text style={styles.noteModalTitle}>
+              Beat {noteModalBeatIndex + 1} memo
+            </Text>
+            <TextInput
+              style={styles.noteInput}
+              value={noteModalText}
+              onChangeText={(t) => setNoteModalText(t.slice(0, 30))}
+              maxLength={30}
+              placeholder="Enter memo (max 30 chars)"
+              placeholderTextColor={Colors.textMuted}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleSaveNote}
+            />
+            <Text style={styles.noteCharCount}>
+              {noteModalText.length}/30
+            </Text>
+            <View style={styles.noteModalButtons}>
+              <TouchableOpacity
+                style={styles.noteModalCancel}
+                onPress={() => { setNoteModalVisible(false); Keyboard.dismiss(); }}
+              >
+                <Text style={styles.noteModalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.noteModalSave}
+                onPress={handleSaveNote}
+              >
+                <Text style={styles.noteModalSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </View>
@@ -537,5 +694,118 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontSize: FontSize.sm,
     fontWeight: '600',
+  },
+  // Menu separator
+  menuSeparator: {
+    height: 1,
+    backgroundColor: Colors.surfaceLight,
+    marginVertical: Spacing.xs,
+  },
+  // Tooltip (tap to view)
+  tooltipContainer: {
+    alignItems: 'center',
+    marginTop: 6,
+    zIndex: 10,
+  },
+  tooltip: {
+    backgroundColor: 'rgba(45, 212, 191, 0.95)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: 8,
+    maxWidth: '90%',
+  },
+  tooltipText: {
+    color: '#FFFFFF',
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  // Persistent current beat note banner
+  noteBanner: {
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  noteBannerText: {
+    color: '#2DD4BF',
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  // Menu note preview
+  menuNotePreview: {
+    backgroundColor: 'rgba(45, 212, 191, 0.15)',
+    borderRadius: 8,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    marginBottom: Spacing.sm,
+  },
+  menuNotePreviewText: {
+    color: '#2DD4BF',
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  // Note input modal
+  noteModalContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    minWidth: 280,
+    maxWidth: '85%',
+    borderWidth: 1,
+    borderColor: Colors.surfaceLight,
+  },
+  noteModalTitle: {
+    color: Colors.text,
+    fontSize: FontSize.md,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  noteInput: {
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.surfaceLight,
+    color: Colors.text,
+    fontSize: FontSize.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: 4,
+  },
+  noteCharCount: {
+    color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    textAlign: 'right',
+    marginBottom: Spacing.md,
+  },
+  noteModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  noteModalCancel: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+  },
+  noteModalCancelText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.md,
+    fontWeight: '600',
+  },
+  noteModalSave: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    backgroundColor: '#2DD4BF',
+    alignItems: 'center',
+  },
+  noteModalSaveText: {
+    color: '#FFFFFF',
+    fontSize: FontSize.md,
+    fontWeight: '700',
   },
 });

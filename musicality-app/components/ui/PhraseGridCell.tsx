@@ -1,21 +1,25 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { TouchableOpacity, Animated, StyleSheet, View, Text, Platform } from 'react-native';
 import { Colors } from '../../constants/theme';
 
 export type CellState = 'upcoming' | 'current' | 'played' | 'hidden';
 
 interface PhraseGridCellProps {
+  cellIndex: number;
   state: CellState;
   color: string;
   size: number;
   isFlashing: boolean;
-  onPress: () => void;
-  onLongPress: () => void;
+  onPress: (cellIndex: number) => void;
+  onLongPress: (cellIndex: number) => void;
   repeatMarker?: 'A' | 'B' | null;
   rowLabel?: string | null;    // eight-count row number (1,2,3,4) on first cell of each row
+  hasNote?: boolean;           // show teal dot for cell memo
 }
 
-function PhraseGridCellInner({ state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel }: PhraseGridCellProps) {
+function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel, hasNote }: PhraseGridCellProps) {
+  const handlePress = useCallback(() => onPress(cellIndex), [onPress, cellIndex]);
+  const handleLongPress = useCallback(() => onLongPress(cellIndex), [onLongPress, cellIndex]);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
   const prevStateRef = useRef<CellState>(state);
@@ -149,8 +153,8 @@ function PhraseGridCellInner({ state, color, size, isFlashing, onPress, onLongPr
               borderColor: isCurrent ? '#FFFFFF' : 'transparent',
             },
           ]}
-          onPress={onPress}
-          onLongPress={onLongPress}
+          onPress={handlePress}
+          onLongPress={handleLongPress}
           delayLongPress={400}
           activeOpacity={0.7}
         >
@@ -168,6 +172,10 @@ function PhraseGridCellInner({ state, color, size, isFlashing, onPress, onLongPr
             <View style={styles.markerBadge}>
               <Text style={styles.markerText}>{repeatMarker}</Text>
             </View>
+          )}
+          {/* Cell note indicator dot (bottom-left) */}
+          {hasNote && (
+            <View style={styles.noteDot} />
           )}
         </TouchableOpacity>
       </Animated.View>
@@ -207,6 +215,15 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: '800',
     lineHeight: 10,
+  },
+  noteDot: {
+    position: 'absolute',
+    bottom: 2,
+    left: 2,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#2DD4BF',  // teal-400
   },
 });
 

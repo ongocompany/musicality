@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,6 +7,7 @@ import { checkServerHealth } from '../../services/analysisApi';
 import { API_BASE_URL } from '../../constants/config';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useAuthStore } from '../../stores/authStore';
 import { DanceStyle } from '../../utils/beatCounter';
 import { CueType, CUE_TYPE_LABELS } from '../../types/cue';
 import { PhraseDetectionMode } from '../../types/analysis';
@@ -20,6 +21,7 @@ export default function SettingsScreen() {
     phraseDetectionMode, setPhraseDetectionMode,
     defaultBeatsPerPhrase, setDefaultBeatsPerPhrase,
   } = useSettingsStore();
+  const { user, guestMode, signOut } = useAuthStore();
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -36,6 +38,48 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Account */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Account</Text>
+        {user ? (
+          <>
+            <View style={styles.row}>
+              {user.user_metadata?.avatar_url ? (
+                <Image source={{ uri: user.user_metadata.avatar_url }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                  <Ionicons name="person" size={18} color={Colors.textMuted} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label} numberOfLines={1}>
+                  {user.user_metadata?.full_name || user.user_metadata?.name || '사용자'}
+                </Text>
+                <Text style={styles.serverUrl}>{user.email || ''}</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.row}
+              onPress={() => {
+                Alert.alert('로그아웃', '정말 로그아웃하시겠습니까?', [
+                  { text: '취소', style: 'cancel' },
+                  { text: '로그아웃', style: 'destructive', onPress: signOut },
+                ]);
+              }}
+            >
+              <Ionicons name="log-out-outline" size={20} color={Colors.error} />
+              <Text style={[styles.label, { color: Colors.error }]}>로그아웃</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <View style={styles.row}>
+            <Ionicons name="person-outline" size={20} color={Colors.textSecondary} />
+            <Text style={styles.label}>비회원 모드</Text>
+            <Text style={styles.value}>로그인하면 클라우드 동기화 가능</Text>
+          </View>
+        )}
+      </View>
+
       {/* Server Status */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Analysis Server</Text>
@@ -310,5 +354,17 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     marginTop: Spacing.xs,
     paddingLeft: Spacing.xl + Spacing.md,
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  avatarPlaceholder: {
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
 });
