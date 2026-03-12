@@ -29,6 +29,10 @@ interface PlayerState {
   setTrackAnalysisStatus: (trackId: string, status: AnalysisStatus) => void;
   setTrackAnalysis: (trackId: string, analysis: AnalysisResult) => void;
 
+  // Sync
+  setTrackRemoteId: (trackId: string, remoteId: string) => void;
+  updateTrackData: (trackId: string, updates: Partial<Track>) => void;
+
   // Playback
   currentTrack: Track | null;
   setCurrentTrack: (track: Track) => void;
@@ -142,6 +146,28 @@ export const usePlayerStore = create<PlayerState>()(
           currentTrack:
             state.currentTrack?.id === trackId
               ? { ...state.currentTrack, analysis, analysisStatus: 'done' as AnalysisStatus }
+              : state.currentTrack,
+        })),
+
+      // Sync
+      setTrackRemoteId: (trackId, remoteId) =>
+        set((state) => ({
+          tracks: state.tracks.map((t) =>
+            t.id === trackId ? { ...t, remoteId } : t,
+          ),
+          currentTrack:
+            state.currentTrack?.id === trackId
+              ? { ...state.currentTrack, remoteId }
+              : state.currentTrack,
+        })),
+      updateTrackData: (trackId, updates) =>
+        set((state) => ({
+          tracks: state.tracks.map((t) =>
+            t.id === trackId ? { ...t, ...updates } : t,
+          ),
+          currentTrack:
+            state.currentTrack?.id === trackId
+              ? { ...state.currentTrack, ...updates }
               : state.currentTrack,
         })),
 
