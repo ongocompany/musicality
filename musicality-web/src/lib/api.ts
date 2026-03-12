@@ -19,6 +19,10 @@ import type {
   DirectMessage,
   ConversationThread,
   UserSocialContext,
+  ChatRoom,
+  ChatRoomMember,
+  ChatRoomMessage,
+  InboxItem,
 } from './types';
 
 // ─── Mappers (snake_case → camelCase) ───────────────────
@@ -984,4 +988,369 @@ export async function deleteMessage(supabase: SupabaseClient, messageId: string)
     .eq('id', messageId);
 
   if (error) throw new Error(error.message);
+}
+
+// ─── Group Chat Mappers ─────────────────────────────────
+
+function mapChatRoom(row: any): ChatRoom { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return {
+    id: row.id,
+    name: row.name ?? null,
+    type: row.type,
+    createdBy: row.created_by,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapChatRoomMember(row: any): ChatRoomMember { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    userId: row.user_id,
+    role: row.role,
+    joinedAt: row.joined_at,
+    removedAt: row.removed_at ?? null,
+  };
+}
+
+function mapChatRoomMessage(row: any): ChatRoomMessage { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    senderId: row.sender_id,
+    content: row.content,
+    messageType: row.message_type,
+    createdAt: row.created_at,
+  };
+}
+
+// ─── Group Chat: Room Operations ─────────────────────────
+
+export async function createChatRoom(
+  supabase: SupabaseClient,
+  memberIds: string[],
+  name?: string,
+  type: 'dm_converted' | 'group' = 'group',
+): Promise<string> {
+  const { data, error } = await supabase.rpc('create_chat_room', {
+    p_member_ids: memberIds,
+    p_name: name ?? null,
+    p_type: type,
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function sendRoomMessage(
+  supabase: SupabaseClient,
+  roomId: string,
+  content: string,
+): Promise<string> {
+  const { data, error } = await supabase.rpc('send_room_message', {
+    p_room_id: roomId,
+    p_content: content.trim(),
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function inviteToRoom(
+  supabase: SupabaseClient,
+  roomId: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('invite_to_room', {
+    p_room_id: roomId,
+    p_user_id: userId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function kickFromRoom(
+  supabase: SupabaseClient,
+  roomId: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('kick_from_room', {
+    p_room_id: roomId,
+    p_user_id: userId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function leaveRoom(supabase: SupabaseClient, roomId: string): Promise<void> {
+  const { error } = await supabase.rpc('leave_room', { p_room_id: roomId });
+  if (error) throw new Error(error.message);
+}
+
+export async function closeRoom(supabase: SupabaseClient, roomId: string): Promise<void> {
+  const { error } = await supabase.rpc('close_room', { p_room_id: roomId });
+  if (error) throw new Error(error.message);
+}
+
+export async function markRoomMessagesRead(supabase: SupabaseClient, roomId: string): Promise<void> {
+  const { error } = await supabase.rpc('mark_room_messages_read', { p_room_id: roomId });
+  if (error) throw new Error(error.message);
+}
+
+// ─── Group Chat: Queries ─────────────────────────────────
+
+export async function fetchRoomMessages(
+  supabase: SupabaseClient,
+  roomId: string,
+): Promise<ChatRoomMessage[]> {
+  const { data, error } = await supabase
+    .from('chat_room_messages')
+    .select('*')
+    .eq('room_id', roomId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+
+  const senderIds = [...new Set(rows.filter((r: any) => r.message_type === 'message').map((r: any) => r.sender_id))]; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const profileMap = await fetchProfilesByIds(supabase, senderIds);
+
+  return rows.map((row: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+    ...mapChatRoomMessage(row),
+    senderProfile: profileMap.get(row.sender_id),
+  }));
+}
+
+export async function fetchRoomMembers(
+  supabase: SupabaseClient,
+  roomId: string,
+): Promise<ChatRoomMember[]> {
+  const { data, error } = await supabase
+    .from('chat_room_members')
+    .select('*')
+    .eq('room_id', roomId)
+    .is('removed_at', null)
+    .order('joined_at', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.user_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapChatRoomMember(row), profile: profileMap.get(row.user_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+export async function fetchMyRooms(supabase: SupabaseClient): Promise<ChatRoom[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  // Get room IDs where user is active member
+  const { data: memberRows, error: memberErr } = await supabase
+    .from('chat_room_members')
+    .select('room_id')
+    .eq('user_id', user.id)
+    .is('removed_at', null);
+
+  if (memberErr) throw new Error(memberErr.message);
+  const roomIds = (memberRows ?? []).map((r: any) => r.room_id); // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (roomIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('chat_rooms')
+    .select('*')
+    .in('id', roomIds)
+    .eq('is_active', true)
+    .order('updated_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapChatRoom);
+}
+
+// ─── Unified Inbox ──────────────────────────────────────
+
+export async function fetchUnifiedInbox(supabase: SupabaseClient): Promise<InboxItem[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Fetch DM threads and room data in parallel
+  const [dmThreads, rooms] = await Promise.all([
+    fetchConversations(supabase),
+    fetchMyRooms(supabase),
+  ]);
+
+  const items: InboxItem[] = [];
+
+  // Add DM items
+  for (const thread of dmThreads) {
+    items.push({
+      type: 'dm',
+      lastActivityAt: thread.lastMessage.createdAt,
+      unreadCount: thread.unreadCount,
+      otherUserId: thread.otherUserId,
+      otherProfile: thread.otherProfile,
+      lastMessage: thread.lastMessage,
+    });
+  }
+
+  // Add room items — fetch last message + members + unread for each
+  if (rooms.length > 0) {
+    const roomIds = rooms.map((r) => r.id);
+
+    // Batch fetch last messages for all rooms
+    const { data: lastMsgRows } = await supabase
+      .from('chat_room_messages')
+      .select('*')
+      .in('room_id', roomIds)
+      .order('created_at', { ascending: false });
+
+    const lastMsgByRoom = new Map<string, any>(); // eslint-disable-line @typescript-eslint/no-explicit-any
+    for (const row of lastMsgRows ?? []) {
+      if (!lastMsgByRoom.has(row.room_id)) {
+        lastMsgByRoom.set(row.room_id, row);
+      }
+    }
+
+    // Batch fetch members for all rooms
+    const { data: memberRows } = await supabase
+      .from('chat_room_members')
+      .select('*')
+      .in('room_id', roomIds)
+      .is('removed_at', null);
+
+    const membersByRoom = new Map<string, any[]>(); // eslint-disable-line @typescript-eslint/no-explicit-any
+    for (const row of memberRows ?? []) {
+      if (!membersByRoom.has(row.room_id)) {
+        membersByRoom.set(row.room_id, []);
+      }
+      membersByRoom.get(row.room_id)!.push(row);
+    }
+
+    // Fetch profiles for all members
+    const allMemberIds = [...new Set((memberRows ?? []).map((r: any) => r.user_id))]; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const profileMap = await fetchProfilesByIds(supabase, allMemberIds);
+
+    // Batch fetch read cursors
+    const { data: readRows } = await supabase
+      .from('chat_room_reads')
+      .select('*')
+      .eq('user_id', user.id)
+      .in('room_id', roomIds);
+
+    const readByRoom = new Map<string, string>();
+    for (const row of readRows ?? []) {
+      readByRoom.set(row.room_id, row.last_read_at);
+    }
+
+    // Count unread per room
+    for (const room of rooms) {
+      const lastReadAt = readByRoom.get(room.id);
+      let unreadCount = 0;
+
+      if (lastReadAt) {
+        // Count messages after last_read_at
+        const { count } = await supabase
+          .from('chat_room_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('room_id', room.id)
+          .gt('created_at', lastReadAt);
+        unreadCount = count ?? 0;
+      } else {
+        // Never read — all messages are unread
+        const { count } = await supabase
+          .from('chat_room_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('room_id', room.id)
+          .eq('message_type', 'message');
+        unreadCount = count ?? 0;
+      }
+
+      const lastMsgRow = lastMsgByRoom.get(room.id);
+      const members = (membersByRoom.get(room.id) ?? []).map((row: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+        ...mapChatRoomMember(row),
+        profile: profileMap.get(row.user_id),
+      }));
+
+      items.push({
+        type: 'room',
+        lastActivityAt: lastMsgRow?.created_at ?? room.updatedAt,
+        unreadCount,
+        room,
+        roomMembers: members,
+        lastRoomMessage: lastMsgRow ? mapChatRoomMessage(lastMsgRow) : undefined,
+      });
+    }
+  }
+
+  // Sort by most recent activity
+  items.sort((a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime());
+
+  return items;
+}
+
+// ─── Combined Unread Count ──────────────────────────────
+
+export async function fetchTotalUnreadCount(supabase: SupabaseClient): Promise<number> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  // DM unread count
+  const { count: dmCount } = await supabase
+    .from('direct_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('recipient_id', user.id)
+    .is('read_at', null)
+    .eq('deleted_by_recipient', false);
+
+  // Room unread count: sum of unread messages across all rooms
+  let roomUnread = 0;
+
+  const { data: memberRows } = await supabase
+    .from('chat_room_members')
+    .select('room_id')
+    .eq('user_id', user.id)
+    .is('removed_at', null);
+
+  const roomIds = (memberRows ?? []).map((r: any) => r.room_id); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  if (roomIds.length > 0) {
+    // Check which rooms are active
+    const { data: activeRooms } = await supabase
+      .from('chat_rooms')
+      .select('id')
+      .in('id', roomIds)
+      .eq('is_active', true);
+
+    const activeRoomIds = (activeRooms ?? []).map((r: any) => r.id); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    if (activeRoomIds.length > 0) {
+      // Get read cursors
+      const { data: readRows } = await supabase
+        .from('chat_room_reads')
+        .select('room_id, last_read_at')
+        .eq('user_id', user.id)
+        .in('room_id', activeRoomIds);
+
+      const readByRoom = new Map<string, string>();
+      for (const row of readRows ?? []) {
+        readByRoom.set(row.room_id, row.last_read_at);
+      }
+
+      for (const roomId of activeRoomIds) {
+        const lastReadAt = readByRoom.get(roomId);
+        if (lastReadAt) {
+          const { count } = await supabase
+            .from('chat_room_messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('room_id', roomId)
+            .gt('created_at', lastReadAt);
+          roomUnread += count ?? 0;
+        } else {
+          const { count } = await supabase
+            .from('chat_room_messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('room_id', roomId)
+            .eq('message_type', 'message');
+          roomUnread += count ?? 0;
+        }
+      }
+    }
+  }
+
+  return (dmCount ?? 0) + roomUnread;
 }

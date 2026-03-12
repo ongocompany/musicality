@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase-client';
-import { fetchUnreadMessageCount } from '@/lib/api';
+import { fetchTotalUnreadCount } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 
 const POLL_INTERVAL = 10_000; // 10 seconds
@@ -26,7 +26,7 @@ export function useUnreadMessages() {
       return;
     }
     try {
-      const count = await fetchUnreadMessageCount(supabase);
+      const count = await fetchTotalUnreadCount(supabase);
       setUnreadCount(count);
     } catch {
       // ignore

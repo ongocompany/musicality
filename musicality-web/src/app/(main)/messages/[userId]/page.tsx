@@ -8,6 +8,7 @@ import {
   markMessagesRead,
   sendMessage,
   fetchProfilesByIds,
+  createChatRoom,
 } from '@/lib/api';
 import type { DirectMessage, Profile } from '@/lib/types';
 import { useAuth } from '@/hooks/use-auth';
@@ -15,6 +16,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { UserProfilePopover } from '@/components/social/user-profile-popover';
 import { triggerUnreadRefresh } from '@/hooks/use-unread-messages';
+import { parseSlashCommand } from '@/components/chat/slash-command-handler';
+import { InviteMemberDialog } from '@/components/chat/invite-member-dialog';
 
 function formatMessageTime(dateStr: string) {
   const d = new Date(dateStr);
@@ -53,6 +56,7 @@ export default function ConversationPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [showInvite, setShowInvite] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -108,6 +112,14 @@ export default function ConversationPage() {
     const content = inputText.trim();
     if (!content || sending) return;
 
+    // Check for /invite slash command — creates group room from 1:1 DM
+    const cmd = parseSlashCommand(content);
+    if (cmd?.type === 'invite') {
+      setInputText('');
+      setShowInvite(true);
+      return;
+    }
+
     setSending(true);
     try {
       await sendMessage(supabase, otherUserId, content);
@@ -122,6 +134,18 @@ export default function ConversationPage() {
       setSending(false);
       textareaRef.current?.focus();
     }
+  };
+
+  const handleDmInvite = async (inviteeId: string) => {
+    // Create group room with current DM partner + invitee
+    const roomId = await createChatRoom(
+      supabase,
+      [otherUserId, inviteeId],
+      undefined,
+      'dm_converted',
+    );
+    setShowInvite(false);
+    router.push(`/messages/room/${roomId}`);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -218,7 +242,7 @@ export default function ConversationPage() {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="메시지를 입력하세요..."
+            placeholder="메시지를 입력하세요... (/invite로 그룹채팅)"
             rows={1}
             className="flex-1 resize-none rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary max-h-24"
             style={{ minHeight: '40px' }}
@@ -243,6 +267,15 @@ export default function ConversationPage() {
           Enter로 전송 · Shift+Enter로 줄바꿈
         </p>
       </div>
+
+      {/* Invite dialog — creates group room from 1:1 DM */}
+      {showInvite && user && (
+        <InviteMemberDialog
+          existingMemberIds={[user.id, otherUserId]}
+          onInvite={handleDmInvite}
+          onClose={() => setShowInvite(false)}
+        />
+      )}
     </div>
   );
 }
