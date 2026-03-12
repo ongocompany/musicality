@@ -59,7 +59,7 @@ CREATE INDEX IF NOT EXISTS idx_crm_msg_room ON chat_room_messages(room_id, creat
 CREATE INDEX IF NOT EXISTS idx_crm_msg_sender ON chat_room_messages(sender_id);
 
 -- ══════════════════════════════════════════════════════════════
--- STEP 3: Enable RLS + Policies (all tables exist now)
+-- STEP 3: Enable RLS + Helper function + Policies
 -- ══════════════════════════════════════════════════════════════
 
 ALTER TABLE chat_rooms ENABLE ROW LEVEL SECURITY;
@@ -67,34 +67,35 @@ ALTER TABLE chat_room_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_room_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_room_reads ENABLE ROW LEVEL SECURITY;
 
+-- Helper: SECURITY DEFINER function to check membership (avoids RLS recursion)
+CREATE OR REPLACE FUNCTION is_room_member(p_room_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM chat_room_members
+    WHERE room_id = p_room_id
+      AND user_id = auth.uid()
+      AND removed_at IS NULL
+  );
+$$;
+
 -- chat_rooms: members can see rooms they belong to
 CREATE POLICY "rooms_select" ON chat_rooms FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM chat_room_members
-    WHERE chat_room_members.room_id = chat_rooms.id
-      AND chat_room_members.user_id = auth.uid()
-      AND chat_room_members.removed_at IS NULL
-  )
+  is_room_member(id)
 );
 
 -- chat_room_members: members can see other members in their rooms
 CREATE POLICY "room_members_select" ON chat_room_members FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM chat_room_members AS self
-    WHERE self.room_id = chat_room_members.room_id
-      AND self.user_id = auth.uid()
-      AND self.removed_at IS NULL
-  )
+  is_room_member(room_id)
 );
 
 -- chat_room_messages: members can see messages in their rooms
 CREATE POLICY "room_messages_select" ON chat_room_messages FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM chat_room_members
-    WHERE chat_room_members.room_id = chat_room_messages.room_id
-      AND chat_room_members.user_id = auth.uid()
-      AND chat_room_members.removed_at IS NULL
-  )
+  is_room_member(room_id)
 );
 
 -- chat_room_reads: users can only see/manage their own reads
