@@ -4,6 +4,7 @@ import tempfile
 
 import numpy as np
 import librosa
+import acoustid
 from madmom.features.beats import RNNBeatProcessor, DBNBeatTrackingProcessor
 from madmom.features.downbeats import RNNDownBeatProcessor, DBNDownBeatTrackingProcessor
 
@@ -121,6 +122,14 @@ def _do_analysis(audio_path: str) -> AnalysisResult:
     max_amp = max(frames) if frames else 1.0
     waveform_peaks = [round(f / max_amp, 3) for f in frames]
 
+    # 8. Audio fingerprint (Chromaprint) for track identification
+    fingerprint = ""
+    try:
+        _, fp_encoded = acoustid.fingerprint_file(audio_path)
+        fingerprint = fp_encoded.decode('utf-8') if isinstance(fp_encoded, bytes) else str(fp_encoded)
+    except Exception:
+        pass  # graceful degradation — fingerprint is optional
+
     return AnalysisResult(
         bpm=round(tempo, 1),
         beats=beats_list,
@@ -131,6 +140,7 @@ def _do_analysis(audio_path: str) -> AnalysisResult:
         sections=sections,
         phrase_boundaries=phrase_boundaries,
         waveform_peaks=waveform_peaks,
+        fingerprint=fingerprint,
     )
 
 
