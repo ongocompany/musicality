@@ -9,10 +9,12 @@ import { analyzeTrackWeb } from '@/services/analysis-api';
 import { WaveformBar } from '@/components/player/waveform-bar';
 import { CountDisplay } from '@/components/player/count-display';
 import { PhraseGrid } from '@/components/player/phrase-grid';
+import { TapTempoPanel } from '@/components/player/tap-tempo-panel';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { DanceStyle } from '@/utils/beat-counter';
 import { computePhraseMap, phrasesFromBeatIndices, extractBoundaries, type PhraseMap } from '@/utils/phrase-detector';
+import { generateSyntheticAnalysis } from '@/utils/beat-generator';
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -76,6 +78,7 @@ export default function PlayerPage() {
   const [cellNotes, setCellNotes] = useState<Record<string, string>>({});
   const [userBoundaries, setUserBoundaries] = useState<number[] | null>(null);
   const [showGrid, setShowGrid] = useState(true);
+  const [showTapTempo, setShowTapTempo] = useState(false);
 
   // Reset offset & phrase data when track changes
   useEffect(() => {
@@ -188,6 +191,44 @@ export default function PlayerPage() {
       }
     },
     [loopStart, loopEnd, setLoopStart, setLoopEnd, clearLoop],
+  );
+
+  // ─── Apply tap tempo BPM ────────────────────────────────
+
+  const handleApplyTapBpm = useCallback(
+    (tapBpm: number) => {
+      if (!currentTrack || duration <= 0) return;
+
+      // Use current position as anchor point (the "beat 1")
+      const anchorMs = position;
+      const synth = generateSyntheticAnalysis(tapBpm, duration, anchorMs);
+
+      // Apply as analysis on current track
+      updateTrack(currentTrack.id, {
+        analysisStatus: 'done',
+        analysis: {
+          ...synth,
+          trackId: currentTrack.id,
+        },
+      });
+
+      // Set offset to the anchor beat index
+      const anchorSec = anchorMs / 1000;
+      let bestIdx = 0;
+      let bestDist = Math.abs(synth.beats[0] - anchorSec);
+      for (let i = 1; i < synth.beats.length; i++) {
+        const dist = Math.abs(synth.beats[i] - anchorSec);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = i;
+        } else break;
+      }
+      setOffsetBeatIndex(bestIdx);
+
+      // Reset user phrase boundaries since we have new beats
+      setUserBoundaries(null);
+    },
+    [currentTrack, duration, position, updateTrack],
   );
 
   // ─── File handling ──────────────────────────────────────
@@ -565,6 +606,16 @@ export default function PlayerPage() {
                 />
               )}
 
+              {/* Tap Tempo Panel */}
+              {currentTrack && (
+                <TapTempoPanel
+                  onApplyBpm={handleApplyTapBpm}
+                  currentBpm={analysis?.bpm ?? null}
+                  expanded={showTapTempo}
+                  onToggle={() => setShowTapTempo(!showTapTempo)}
+                />
+              )}
+
               {/* PhraseGrid (when analyzed) */}
               {hasBeats && phraseMap && (
                 <div className="space-y-1">
@@ -922,6 +973,7 @@ export default function PlayerPage() {
       <div className="text-center text-xs text-muted-foreground space-x-4">
         <span>Space: Play/Pause</span>
         <span>←→: ±5 sec</span>
+        <span>T: Tap Tempo</span>
       </div>
     </div>
   );
