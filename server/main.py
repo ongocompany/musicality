@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 # Numpy compatibility shim — madmom's compiled Cython extensions use np.int/np.float
 # which were removed in NumPy 1.24+. Restore them before any madmom import.
 import numpy as np

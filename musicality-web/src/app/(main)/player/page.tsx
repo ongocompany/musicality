@@ -81,6 +81,28 @@ export default function PlayerPage() {
   const [userBoundaries, setUserBoundaries] = useState<number[] | null>(null);
   const [showGrid, setShowGrid] = useState(true);
   const [showTapTempo, setShowTapTempo] = useState(false);
+  const [analysisElapsed, setAnalysisElapsed] = useState(0);
+  const analysisTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Track analysis elapsed time
+  const isAnalyzing = currentTrack?.analysisStatus === 'analyzing';
+  useEffect(() => {
+    if (isAnalyzing) {
+      setAnalysisElapsed(0);
+      analysisTimerRef.current = setInterval(() => {
+        setAnalysisElapsed((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (analysisTimerRef.current) {
+        clearInterval(analysisTimerRef.current);
+        analysisTimerRef.current = null;
+      }
+      setAnalysisElapsed(0);
+    }
+    return () => {
+      if (analysisTimerRef.current) clearInterval(analysisTimerRef.current);
+    };
+  }, [isAnalyzing]);
 
   // Reset offset & phrase data when track changes
   useEffect(() => {
@@ -756,6 +778,19 @@ export default function PlayerPage() {
                 </Button>
               </div>
 
+              {/* Analysis progress bar */}
+              {currentTrack.analysisStatus === 'analyzing' && (
+                <div className="w-full rounded-full h-1.5 bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full animate-pulse"
+                    style={{
+                      width: `${Math.min(95, analysisElapsed * 1.5)}%`,
+                      transition: 'width 1s linear',
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Secondary controls */}
               <div className="flex items-center justify-center gap-3 flex-wrap">
                 {/* Analyze button */}
@@ -770,9 +805,15 @@ export default function PlayerPage() {
                   </Button>
                 )}
                 {currentTrack.analysisStatus === 'analyzing' && (
-                  <span className="text-xs text-muted-foreground animate-pulse">
-                    Analyzing...
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <span className="text-xs text-muted-foreground">
+                      Analyzing... {analysisElapsed > 0 && `${analysisElapsed}s`}
+                    </span>
+                  </div>
                 )}
                 {currentTrack.analysisStatus === 'error' && (
                   <Button
@@ -941,7 +982,16 @@ export default function PlayerPage() {
                         ? ` · ${(track.fileSize / (1024 * 1024)).toFixed(1)} MB`
                         : ''}
                       {track.analysis ? ` · ${Math.round(track.analysis.bpm)} BPM` : ''}
-                      {track.analysisStatus === 'analyzing' && ' · Analyzing...'}
+                      {track.analysisStatus === 'analyzing' && (
+                        <>
+                          {' · '}
+                          <svg className="inline animate-spin h-3 w-3 text-primary ml-0.5 mr-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Analyzing...
+                        </>
+                      )}
                       {track.remoteTrack ? ' · ☁️' : ''}
                       {!track.file && !track.youtubeVideoId && ' · 📂 needs file'}
                     </p>
