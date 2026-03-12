@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useWebPlayerStore, type LocalTrack } from '@/stores/web-player-store';
 import { useWebAudioPlayer } from '@/hooks/use-web-audio-player';
 import { analyzeTrackWeb } from '@/services/analysis-api';
 import { WaveformBar } from '@/components/player/waveform-bar';
 import { CountDisplay } from '@/components/player/count-display';
+import { PhraseGrid } from '@/components/player/phrase-grid';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { DanceStyle } from '@/utils/beat-counter';
+import { computePhraseMap, phrasesFromBeatIndices, extractBoundaries, type PhraseMap } from '@/utils/phrase-detector';
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -58,11 +60,122 @@ export default function PlayerPage() {
   const [danceStyle, setDanceStyle] = useState<DanceStyle>('bachata');
   const [offsetBeatIndex, setOffsetBeatIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [cellNotes, setCellNotes] = useState<Record<string, string>>({});
+  const [userBoundaries, setUserBoundaries] = useState<number[] | null>(null);
+  const [showGrid, setShowGrid] = useState(true);
 
-  // Reset offset when track changes
+  // Reset offset & phrase data when track changes
   useEffect(() => {
     setOffsetBeatIndex(null);
+    setCellNotes({});
+    setUserBoundaries(null);
   }, [currentTrack?.id]);
+
+  // ─── Phrase map ───────────────────────────────────────
+
+  const phraseMap: PhraseMap | null = useMemo(() => {
+    if (!currentTrack?.analysis) return null;
+    const { beats, downbeats, phraseBoundaries, sections } = currentTrack.analysis;
+    if (beats.length === 0) return null;
+
+    // User-defined boundaries take priority
+    if (userBoundaries) {
+      return phrasesFromBeatIndices(userBoundaries, beats);
+    }
+
+    return computePhraseMap(
+      beats,
+      downbeats,
+      offsetBeatIndex,
+      phraseBoundaries,
+      sections,
+    );
+  }, [currentTrack?.analysis, offsetBeatIndex, userBoundaries]);
+
+  // ─── Phrase grid handlers ─────────────────────────────
+
+  const handleSeekAndPlay = useCallback(
+    (beatTimeMs: number) => {
+      seekTo(beatTimeMs);
+      if (!isPlaying) togglePlay();
+    },
+    [seekTo, isPlaying, togglePlay],
+  );
+
+  const handleSeekOnly = useCallback(
+    (beatTimeMs: number) => {
+      seekTo(beatTimeMs);
+    },
+    [seekTo],
+  );
+
+  const handleStartPhraseHere = useCallback(
+    (globalBeatIndex: number) => {
+      if (!phraseMap) return;
+      const existing = extractBoundaries(phraseMap);
+      // Add new boundary, remove any within ±4 beats
+      const filtered = existing.filter((b) => Math.abs(b - globalBeatIndex) > 4);
+      filtered.push(globalBeatIndex);
+      filtered.sort((a, b) => a - b);
+      setUserBoundaries(filtered);
+    },
+    [phraseMap],
+  );
+
+  const handleMergeWithPrevious = useCallback(
+    (globalBeatIndex: number) => {
+      if (!phraseMap) return;
+      const existing = extractBoundaries(phraseMap);
+      // Remove the boundary that is closest to (or equal to) globalBeatIndex
+      let closestIdx = -1;
+      let closestDist = Infinity;
+      for (let i = 0; i < existing.length; i++) {
+        const d = Math.abs(existing[i] - globalBeatIndex);
+        if (d < closestDist && existing[i] > 0) {
+          closestDist = d;
+          closestIdx = i;
+        }
+      }
+      if (closestIdx >= 0 && closestDist <= 8) {
+        const filtered = existing.filter((_, i) => i !== closestIdx);
+        setUserBoundaries(filtered.length > 0 ? filtered : null);
+      }
+    },
+    [phraseMap],
+  );
+
+  const handleSetCellNote = useCallback(
+    (beatIndex: number, note: string) => {
+      setCellNotes((prev) => ({ ...prev, [String(beatIndex)]: note }));
+    },
+    [],
+  );
+
+  const handleClearCellNote = useCallback(
+    (beatIndex: number) => {
+      setCellNotes((prev) => {
+        const next = { ...prev };
+        delete next[String(beatIndex)];
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleSetLoopFromBeat = useCallback(
+    (beatTimeMs: number) => {
+      if (loopStart === null) {
+        setLoopStart(beatTimeMs);
+      } else if (loopEnd === null && beatTimeMs > loopStart) {
+        setLoopEnd(beatTimeMs);
+      } else {
+        // Reset and set new A
+        clearLoop();
+        setLoopStart(beatTimeMs);
+      }
+    },
+    [loopStart, loopEnd, setLoopStart, setLoopEnd, clearLoop],
+  );
 
   // ─── File handling ──────────────────────────────────────
 
@@ -320,6 +433,48 @@ export default function PlayerPage() {
                   sections={analysis!.sections}
                   bpm={analysis!.bpm}
                 />
+              )}
+
+              {/* PhraseGrid (when analyzed) */}
+              {hasBeats && phraseMap && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <button
+                      className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => setShowGrid(!showGrid)}
+                    >
+                      {showGrid ? '▼ Phrase Grid' : '▶ Phrase Grid'}
+                    </button>
+                    {userBoundaries && (
+                      <button
+                        className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={() => setUserBoundaries(null)}
+                        title="Reset to auto-detected phrases"
+                      >
+                        Reset Phrases
+                      </button>
+                    )}
+                  </div>
+                  {showGrid && (
+                    <PhraseGrid
+                      positionMs={position}
+                      beats={analysis!.beats}
+                      phraseMap={phraseMap}
+                      isPlaying={isPlaying}
+                      onSeekAndPlay={handleSeekAndPlay}
+                      onSeekOnly={handleSeekOnly}
+                      onStartPhraseHere={handleStartPhraseHere}
+                      onMergeWithPrevious={handleMergeWithPrevious}
+                      onSetLoopPoint={handleSetLoopFromBeat}
+                      onClearLoop={clearLoop}
+                      loopStart={loopStart}
+                      loopEnd={loopEnd}
+                      cellNotes={cellNotes}
+                      onSetCellNote={handleSetCellNote}
+                      onClearCellNote={handleClearCellNote}
+                    />
+                  )}
+                </div>
               )}
 
               {/* Waveform or simple seek bar */}
