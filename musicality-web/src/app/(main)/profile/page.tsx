@@ -73,10 +73,12 @@ export default function ProfilePage() {
   const loadCalendar = useCallback(async (y: number, m: number) => {
     setCalLoading(true);
     try {
-      const [personal, saved] = await Promise.all([
+      const [personalResult, savedResult] = await Promise.allSettled([
         fetchPersonalEvents(supabase, y, m),
         fetchSavedEvents(supabase, y, m),
       ]);
+      const personal = personalResult.status === 'fulfilled' ? personalResult.value : [];
+      const saved = savedResult.status === 'fulfilled' ? savedResult.value : [];
       // Merge: personal + saved crew events
       setMyEvents([...personal, ...saved].sort((a, b) => {
         if (a.eventDate !== b.eventDate) return a.eventDate.localeCompare(b.eventDate);

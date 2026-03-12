@@ -1393,7 +1393,7 @@ export async function fetchCrewEvents(
 
   const { data, error } = await supabase
     .from('events')
-    .select('*, profiles:created_by(id, display_name, nickname, avatar_url)')
+    .select('*')
     .eq('crew_id', crewId)
     .gte('event_date', startDate)
     .lt('event_date', endDate)
@@ -1441,7 +1441,7 @@ export async function fetchSavedEvents(
 
   const { data, error } = await supabase
     .from('user_saved_events')
-    .select('event_id, events:event_id(*, profiles:created_by(id, display_name, nickname, avatar_url), crews:crew_id(name))')
+    .select('event_id, events:event_id(*, crews:crew_id(name))')
     .gte('events.event_date', startDate)
     .lt('events.event_date', endDate);
 

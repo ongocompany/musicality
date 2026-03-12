@@ -754,12 +754,12 @@ export default function CrewDetailPage({ params }: { params: Promise<{ id: strin
   const loadCalendar = useCallback(async (y: number, m: number) => {
     setCalLoading(true);
     try {
-      const [events, savedIds] = await Promise.all([
+      const [eventsResult, savedIdsResult] = await Promise.allSettled([
         fetchCrewEvents(supabase, id, y, m),
         fetchUserSavedEventIds(supabase),
       ]);
-      setCalEvents(events);
-      setSavedEventIds(savedIds);
+      setCalEvents(eventsResult.status === 'fulfilled' ? eventsResult.value : []);
+      setSavedEventIds(savedIdsResult.status === 'fulfilled' ? savedIdsResult.value : new Set());
     } catch (err) {
       console.error(err);
     } finally {
