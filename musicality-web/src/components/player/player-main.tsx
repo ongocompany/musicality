@@ -154,7 +154,7 @@ export function PlayerMain({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
+    <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
       <div className="max-w-2xl mx-auto space-y-4">
         {/* Track title */}
         <div className="text-center">
@@ -297,6 +297,7 @@ export function PlayerMain({
               duration={duration}
               loopStart={loopStart}
               loopEnd={loopEnd}
+              phraseMap={phraseMap}
               onSeek={seekTo}
               onSeekStart={() => setIsSeeking(true)}
               onSeekEnd={() => setIsSeeking(false)}

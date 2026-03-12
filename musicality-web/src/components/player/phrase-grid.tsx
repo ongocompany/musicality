@@ -224,10 +224,13 @@ export function PhraseGrid({
 
   const totalHeight = totalRows * rowHeight;
 
+  // Grid content width when cells are at max size
+  const gridContentWidth = COLS * cellSize + (COLS + 1) * gap;
+
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       {/* Phrase header */}
-      <div className="flex items-center justify-between px-1 mb-1.5">
+      <div className="flex items-center justify-between px-1 mb-1.5" style={{ maxWidth: gridContentWidth, margin: '0 auto 6px' }}>
         <span className="text-[11px] font-medium text-muted-foreground">
           {currentPhrase
             ? `Phrase ${currentPhrase.index + 1} / ${phraseMap?.phrases.length ?? 0}`
@@ -243,8 +246,8 @@ export function PhraseGrid({
       {/* Scrollable grid area */}
       <div
         ref={scrollRef}
-        className="overflow-y-auto overflow-x-hidden"
-        style={{ maxHeight: MAX_VISIBLE_ROWS * rowHeight + 'px' }}
+        className="overflow-y-auto overflow-x-hidden mx-auto"
+        style={{ maxHeight: MAX_VISIBLE_ROWS * rowHeight + 'px', maxWidth: gridContentWidth }}
         onScroll={handleScroll}
       >
         <div style={{ height: totalHeight, position: 'relative' }}>
