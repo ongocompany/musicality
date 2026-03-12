@@ -186,6 +186,9 @@ export function Header() {
                 </Avatar>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
+                <Link href="/player">
+                  <DropdownMenuItem className="cursor-pointer">Player</DropdownMenuItem>
+                </Link>
                 <Link href="/crews">
                   <DropdownMenuItem className="cursor-pointer">My Crews</DropdownMenuItem>
                 </Link>

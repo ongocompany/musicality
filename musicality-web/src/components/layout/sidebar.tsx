@@ -16,6 +16,7 @@ import {
 
 const NAV_ITEMS = [
   { href: '/', label: 'Discover', icon: '🔍' },
+  { href: '/player', label: 'Player', icon: '🎵' },
   { href: '/crews', label: 'My Crews', icon: '👥', auth: true },
   { href: '/messages', label: 'Messages', icon: '💬', auth: true },
   { href: '/calendar', label: 'Calendar', icon: '📅', auth: true },
