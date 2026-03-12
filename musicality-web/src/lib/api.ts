@@ -359,6 +359,12 @@ export async function touchLastActive(supabase: SupabaseClient): Promise<void> {
   await supabase.rpc('touch_last_active');
 }
 
+/** Delete the current user's account. Fails if user is captain of any crew. */
+export async function deleteMyAccount(supabase: SupabaseClient): Promise<void> {
+  const { error } = await supabase.rpc('delete_my_account');
+  if (error) throw new Error(error.message);
+}
+
 // ─── Join Requests ──────────────────────────────────────
 
 export async function requestJoinCrew(supabase: SupabaseClient, crewId: string, message?: string): Promise<void> {

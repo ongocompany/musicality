@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase-client';
-import { updateProfile, uploadProfileAvatar, fetchMyCrews, checkNicknameAvailable } from '@/lib/api';
+import { updateProfile, uploadProfileAvatar, fetchMyCrews, checkNicknameAvailable, deleteMyAccount } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { CrewCard } from '@/components/crew/crew-card';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,11 @@ export default function ProfilePage() {
   // Nickname availability
   const [nicknameStatus, setNicknameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [nicknameTimer, setNicknameTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  // Account deletion
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -97,11 +103,11 @@ export default function ProfilePage() {
 
   async function handleSave() {
     if (nicknameStatus === 'taken') {
-      toast.error('Nickname is already taken');
+      toast.error('이미 사용 중인 닉네임입니다');
       return;
     }
     if (nickname && !/^[a-zA-Z0-9_]{2,20}$/.test(nickname)) {
-      toast.error('Nickname must be 2-20 characters (letters, numbers, underscore)');
+      toast.error('닉네임은 2-20자, 영문/숫자/밑줄만 가능합니다');
       return;
     }
 
@@ -115,9 +121,9 @@ export default function ProfilePage() {
       });
       await refreshProfile();
       setNicknameStatus('idle');
-      toast.success('Profile updated!');
+      toast.success('프로필이 저장되었습니다!');
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed');
+      toast.error(err instanceof Error ? err.message : '저장 실패');
     } finally {
       setSaving(false);
     }
@@ -130,15 +136,35 @@ export default function ProfilePage() {
       const url = await uploadProfileAvatar(supabase, file);
       await updateProfile(supabase, { avatarUrl: url });
       await refreshProfile();
-      toast.success('Avatar updated!');
+      toast.success('프로필 사진이 변경되었습니다!');
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed');
+      toast.error(err instanceof Error ? err.message : '실패');
     }
   }
 
   async function handleSignOut() {
     await signOut();
     router.push('/');
+  }
+
+  // Check if user is captain of any crew
+  const captainCrews = crews.filter((c) => c.captainId === user?.id);
+  const isCaptainOfAny = captainCrews.length > 0;
+
+  async function handleDeleteAccount() {
+    if (deleteConfirmText !== '탈퇴') return;
+
+    setDeleting(true);
+    try {
+      await deleteMyAccount(supabase);
+      toast.success('계정이 삭제되었습니다. 이용해주셔서 감사합니다.');
+      await supabase.auth.signOut();
+      router.push('/');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '계정 삭제 실패');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   if (authLoading) {
@@ -165,7 +191,7 @@ export default function ProfilePage() {
                 </AvatarFallback>
               </Avatar>
               <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-white text-xs">Edit</span>
+                <span className="text-white text-xs">변경</span>
               </div>
               <input
                 type="file"
@@ -185,7 +211,7 @@ export default function ProfilePage() {
 
           {/* Display Name */}
           <div className="space-y-2">
-            <Label>Display Name</Label>
+            <Label>이름</Label>
             <Input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -196,9 +222,9 @@ export default function ProfilePage() {
           {/* Nickname */}
           <div className="space-y-2">
             <Label>
-              Nickname
+              닉네임
               <span className="text-xs text-muted-foreground ml-2">
-                (unique across all crews)
+                (모든 크루에서 고유)
               </span>
             </Label>
             <div className="relative">
@@ -217,22 +243,22 @@ export default function ProfilePage() {
                   nicknameStatus === 'available' && "text-green-400",
                   nicknameStatus === 'taken' && "text-destructive",
                 )}>
-                  {nicknameStatus === 'checking' && 'Checking...'}
-                  {nicknameStatus === 'available' && 'Available'}
-                  {nicknameStatus === 'taken' && 'Taken'}
+                  {nicknameStatus === 'checking' && '확인중...'}
+                  {nicknameStatus === 'available' && '사용 가능 ✓'}
+                  {nicknameStatus === 'taken' && '이미 사용중'}
                 </span>
               )}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              2-20 characters. Letters, numbers, underscore only.
+              2-20자. 영문, 숫자, 밑줄(_)만 사용 가능
             </p>
           </div>
 
           {/* Phone */}
           <div className="space-y-2">
             <Label>
-              Phone
-              <span className="text-xs text-muted-foreground ml-2">(optional)</span>
+              전화번호
+              <span className="text-xs text-muted-foreground ml-2">(선택)</span>
             </Label>
             <Input
               type="tel"
@@ -245,7 +271,7 @@ export default function ProfilePage() {
 
           {/* Dance Style */}
           <div className="space-y-2">
-            <Label>Dance Style</Label>
+            <Label>댄스 스타일</Label>
             <div className="flex gap-2 flex-wrap">
               {DANCE_STYLES.map((s) => (
                 <Badge
@@ -261,7 +287,7 @@ export default function ProfilePage() {
           </div>
 
           <Button onClick={handleSave} disabled={saving || nicknameStatus === 'taken'} className="w-full">
-            {saving ? 'Saving...' : 'Save Profile'}
+            {saving ? '저장 중...' : '프로필 저장'}
           </Button>
         </CardContent>
       </Card>
@@ -269,7 +295,7 @@ export default function ProfilePage() {
       {/* My Crews */}
       {crews.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold">My Crews</h2>
+          <h2 className="text-lg font-semibold">내 크루</h2>
           {crews.map((crew) => (
             <CrewCard
               key={crew.id}
@@ -281,8 +307,83 @@ export default function ProfilePage() {
       )}
 
       <Button variant="outline" className="w-full" onClick={handleSignOut}>
-        Sign Out
+        로그아웃
       </Button>
+
+      {/* Delete Account */}
+      <Separator />
+
+      <Card className="border-destructive/30">
+        <CardContent className="p-6 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-destructive">계정 삭제</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              계정을 삭제하면 모든 데이터(프로필, 게시글, 크루 멤버십)가 영구 삭제되며 복구할 수 없습니다.
+            </p>
+          </div>
+
+          {isCaptainOfAny && (
+            <div className="rounded-md bg-orange-500/10 border border-orange-500/30 p-3">
+              <p className="text-xs text-orange-400 font-medium">
+                ⚠️ 크루 캡틴 안내
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                현재 다음 크루의 캡틴입니다. 탈퇴 전에 캡틴 권한을 양도하거나 크루를 삭제해주세요.
+              </p>
+              <ul className="mt-2 space-y-1">
+                {captainCrews.map((c) => (
+                  <li key={c.id} className="text-xs text-orange-400">
+                    • {c.name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {!showDeleteConfirm ? (
+            <Button
+              variant="outline"
+              className="w-full border-destructive/50 text-destructive hover:bg-destructive/10"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={isCaptainOfAny}
+            >
+              {isCaptainOfAny ? '캡틴 권한 양도 후 탈퇴 가능' : '계정 삭제'}
+            </Button>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                정말 탈퇴하시겠습니까? 확인을 위해 아래에 <strong className="text-foreground">&quot;탈퇴&quot;</strong>를 입력해주세요.
+              </p>
+              <Input
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="탈퇴"
+                className="border-destructive/50"
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setDeleteConfirmText('');
+                  }}
+                >
+                  취소
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  disabled={deleteConfirmText !== '탈퇴' || deleting}
+                  onClick={handleDeleteAccount}
+                >
+                  {deleting ? '삭제 중...' : '계정 영구 삭제'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
