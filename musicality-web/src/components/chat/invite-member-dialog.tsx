@@ -34,6 +34,7 @@ export function InviteMemberDialog({ existingMemberIds, onInvite, onClose }: Pro
   const [candidates, setCandidates] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   // Crew tab state
   const [crews, setCrews] = useState<CrewOption[]>([]);
@@ -94,7 +95,7 @@ export function InviteMemberDialog({ existingMemberIds, onInvite, onClose }: Pro
     } else {
       loadCrews();
     }
-  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tab, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (tab === 'crew' && selectedCrewId) {
@@ -104,12 +105,17 @@ export function InviteMemberDialog({ existingMemberIds, onInvite, onClose }: Pro
 
   const handleInvite = async (userId: string) => {
     setInviting(userId);
+    setFeedback(null);
     try {
       await onInvite(userId);
       // Remove from list after successful invite
       setCandidates((prev) => prev.filter((p) => p.id !== userId));
-    } catch {
-      // ignore
+      setFeedback('초대했습니다!');
+      setTimeout(() => setFeedback(null), 2000);
+    } catch (err) {
+      console.error('invite failed:', err);
+      setFeedback('초대에 실패했습니다. 다시 시도해주세요.');
+      setTimeout(() => setFeedback(null), 3000);
     } finally {
       setInviting(null);
     }
@@ -167,6 +173,15 @@ export function InviteMemberDialog({ existingMemberIds, onInvite, onClose }: Pro
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+          </div>
+        )}
+
+        {/* Feedback */}
+        {feedback && (
+          <div className={`px-4 py-2 text-xs text-center ${
+            feedback.includes('실패') ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-600'
+          }`}>
+            {feedback}
           </div>
         )}
 
