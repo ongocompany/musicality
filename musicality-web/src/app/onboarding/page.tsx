@@ -153,7 +153,11 @@ export default function OnboardingPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-8">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-2xl font-bold">프로필 설정</CardTitle>
+          <div className="mb-2">
+            <span className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Ritmo</span>
+            <p className="text-[10px] text-muted-foreground tracking-widest uppercase">Vibe with crew</p>
+          </div>
+          <CardTitle className="text-lg font-bold">프로필 설정</CardTitle>
           <CardDescription>
             커뮤니티에서 사용할 프로필을 완성해주세요
           </CardDescription>

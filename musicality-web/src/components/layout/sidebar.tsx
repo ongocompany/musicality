@@ -29,8 +29,10 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex h-14 items-center px-4 border-b border-border">
         <Link href="/" className="flex items-center gap-2">
-          <span className="text-xl">🎵</span>
-          <span className="font-bold text-lg text-sidebar-foreground">Musicality</span>
+          <div>
+            <span className="font-bold text-lg bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Ritmo</span>
+            <p className="text-[9px] text-muted-foreground tracking-widest uppercase leading-none">Vibe with crew</p>
+          </div>
         </Link>
       </div>
 

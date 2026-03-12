@@ -41,9 +41,10 @@ function LoginForm() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center space-y-2">
           <CardTitle className="text-3xl font-bold tracking-tight">
-            🎵 Musicality
+            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Ritmo</span>
           </CardTitle>
-          <CardDescription className="text-sm">
+          <p className="text-xs text-muted-foreground tracking-widest uppercase">Vibe with crew</p>
+          <CardDescription className="text-sm pt-2">
             소셜 계정으로 시작하세요
           </CardDescription>
         </CardHeader>

@@ -85,9 +85,12 @@ export function Header() {
             searchOpen ? 'opacity-0 w-0 overflow-hidden sm:opacity-100 sm:w-auto' : '',
           )}
         >
-          <span className="font-bold text-lg bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Ritmo
-          </span>
+          <div>
+            <span className="font-bold text-lg bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Ritmo
+            </span>
+            <p className="text-[9px] text-muted-foreground tracking-widest uppercase leading-none hidden sm:block">Vibe with crew</p>
+          </div>
         </Link>
 
         {/* Right side: search bar + auth */}

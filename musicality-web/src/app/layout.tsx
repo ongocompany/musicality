@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Musicality Community',
+  title: 'Ritmo — Vibe with crew',
   description:
-    'Share PhraseNotes, join dance crews, and collaborate with dancers worldwide.',
+    'Share PhraseNotes, join dance crews, and vibe with dancers worldwide.',
 };
 
 export default function RootLayout({
