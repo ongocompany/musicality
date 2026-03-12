@@ -8,12 +8,12 @@ import type { Crew, MemberRole } from '@/lib/types';
 import { ROLE_CONFIG } from '@/lib/types';
 import { cn, countryToFlag } from '@/lib/utils';
 
-const ROLE_BORDER: Record<MemberRole, string> = {
-  captain:   'border-red-500/50 hover:border-red-500/80',
-  moderator: 'border-orange-500/50 hover:border-orange-500/80',
-  regular:   'border-purple-500/50 hover:border-purple-500/80',
-  member:    'border-blue-500/50 hover:border-blue-500/80',
-  seedling:  'border-green-500/50 hover:border-green-500/80',
+const ROLE_RING: Record<MemberRole, string> = {
+  captain:   'ring-red-500/50 hover:ring-red-500/80',
+  moderator: 'ring-orange-500/50 hover:ring-orange-500/80',
+  regular:   'ring-purple-500/50 hover:ring-purple-500/80',
+  member:    'ring-blue-500/50 hover:ring-blue-500/80',
+  seedling:  'ring-green-500/50 hover:ring-green-500/80',
 };
 
 interface CrewCardProps {
@@ -27,8 +27,8 @@ export function CrewCard({ crew, memberRole }: CrewCardProps) {
   return (
     <Link href={`/crews/${crew.id}`}>
       <Card className={cn(
-        "hover:border-primary/50 transition-colors cursor-pointer h-full",
-        memberRole && ROLE_BORDER[memberRole],
+        "hover:ring-primary/50 transition-colors cursor-pointer h-full",
+        memberRole && ROLE_RING[memberRole],
       )}>
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
