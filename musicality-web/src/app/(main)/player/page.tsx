@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import type { DanceStyle } from '@/utils/beat-counter';
 import { computePhraseMap, phrasesFromBeatIndices, extractBoundaries, type PhraseMap } from '@/utils/phrase-detector';
 import { generateSyntheticAnalysis } from '@/utils/beat-generator';
+import { useTrackSync } from '@/hooks/use-track-sync';
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ export default function PlayerPage() {
   const audioPlayer = useWebAudioPlayer();
   const videoPlayer = useWebVideoPlayer();
   const ytPlayer = useWebYouTubePlayer();
+  const trackSync = useTrackSync();
 
   // Unified controls based on current media type
   const mediaType = currentTrack?.mediaType ?? 'audio';
@@ -447,6 +449,24 @@ export default function PlayerPage() {
             onClick={() => fileInputRef.current?.click()}
           >
             + Add Files
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => trackSync.syncAllToCloud()}
+            disabled={trackSync.syncStatus === 'syncing'}
+            title="Upload all analyzed tracks to cloud"
+          >
+            {trackSync.syncStatus === 'syncing' ? '⏳' : '☁️↑'} Sync
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => trackSync.loadFromCloud()}
+            disabled={trackSync.syncStatus === 'syncing'}
+            title="Load tracks from cloud"
+          >
+            {trackSync.syncStatus === 'syncing' ? '⏳' : '☁️↓'} Load
           </Button>
         </div>
         <input
@@ -922,6 +942,8 @@ export default function PlayerPage() {
                         : ''}
                       {track.analysis ? ` · ${Math.round(track.analysis.bpm)} BPM` : ''}
                       {track.analysisStatus === 'analyzing' && ' · Analyzing...'}
+                      {track.remoteTrack ? ' · ☁️' : ''}
+                      {!track.file && !track.youtubeVideoId && ' · 📂 needs file'}
                     </p>
                   </div>
 
@@ -945,6 +967,22 @@ export default function PlayerPage() {
                   )}
                   {track.analysisStatus === 'done' && (
                     <span className="text-[10px] text-green-500 shrink-0">✓</span>
+                  )}
+
+                  {/* Cloud sync shortcut */}
+                  {track.analysis && !track.remoteTrack && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-blue-500"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        trackSync.syncTrackToCloud(track);
+                      }}
+                      title="Sync to cloud"
+                    >
+                      <span className="text-xs">☁️</span>
+                    </Button>
                   )}
 
                   <Button
