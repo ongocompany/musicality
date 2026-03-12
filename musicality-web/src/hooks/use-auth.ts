@@ -50,5 +50,15 @@ export function useAuth() {
     router.push('/');
   }, [supabase, router]);
 
-  return { user, profile, loading, signOut, refreshProfile: loadProfile };
+  /** Profile is complete when nickname is set (onboarding done) */
+  const isProfileComplete = !!profile?.nickname;
+
+  return {
+    user,
+    profile,
+    loading,
+    signOut,
+    refreshProfile: loadProfile,
+    isProfileComplete,
+  };
 }
