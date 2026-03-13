@@ -8,6 +8,7 @@ import {
   Alert,
   TextInput,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
@@ -110,10 +111,19 @@ export default function PostItem({
       <Text style={styles.content}>{post.content}</Text>
 
       {/* Media */}
-      {post.mediaUrls.length > 0 && (
+      {Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0 && (
         <View style={styles.mediaGrid}>
-          {post.mediaUrls.map((url) => (
-            <Image key={url} source={{ uri: url }} style={styles.mediaImage} resizeMode="cover" />
+          {post.mediaUrls.map((url, idx) => (
+            <Image
+              key={`${url}-${idx}`}
+              source={{ uri: url }}
+              style={[
+                styles.mediaImage,
+                { width: mediaImageWidth(post.mediaUrls.length) },
+              ]}
+              resizeMode="cover"
+              onError={(e) => console.warn('[PostItem] Image load error:', url, e.nativeEvent.error)}
+            />
           ))}
         </View>
       )}
@@ -212,6 +222,15 @@ export default function PostItem({
   );
 }
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+// Calculate image width: single image = full width, 2+ = half width minus gap/padding
+function mediaImageWidth(count: number): number {
+  const cardPadding = Spacing.sm * 2; // left + right
+  const containerWidth = SCREEN_WIDTH - 32 - cardPadding; // 32 for outer padding
+  if (count === 1) return containerWidth;
+  return (containerWidth - 4) / 2; // 4 = gap
+}
+
 function formatTimeAgo(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
@@ -276,7 +295,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   mediaImage: {
-    width: '48%' as any,
     aspectRatio: 1,
     borderRadius: 8,
     backgroundColor: Colors.border,

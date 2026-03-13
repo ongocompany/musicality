@@ -64,6 +64,11 @@ export default function PostComposer({ onPost, placeholder = '무슨 이야기�
           const succeeded = results
             .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
             .map((r) => r.value);
+          const failed = results.filter((r) => r.status === 'rejected');
+          if (failed.length > 0) {
+            failed.forEach((r, i) => console.warn('[PostComposer] upload failed:', (r as PromiseRejectedResult).reason));
+          }
+          console.log('[PostComposer] upload results:', succeeded.length, 'ok,', failed.length, 'failed, urls:', succeeded);
           if (succeeded.length > 0) uploadedUrls = succeeded;
           if (succeeded.length < mediaUris.length) {
             Alert.alert('일부 사진 업로드 실패', `${succeeded.length}/${mediaUris.length}장 업로드됨`);

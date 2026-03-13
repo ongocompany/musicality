@@ -527,6 +527,7 @@ export async function createGeneralPost(
   };
   if (mediaUrls && mediaUrls.length > 0) {
     insertPayload.media_urls = mediaUrls;
+    console.log('[createGeneralPost] saving media_urls:', mediaUrls);
   }
 
   const { data, error } = await supabase
@@ -536,6 +537,7 @@ export async function createGeneralPost(
     .single();
 
   if (error) throw new Error(error.message);
+  console.log('[createGeneralPost] DB returned media_urls:', data.media_urls);
   const post = mapGeneralPost(data);
   // Attach current user's profile
   const profileMap = await fetchProfilesByIds([post.userId]);
@@ -603,8 +605,9 @@ async function uploadImage(bucket: string, path: string, imageUri: string): Prom
   if (error) throw new Error(error.message);
 
   const { data } = supabase.storage.from(bucket).getPublicUrl(fullPath);
-  // Add cache-busting timestamp
-  return `${data.publicUrl}?t=${Date.now()}`;
+  const url = `${data.publicUrl}?t=${Date.now()}`;
+  console.log('[uploadImage] uploaded →', url);
+  return url;
 }
 
 export async function uploadCrewThumbnail(crewId: string, imageUri: string): Promise<string> {
