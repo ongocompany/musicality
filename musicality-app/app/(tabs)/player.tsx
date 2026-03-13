@@ -609,6 +609,19 @@ export default function PlayerScreen() {
   const runAnalysis = async (withFormation: boolean) => {
     if (!currentTrack) return;
     setAnalyzeMenuVisible(false);
+
+    // If already analyzed, skip re-analysis and just request formation
+    if (analysis && withFormation) {
+      try {
+        const { requestFormationSuggestion } = await import('../../services/formationApi');
+        const formationData = await requestFormationSuggestion(analysis, choreoDancerCount, danceStyle);
+        setServerFormation(currentTrack.id, formationData);
+      } catch (fe: any) {
+        Alert.alert('Formation Error', fe.message || 'Could not generate formation suggestions.');
+      }
+      return;
+    }
+
     setTrackAnalysisStatus(currentTrack.id, 'analyzing');
     try {
       const result = await analyzeTrack(currentTrack.uri, currentTrack.title, currentTrack.format);
@@ -704,6 +717,12 @@ export default function PlayerScreen() {
               <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyzePress}>
                 <Ionicons name="analytics-outline" size={16} color={Colors.text} />
                 <Text style={styles.analyzeBtnText}>Analyze</Text>
+              </TouchableOpacity>
+            )}
+            {!isYouTube && currentTrack.analysisStatus === 'done' && !activeFormationData && (
+              <TouchableOpacity style={styles.analyzeBtn} onPress={() => setAnalyzeMenuVisible(true)}>
+                <Ionicons name="people-outline" size={16} color={Colors.text} />
+                <Text style={styles.analyzeBtnText}>Formation</Text>
               </TouchableOpacity>
             )}
             {currentTrack.analysisStatus === 'analyzing' && (
