@@ -19,7 +19,7 @@ import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
 import { buildPhraseNoteFile, exportPhraseNote, pickPhraseNoteFile, findMatchingTrack, validatePhraseNote } from '../../services/phraseNoteService';
 import { ImportedPhraseNote } from '../../types/phraseNote';
-import { FormationData } from '../../types/formation';
+import { FormationData, StageConfig } from '../../types/formation';
 import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, CountInfo } from '../../utils/beatCounter';
 import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, phrasesFromBeatIndices } from '../../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
@@ -120,6 +120,8 @@ export default function PlayerScreen() {
   const trackFormations = useSettingsStore((s) => s.trackFormations);
   const setDraftFormation = useSettingsStore((s) => s.setDraftFormation);
   const draftFormation = useSettingsStore((s) => s.draftFormation);
+  const stageConfig = useSettingsStore((s) => s.stageConfig);
+  const setStageConfig = useSettingsStore((s) => s.setStageConfig);
 
   const tracks = usePlayerStore((s) => s.tracks);
 
@@ -318,8 +320,7 @@ export default function PlayerScreen() {
   // Edit mode toggle (none / note / formation)
   const [editMode, setEditMode] = useState<'none' | 'note' | 'formation'>('none');
 
-  // Formation editor modal state
-  const [formationModalVisible, setFormationModalVisible] = useState(false);
+  // Formation editor beat index (synced with playback when not editing)
   const [formationEditBeatIndex, setFormationEditBeatIndex] = useState(0);
 
   // Active formation data for current track
@@ -339,8 +340,11 @@ export default function PlayerScreen() {
 
   const handleEditFormation = useCallback((beatIndex: number) => {
     setFormationEditBeatIndex(beatIndex);
-    setFormationModalVisible(true);
-  }, []);
+    // Also seek to the beat so stage and playback are synced
+    if (effectiveBeats[beatIndex] != null) {
+      seekTo(effectiveBeats[beatIndex] * 1000);
+    }
+  }, [effectiveBeats, seekTo]);
 
   const handleFormationUpdate = useCallback((data: FormationData) => {
     if (!currentTrack) return;
@@ -349,7 +353,22 @@ export default function PlayerScreen() {
 
   const handleFormationBeatChange = useCallback((beatIndex: number) => {
     setFormationEditBeatIndex(beatIndex);
-  }, []);
+    // Seek to the beat when navigating in edit mode
+    if (effectiveBeats[beatIndex] != null) {
+      seekTo(effectiveBeats[beatIndex] * 1000);
+    }
+  }, [effectiveBeats, seekTo]);
+
+  // Sync formation beat index with playback position (when not in edit mode)
+  useEffect(() => {
+    if (editMode !== 'formation' && countInfo && countInfo.beatIndex >= 0) {
+      setFormationEditBeatIndex(countInfo.beatIndex);
+    }
+  }, [editMode, countInfo?.beatIndex]);
+
+  const handleStageConfigChange = useCallback((config: Partial<StageConfig>) => {
+    setStageConfig(config);
+  }, [setStageConfig]);
 
   const [shareAuthorName, setShareAuthorName] = useState('');
   const router = useRouter();
@@ -848,20 +867,47 @@ export default function PlayerScreen() {
         {/* ③ Compact Count + PhraseGrid (audio only) */}
         {!isVisual && currentTrack.analysisStatus === 'done' && (
           <View style={styles.countSection}>
-            {/* Count number with bounce animation */}
-            <Animated.Text
-              style={[
-                styles.compactCount,
-                {
-                  color: countInfo && countInfo.totalPhrases > 0
-                    ? getPhraseColor(countInfo.phraseIndex)
-                    : Colors.textMuted,
-                  transform: [{ scale: countBounceAnim }],
-                },
-              ]}
-            >
-              {countInfo?.count ?? '--'}
-            </Animated.Text>
+            {/* Formation Stage (embedded, shown when formation data exists and mode is formation) */}
+            {editMode === 'formation' && activeFormationData ? (
+              <FormationStageView
+                formationData={activeFormationData}
+                currentBeatIndex={formationEditBeatIndex}
+                totalBeats={effectiveBeats.length}
+                stageConfig={stageConfig}
+                isPlaying={isPlaying}
+                isEditing={true}
+                onUpdate={handleFormationUpdate}
+                onBeatChange={handleFormationBeatChange}
+                onStageConfigChange={handleStageConfigChange}
+              />
+            ) : activeFormationData && editMode === 'none' ? (
+              <FormationStageView
+                formationData={activeFormationData}
+                currentBeatIndex={formationEditBeatIndex}
+                totalBeats={effectiveBeats.length}
+                stageConfig={stageConfig}
+                isPlaying={isPlaying}
+                isEditing={false}
+                onUpdate={handleFormationUpdate}
+                onBeatChange={handleFormationBeatChange}
+                onStageConfigChange={handleStageConfigChange}
+              />
+            ) : (
+              /* Count number with bounce animation (when no formation or note mode) */
+              <Animated.Text
+                style={[
+                  styles.compactCount,
+                  {
+                    color: countInfo && countInfo.totalPhrases > 0
+                      ? getPhraseColor(countInfo.phraseIndex)
+                      : Colors.textMuted,
+                    transform: [{ scale: countBounceAnim }],
+                  },
+                ]}
+              >
+                {countInfo?.count ?? '--'}
+              </Animated.Text>
+            )}
 
             {/* PhraseGrid — rhythm game style */}
             <PhraseGrid
@@ -1234,18 +1280,7 @@ export default function PlayerScreen() {
         </Pressable>
       </Modal>
 
-      {/* Formation Editor Modal */}
-      {activeFormationData && (
-        <FormationStageView
-          visible={formationModalVisible}
-          formationData={activeFormationData}
-          currentBeatIndex={formationEditBeatIndex}
-          totalBeats={effectiveBeats.length}
-          onUpdate={handleFormationUpdate}
-          onClose={() => setFormationModalVisible(false)}
-          onBeatChange={handleFormationBeatChange}
-        />
-      )}
+      {/* Formation Stage is now inline — see sections ①②③ above */}
     </View>
   );
 }
