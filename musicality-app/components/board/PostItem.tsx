@@ -120,7 +120,7 @@ export default function PostItem({
                 key={`${url}-${idx}`}
                 source={{ uri: url }}
                 style={{ width: w, height: w, borderRadius: 8, backgroundColor: Colors.border }}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             );
           })}
