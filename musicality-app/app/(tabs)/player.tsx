@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { PhraseGrid } from '../../components/ui/PhraseGrid';
+import { FormationStageView } from '../../components/ui/FormationStageView';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -18,6 +19,7 @@ import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
 import { buildPhraseNoteFile, exportPhraseNote, pickPhraseNoteFile, findMatchingTrack, validatePhraseNote } from '../../services/phraseNoteService';
 import { ImportedPhraseNote } from '../../types/phraseNote';
+import { FormationData } from '../../types/formation';
 import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, CountInfo } from '../../utils/beatCounter';
 import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, phrasesFromBeatIndices } from '../../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
@@ -114,6 +116,10 @@ export default function PlayerScreen() {
   const addImportedNote = useSettingsStore((s) => s.addImportedNote);
   const removeImportedNote = useSettingsStore((s) => s.removeImportedNote);
   const setActiveImportedNote = useSettingsStore((s) => s.setActiveImportedNote);
+  // Formation state
+  const trackFormations = useSettingsStore((s) => s.trackFormations);
+  const setDraftFormation = useSettingsStore((s) => s.setDraftFormation);
+  const draftFormation = useSettingsStore((s) => s.draftFormation);
 
   const tracks = usePlayerStore((s) => s.tracks);
 
@@ -308,6 +314,40 @@ export default function PlayerScreen() {
 
   // ─── PhraseNote share ───
   const [shareModalVisible, setShareModalVisible] = useState(false);
+
+  // Formation editor modal state
+  const [formationModalVisible, setFormationModalVisible] = useState(false);
+  const [formationEditBeatIndex, setFormationEditBeatIndex] = useState(0);
+
+  // Active formation data for current track
+  const activeFormationData = useMemo((): FormationData | null => {
+    if (!currentTrack) return null;
+    // Check draft first
+    const draft = draftFormation[currentTrack.id];
+    if (draft) return draft;
+    // Then check track formations
+    const tf = trackFormations[currentTrack.id];
+    if (!tf) return null;
+    const activeId = tf.activeEditionId;
+    if (activeId === 'S') return tf.server?.data ?? null;
+    const userEd = tf.userEditions.find((e) => e.id === activeId);
+    return userEd?.data ?? tf.server?.data ?? null;
+  }, [currentTrack, trackFormations, draftFormation]);
+
+  const handleEditFormation = useCallback((beatIndex: number) => {
+    setFormationEditBeatIndex(beatIndex);
+    setFormationModalVisible(true);
+  }, []);
+
+  const handleFormationUpdate = useCallback((data: FormationData) => {
+    if (!currentTrack) return;
+    setDraftFormation(currentTrack.id, data);
+  }, [currentTrack, setDraftFormation]);
+
+  const handleFormationBeatChange = useCallback((beatIndex: number) => {
+    setFormationEditBeatIndex(beatIndex);
+  }, []);
+
   const [shareAuthorName, setShareAuthorName] = useState('');
   const router = useRouter();
 
@@ -686,6 +726,8 @@ export default function PlayerScreen() {
                   onSetCellNote={handleSetCellNote}
                   onClearCellNote={handleClearCellNote}
                   currentBeatNote={currentBeatNote}
+                  formationData={activeFormationData}
+                  onEditFormation={handleEditFormation}
                 />
               </View>
             )}
@@ -770,6 +812,8 @@ export default function PlayerScreen() {
                   onSetCellNote={handleSetCellNote}
                   onClearCellNote={handleClearCellNote}
                   currentBeatNote={currentBeatNote}
+                  formationData={activeFormationData}
+                  onEditFormation={handleEditFormation}
                 />
               </View>
             )}
@@ -815,6 +859,8 @@ export default function PlayerScreen() {
               onSetCellNote={handleSetCellNote}
               onClearCellNote={handleClearCellNote}
               currentBeatNote={currentBeatNote}
+              formationData={activeFormationData}
+              onEditFormation={handleEditFormation}
             />
           </View>
         )}
@@ -1080,6 +1126,19 @@ export default function PlayerScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Formation Editor Modal */}
+      {activeFormationData && (
+        <FormationStageView
+          visible={formationModalVisible}
+          formationData={activeFormationData}
+          currentBeatIndex={formationEditBeatIndex}
+          totalBeats={effectiveBeats.length}
+          onUpdate={handleFormationUpdate}
+          onClose={() => setFormationModalVisible(false)}
+          onBeatChange={handleFormationBeatChange}
+        />
+      )}
     </View>
   );
 }

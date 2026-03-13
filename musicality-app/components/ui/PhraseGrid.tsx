@@ -5,6 +5,8 @@ import { Colors, Spacing, FontSize, getPhraseColor } from '../../constants/theme
 import { CountInfo } from '../../utils/beatCounter';
 import { PhraseMap } from '../../types/analysis';
 import { PhraseGridCell, CELL_GAP, CellState } from './PhraseGridCell';
+import { FormationData } from '../../types/formation';
+import { hasKeyframeAtBeat } from '../../utils/formationInterpolator';
 
 interface PhraseGridProps {
   countInfo: CountInfo | null;
@@ -29,6 +31,9 @@ interface PhraseGridProps {
   onClearCellNote?: (beatIndex: number) => void;
   // Current beat note (for persistent banner display)
   currentBeatNote?: string | null;
+  // Formation mode
+  formationData?: FormationData | null;
+  onEditFormation?: (beatIndex: number) => void;
 }
 
 const noop = (_cellIndex: number) => {};  // stable ref for placeholder
@@ -46,6 +51,7 @@ export function PhraseGrid({
   loopStart, loopEnd, rows, scrollMode,
   cellNotes, onSetCellNote, onClearCellNote,
   currentBeatNote,
+  formationData, onEditFormation,
 }: PhraseGridProps) {
   const rowCount = rows ?? DEFAULT_ROWS;
   const CELLS_PER_PAGE = COLS * rowCount; // used only for placeholder
@@ -211,6 +217,12 @@ export function PhraseGrid({
     return !!cellNotes[String(cellIndex)];
   }, [cellNotes, totalBeats]);
 
+  // ─── Formation keyframe helpers ───
+  const getCellHasFormation = useCallback((cellIndex: number): boolean => {
+    if (!formationData || cellIndex >= totalBeats) return false;
+    return hasKeyframeAtBeat(formationData, cellIndex);
+  }, [formationData, totalBeats]);
+
   const showTooltip = useCallback((globalBeat: number) => {
     if (!cellNotes) return;
     const note = cellNotes[String(globalBeat)];
@@ -333,6 +345,12 @@ export function PhraseGrid({
     setMenuVisible(false);
   }, [menuGlobalBeat, onClearCellNote]);
 
+  const handleEditFormation = useCallback(() => {
+    if (menuGlobalBeat < 0 || !onEditFormation) return;
+    onEditFormation(menuGlobalBeat);
+    setMenuVisible(false);
+  }, [menuGlobalBeat, onEditFormation]);
+
   // Is the menu cell the first beat of a phrase?
   const isFirstCellOfPhrase = useMemo(() => {
     if (menuGlobalBeat < 0 || !phraseMap) return false;
@@ -452,6 +470,7 @@ export function PhraseGrid({
                     repeatMarker={getRepeatMarker(i)}
                     rowLabel={getCellRowLabel(i)}
                     hasNote={getCellHasNote(i)}
+                    hasFormation={getCellHasFormation(i)}
                   />
                 );
           })}
@@ -510,8 +529,15 @@ export function PhraseGrid({
               </TouchableOpacity>
             )}
 
+            {/* Edit formation */}
+            {onEditFormation && (
+              <TouchableOpacity style={styles.menuOption} onPress={handleEditFormation}>
+                <Text style={styles.menuOptionText}>Edit formation</Text>
+              </TouchableOpacity>
+            )}
+
             {/* Separator */}
-            {onSetCellNote && <View style={styles.menuSeparator} />}
+            {(onSetCellNote || onEditFormation) && <View style={styles.menuSeparator} />}
 
             {/* Add/Edit note */}
             {onSetCellNote && (

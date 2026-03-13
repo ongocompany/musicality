@@ -15,9 +15,10 @@ interface PhraseGridCellProps {
   repeatMarker?: 'A' | 'B' | null;
   rowLabel?: string | null;    // eight-count row number (1,2,3,4) on first cell of each row
   hasNote?: boolean;           // show teal dot for cell memo
+  hasFormation?: boolean;      // show formation indicator (top-left dot)
 }
 
-function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel, hasNote }: PhraseGridCellProps) {
+function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel, hasNote, hasFormation }: PhraseGridCellProps) {
   const handlePress = useCallback(() => onPress(cellIndex), [onPress, cellIndex]);
   const handleLongPress = useCallback(() => onLongPress(cellIndex), [onLongPress, cellIndex]);
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -177,6 +178,10 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
           {hasNote && (
             <View style={styles.noteDot} />
           )}
+          {/* Formation indicator dot (top-left) */}
+          {hasFormation && (
+            <View style={styles.formationDot} />
+          )}
         </TouchableOpacity>
       </Animated.View>
     </View>
@@ -224,6 +229,15 @@ const styles = StyleSheet.create({
     height: 5,
     borderRadius: 2.5,
     backgroundColor: '#2DD4BF',  // teal-400
+  },
+  formationDot: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#F59E0B',  // amber-500 (formation keyframe)
   },
 });
 
