@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,9 @@ import {
   TextInput,
   ActivityIndicator,
   Dimensions,
-  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import YoutubePlayer from 'react-native-youtube-iframe';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 import { parseYouTubeUrl } from '../../services/fileImport';
 import type { GeneralPost } from '../../types/community';
@@ -223,14 +223,12 @@ export default function PostItem({
   );
 }
 
-/** Render post content with YouTube link previews */
+/** Render post content with inline YouTube players */
 function PostContent({ content }: { content: string }) {
-  // Split content by YouTube URLs
   const ytUrlRegex = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?[^\s]*|youtu\.be\/[^\s]*|youtube\.com\/shorts\/[^\s]*))/g;
   const parts = content.split(ytUrlRegex);
 
   if (parts.length === 1) {
-    // No YouTube links — plain text
     return <Text style={styles.content}>{content}</Text>;
   }
 
@@ -239,30 +237,54 @@ function PostContent({ content }: { content: string }) {
       {parts.map((part, i) => {
         const videoId = parseYouTubeUrl(part);
         if (videoId) {
-          const thumbW = SCREEN_WIDTH - 64;
-          const thumbH = Math.round(thumbW * 9 / 16);
-          return (
-            <TouchableOpacity
-              key={i}
-              activeOpacity={0.8}
-              onPress={() => Linking.openURL(part)}
-              style={styles.ytPreview}
-            >
-              <Image
-                source={{ uri: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` }}
-                style={{ width: thumbW, height: thumbH, borderRadius: 8 }}
-                resizeMode="cover"
-              />
-              <View style={styles.ytPlayOverlay}>
-                <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
-              </View>
-            </TouchableOpacity>
-          );
+          return <InlineYouTube key={i} videoId={videoId} />;
         }
-        // Regular text (skip empty strings from split)
         if (!part.trim()) return null;
         return <Text key={i} style={styles.content}>{part}</Text>;
       })}
+    </View>
+  );
+}
+
+/** Inline YouTube player — shows thumbnail first, taps to play */
+function InlineYouTube({ videoId }: { videoId: string }) {
+  const [playing, setPlaying] = useState(false);
+  const [activated, setActivated] = useState(false);
+  const playerW = SCREEN_WIDTH - 64;
+  const playerH = Math.round(playerW * 9 / 16);
+
+  const onStateChange = useCallback((state: string) => {
+    if (state === 'ended') setPlaying(false);
+  }, []);
+
+  if (!activated) {
+    return (
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => { setActivated(true); setPlaying(true); }}
+        style={styles.ytPreview}
+      >
+        <Image
+          source={{ uri: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` }}
+          style={{ width: playerW, height: playerH, borderRadius: 8 }}
+          resizeMode="cover"
+        />
+        <View style={styles.ytPlayOverlay}>
+          <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View style={[styles.ytPreview, { borderRadius: 8, overflow: 'hidden' }]}>
+      <YoutubePlayer
+        height={playerH}
+        width={playerW}
+        videoId={videoId}
+        play={playing}
+        onChangeState={onStateChange}
+      />
     </View>
   );
 }
