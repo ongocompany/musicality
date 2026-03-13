@@ -83,9 +83,38 @@ export function PhraseGrid({
     [positionMs, beats],
   );
 
-  // ─── Total rows ──────────────────────────────────────
+  // ─── Phrase-aware row layout ─────────────────────────
+  // Each phrase starts on a new row (col 0).
 
-  const totalRows = Math.ceil(beats.length / COLS);
+  const { rowBeatMap, beatToRow } = useMemo(() => {
+    const map: number[][] = [];
+    const b2r = new Map<number, number>();
+
+    if (phraseMap && phraseMap.phrases.length > 0) {
+      for (const phrase of phraseMap.phrases) {
+        const count = phrase.endBeatIndex - phrase.startBeatIndex;
+        for (let i = 0; i < count; i++) {
+          const beatIdx = phrase.startBeatIndex + i;
+          if (beatIdx >= beats.length) break;
+          const col = i % COLS;
+          if (col === 0) map.push([]);
+          map[map.length - 1].push(beatIdx);
+          b2r.set(beatIdx, map.length - 1);
+        }
+      }
+    } else {
+      // Fallback: simple sequential layout
+      for (let i = 0; i < beats.length; i++) {
+        if (i % COLS === 0) map.push([]);
+        map[map.length - 1].push(i);
+        b2r.set(i, map.length - 1);
+      }
+    }
+
+    return { rowBeatMap: map, beatToRow: b2r };
+  }, [beats.length, phraseMap]);
+
+  const totalRows = rowBeatMap.length;
 
   // ─── Measure container ───────────────────────────────
 
@@ -128,11 +157,11 @@ export function PhraseGrid({
     const el = scrollRef.current;
     if (!el) return;
 
-    const currentRow = Math.floor(currentBeatIndex / COLS);
+    const currentRow = beatToRow.get(currentBeatIndex) ?? 0;
     const targetScrollTop = Math.max(0, (currentRow - SCROLL_ANCHOR_ROW) * rowHeight);
 
     el.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
-  }, [isPlaying, currentBeatIndex, rowHeight]);
+  }, [isPlaying, currentBeatIndex, rowHeight, beatToRow]);
 
   // ─── Track scroll position ──────────────────────────
 
@@ -258,6 +287,7 @@ export function PhraseGrid({
             <GridRow
               key={row}
               row={row}
+              rowBeats={rowBeatMap[row] ?? []}
               beats={beats}
               currentBeatIndex={currentBeatIndex}
               phraseMap={phraseMap}
@@ -416,6 +446,7 @@ export function PhraseGrid({
 
 interface GridRowProps {
   row: number;
+  rowBeats: number[];  // beat indices for this row
   beats: number[];
   currentBeatIndex: number;
   phraseMap: PhraseMap | null;
@@ -431,6 +462,7 @@ interface GridRowProps {
 
 function GridRow({
   row,
+  rowBeats,
   beats,
   currentBeatIndex,
   phraseMap,
@@ -446,9 +478,9 @@ function GridRow({
   const cells: React.ReactNode[] = [];
 
   for (let col = 0; col < COLS; col++) {
-    const globalBeatIndex = row * COLS + col;
+    const globalBeatIndex = col < rowBeats.length ? rowBeats[col] : -1;
 
-    if (globalBeatIndex >= beats.length) {
+    if (globalBeatIndex < 0 || globalBeatIndex >= beats.length) {
       // Empty spacer cell
       cells.push(
         <div
@@ -474,10 +506,10 @@ function GridRow({
     // Is this the first beat of a phrase?
     const isPhraseStart = phrase ? globalBeatIndex === phrase.startBeatIndex : false;
 
-    // Row label (eight-count: 1,2,3,4)
+    // Row label (eight-count number within phrase)
     const rowInPhrase = phrase
       ? Math.floor((globalBeatIndex - phrase.startBeatIndex) / COLS)
-      : Math.floor(globalBeatIndex / COLS);
+      : 0;
     const rowLabel = col === 0 ? rowInPhrase + 1 : null;
 
     // A/B loop markers
