@@ -238,15 +238,16 @@ export function FormationStageView({
       const anim = animatedPositions.current.get(pos.dancerId);
       if (!anim) continue;
       if (isPlaying && !isEditing) {
-        // Smooth animation during playback
+        // Smooth animation during playback — duration covers most of the beat interval
+        // so movement appears continuous (at 130 BPM, beat ≈ 460ms)
         Animated.timing(anim.x, {
           toValue: pos.x,
-          duration: 120,
+          duration: 350,
           useNativeDriver: false,
         }).start();
         Animated.timing(anim.y, {
           toValue: pos.y,
-          duration: 120,
+          duration: 350,
           useNativeDriver: false,
         }).start();
       } else {
@@ -1060,7 +1061,7 @@ const styles = StyleSheet.create({
   stripCellKeyframe: {
     borderWidth: 1.5,
     borderColor: '#FF6B00',
-    backgroundColor: 'rgba(255, 107, 0, 0.25)',
+    backgroundColor: '#1A1A1A',
   },
   stripText: {
     fontSize: 9,
