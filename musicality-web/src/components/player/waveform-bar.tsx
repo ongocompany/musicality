@@ -138,7 +138,7 @@ export function WaveformBar({
 
         {/* Playhead line */}
         <div
-          className="absolute top-0 bottom-0 w-0.5 bg-primary shadow-sm z-10"
+          className="absolute top-0 bottom-0 w-0.5 bg-foreground z-10"
           style={{ left: `${progress * 100}%` }}
         />
       </div>
