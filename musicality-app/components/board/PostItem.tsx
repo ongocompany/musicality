@@ -9,9 +9,11 @@ import {
   TextInput,
   ActivityIndicator,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
+import { parseYouTubeUrl } from '../../services/fileImport';
 import type { GeneralPost } from '../../types/community';
 
 interface Props {
@@ -107,8 +109,8 @@ export default function PostItem({
         )}
       </View>
 
-      {/* Content */}
-      <Text style={styles.content}>{post.content}</Text>
+      {/* Content + YouTube embeds */}
+      <PostContent content={post.content} />
 
       {/* Media */}
       {Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0 && (
@@ -217,6 +219,50 @@ export default function PostItem({
           </TouchableOpacity>
         </View>
       )}
+    </View>
+  );
+}
+
+/** Render post content with YouTube link previews */
+function PostContent({ content }: { content: string }) {
+  // Split content by YouTube URLs
+  const ytUrlRegex = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?[^\s]*|youtu\.be\/[^\s]*|youtube\.com\/shorts\/[^\s]*))/g;
+  const parts = content.split(ytUrlRegex);
+
+  if (parts.length === 1) {
+    // No YouTube links — plain text
+    return <Text style={styles.content}>{content}</Text>;
+  }
+
+  return (
+    <View style={{ gap: 8 }}>
+      {parts.map((part, i) => {
+        const videoId = parseYouTubeUrl(part);
+        if (videoId) {
+          const thumbW = SCREEN_WIDTH - 64;
+          const thumbH = Math.round(thumbW * 9 / 16);
+          return (
+            <TouchableOpacity
+              key={i}
+              activeOpacity={0.8}
+              onPress={() => Linking.openURL(part)}
+              style={styles.ytPreview}
+            >
+              <Image
+                source={{ uri: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` }}
+                style={{ width: thumbW, height: thumbH, borderRadius: 8 }}
+                resizeMode="cover"
+              />
+              <View style={styles.ytPlayOverlay}>
+                <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
+              </View>
+            </TouchableOpacity>
+          );
+        }
+        // Regular text (skip empty strings from split)
+        if (!part.trim()) return null;
+        return <Text key={i} style={styles.content}>{part}</Text>;
+      })}
     </View>
   );
 }
@@ -367,5 +413,20 @@ const styles = StyleSheet.create({
   },
   replySendBtn: {
     padding: 4,
+  },
+  ytPreview: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  ytPlayOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 8,
   },
 });
