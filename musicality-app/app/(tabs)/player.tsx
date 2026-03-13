@@ -161,7 +161,7 @@ export default function PlayerScreen() {
       }
     }
 
-    if (!analysis || analysis.beats.length === 0) return undefined;
+    if (!analysis || !analysis.beats || analysis.beats.length === 0) return undefined;
 
     // ─── Draft boundaries (unsaved edits) take highest priority ───
     const draft = currentTrack ? draftBoundaries[currentTrack.id] : undefined;
