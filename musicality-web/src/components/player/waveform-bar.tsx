@@ -98,73 +98,44 @@ export function WaveformBar({
     : [];
 
   return (
-    <div className="space-y-0.5">
-      <div
-        ref={containerRef}
-        className={cn(
-          'relative h-16 cursor-pointer select-none rounded-lg overflow-hidden bg-muted/30',
-          className,
-        )}
-        onMouseDown={handleMouseDown}
-      >
-        {/* Loop range background */}
-        {loopStartRatio != null && loopEndRatio != null && (
-          <div
-            className="absolute top-0 bottom-0 bg-primary/10"
-            style={{
-              left: `${loopStartRatio * 100}%`,
-              width: `${(loopEndRatio - loopStartRatio) * 100}%`,
-            }}
-          />
-        )}
-
-        {/* Bars */}
-        <div className="absolute inset-0 flex items-end gap-px px-px">
-          {displayPeaks.map((peak, i) => {
-            const height = Math.max(2, (peak / maxPeak) * 100);
-
-            return (
-              <div
-                key={i}
-                className="flex-1 rounded-t-sm transition-colors duration-75"
-                style={{
-                  height: `${height}%`,
-                  backgroundColor: 'hsl(var(--muted-foreground) / 0.3)',
-                }}
-              />
-            );
-          })}
-        </div>
-
-        {/* Playhead line */}
-        <div
-          className="absolute top-0 bottom-0 w-0.5 bg-foreground z-10"
-          style={{ left: `${progress * 100}%` }}
-        />
-      </div>
-
-      {/* Phrase segment bar */}
-      {phraseSegments.length > 0 && (
-        <div className="relative h-16 rounded-lg overflow-hidden bg-muted/20 cursor-pointer" onMouseDown={handleMouseDown}>
-          {phraseSegments.map((seg, i) => (
-            <div
-              key={i}
-              className="absolute top-0 bottom-0 transition-opacity"
-              style={{
-                left: `${seg.left * 100}%`,
-                width: `${seg.width * 100}%`,
-                backgroundColor: seg.color,
-                opacity: 0.6,
-              }}
-            />
-          ))}
-          {/* Playhead on segment bar */}
-          <div
-            className="absolute top-0 bottom-0 w-0.5 bg-foreground z-10"
-            style={{ left: `${progress * 100}%` }}
-          />
-        </div>
+    <div
+      ref={containerRef}
+      className={cn(
+        'relative h-16 cursor-pointer select-none rounded-lg overflow-hidden bg-muted/20',
+        className,
       )}
+      onMouseDown={handleMouseDown}
+    >
+      {/* Loop range background */}
+      {loopStartRatio != null && loopEndRatio != null && (
+        <div
+          className="absolute top-0 bottom-0 bg-primary/10"
+          style={{
+            left: `${loopStartRatio * 100}%`,
+            width: `${(loopEndRatio - loopStartRatio) * 100}%`,
+          }}
+        />
+      )}
+
+      {/* Phrase segments */}
+      {phraseSegments.map((seg, i) => (
+        <div
+          key={i}
+          className="absolute top-0 bottom-0 transition-opacity"
+          style={{
+            left: `${seg.left * 100}%`,
+            width: `${seg.width * 100}%`,
+            backgroundColor: seg.color,
+            opacity: 0.6,
+          }}
+        />
+      ))}
+
+      {/* Playhead line */}
+      <div
+        className="absolute top-0 bottom-0 w-0.5 bg-foreground z-10"
+        style={{ left: `${progress * 100}%` }}
+      />
     </div>
   );
 }
