@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 
 export default function MessageInput({ onSend, placeholder = '메시지 입력...', disabled }: Props) {
   const [text, setText] = useState('');
+  const insets = useSafeAreaInsets();
   const canSend = text.trim().length > 0 && !disabled;
 
   const handleSend = () => {
@@ -20,7 +22,7 @@ export default function MessageInput({ onSend, placeholder = '메시지 입력..
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, Spacing.sm) }]}>
       <TextInput
         style={styles.input}
         value={text}
