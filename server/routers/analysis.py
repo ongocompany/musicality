@@ -38,11 +38,12 @@ def _cleanup_old_jobs():
     """Remove jobs older than JOB_EXPIRY_SECONDS."""
     now = time.time()
     with _jobs_lock:
-        expired = [jid for jid, job in _jobs.items()
-                   if now - job["created_at"] > JOB_EXPIRY_SECONDS]
+        expired = [jid for jid, j in _jobs.items()
+                   if now - j["created_at"] > JOB_EXPIRY_SECONDS]
         for jid in expired:
             # Clean up file if still exists
-            fp = job.get("file_path")
+            job_data = _jobs[jid]
+            fp = job_data.get("file_path")
             if fp and Path(fp).exists():
                 try:
                     Path(fp).unlink()
