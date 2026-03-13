@@ -2,6 +2,7 @@
  * Community API — Direct Supabase queries for crew system.
  * RLS policies handle authorization; no FastAPI proxy needed.
  */
+import * as FileSystem from 'expo-file-system';
 import { supabase } from '../lib/supabase';
 import type {
   Profile,
@@ -589,18 +590,26 @@ export async function uploadPostMedia(uri: string): Promise<string> {
 
 // ─── Storage ────────────────────────────────────────────
 
-/** Upload image using ArrayBuffer (more reliable in React Native than Blob) */
+/** Upload image using base64 via expo-file-system (reliable in React Native) */
 async function uploadImage(bucket: string, path: string, imageUri: string): Promise<string> {
   const ext = imageUri.split('.').pop()?.split('?')[0]?.toLowerCase() ?? 'jpg';
   const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
   const fullPath = path.includes('.') ? path : `${path}.${ext}`;
 
-  const response = await fetch(imageUri);
-  const arrayBuffer = await response.arrayBuffer();
+  // Read file as base64 using expo-file-system (fetch() fails for local URIs on iOS)
+  const base64 = await FileSystem.readAsStringAsync(imageUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  // Convert base64 to Uint8Array
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
 
   const { error } = await supabase.storage
     .from(bucket)
-    .upload(fullPath, arrayBuffer, { upsert: true, contentType });
+    .upload(fullPath, bytes, { upsert: true, contentType });
 
   if (error) throw new Error(error.message);
 
