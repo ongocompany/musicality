@@ -55,7 +55,10 @@ interface CommunityState {
 
   // ─── General Board ────────────────────
   fetchGeneralPosts: (crewId: string) => Promise<void>;
-  createGeneralPost: (crewId: string, content: string, parentId?: string) => Promise<void>;
+  createGeneralPost: (crewId: string, content: string, parentId?: string, mediaUrls?: string[]) => Promise<void>;
+  deleteGeneralPost: (postId: string) => Promise<void>;
+  togglePostLike: (postId: string) => Promise<void>;
+  fetchPostReplies: (parentId: string) => Promise<GeneralPost[]>;
 
   // ─── Captain Management ───────────────
   fetchJoinRequests: (crewId: string) => Promise<void>;
@@ -243,19 +246,60 @@ export const useCommunityStore = create<CommunityState>()(
       fetchGeneralPosts: async (crewId: string) => {
         await withLoading(set, 'generalPosts', async () => {
           const posts = await api.fetchGeneralPosts(crewId);
-          set({ activeGeneralPosts: posts });
+          // Batch-fetch user likes
+          const postIds = posts.map((p) => p.id);
+          const likedSet = await api.fetchUserLikes(postIds);
+          const withLikes = posts.map((p) => ({ ...p, liked: likedSet.has(p.id) }));
+          set({ activeGeneralPosts: withLikes });
         })();
       },
 
-      createGeneralPost: async (crewId: string, content: string, parentId?: string) => {
+      createGeneralPost: async (crewId: string, content: string, parentId?: string, mediaUrls?: string[]) => {
         await withLoading(set, 'createPost', async () => {
-          const post = await api.createGeneralPost(crewId, content, parentId);
+          const post = await api.createGeneralPost(crewId, content, parentId, mediaUrls);
           if (!parentId) {
             set((s) => ({
               activeGeneralPosts: [post, ...s.activeGeneralPosts],
             }));
           }
         })();
+      },
+
+      deleteGeneralPost: async (postId: string) => {
+        await withLoading(set, 'deletePost', async () => {
+          await api.deleteGeneralPost(postId);
+          set((s) => ({
+            activeGeneralPosts: s.activeGeneralPosts.filter((p) => p.id !== postId),
+          }));
+        })();
+      },
+
+      togglePostLike: async (postId: string) => {
+        // Optimistic update
+        set((s) => ({
+          activeGeneralPosts: s.activeGeneralPosts.map((p) =>
+            p.id === postId
+              ? { ...p, liked: !p.liked, likeCount: p.likeCount + (p.liked ? -1 : 1) }
+              : p,
+          ),
+        }));
+        try {
+          await api.togglePostLike(postId);
+        } catch {
+          // Revert on error
+          set((s) => ({
+            activeGeneralPosts: s.activeGeneralPosts.map((p) =>
+              p.id === postId
+                ? { ...p, liked: !p.liked, likeCount: p.likeCount + (p.liked ? -1 : 1) }
+                : p,
+            ),
+          }));
+        }
+      },
+
+      fetchPostReplies: async (parentId: string): Promise<GeneralPost[]> => {
+        const replies = await api.fetchPostReplies(parentId);
+        return replies;
       },
 
       // ─── Captain Management ───────────

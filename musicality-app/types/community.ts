@@ -152,6 +152,11 @@ export interface GeneralPost {
   userId: string;
   content: string;
   parentId: string | null;
+  mediaUrls: string[];
+  likeCount: number;
+  replyCount: number;
+  viewCount: number;
+  liked?: boolean;
   createdAt: string;
   updatedAt: string;
   profile?: Profile;

@@ -17,6 +17,8 @@ import { useCalendarStore } from '../../stores/calendarStore';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 import EventCard from '../../components/calendar/EventCard';
 import EventFormModal from '../../components/calendar/EventFormModal';
+import PostComposer from '../../components/board/PostComposer';
+import PostItem from '../../components/board/PostItem';
 import type { CrewMember } from '../../types/community';
 import type { CalendarEvent, CreateEventInput } from '../../types/calendar';
 
@@ -39,6 +41,10 @@ export default function CrewDetailScreen() {
     fetchCrewMembers,
     fetchSongThreads,
     fetchGeneralPosts,
+    createGeneralPost,
+    deleteGeneralPost,
+    togglePostLike,
+    fetchPostReplies,
     fetchJoinRequests,
     joinCrew,
     requestJoinCrew,
@@ -244,11 +250,36 @@ export default function CrewDetailScreen() {
               )}
 
               {activeTab === 'board' && (
-                <View style={styles.emptyState}>
-                  <Ionicons name="chatbubbles-outline" size={40} color={Colors.textMuted} />
-                  <Text style={styles.emptyText}>General Board</Text>
-                  <Text style={styles.emptySubtext}>Coming in the next update</Text>
-                </View>
+                <>
+                  <PostComposer
+                    onPost={async (content, mediaUrls) => {
+                      if (!id) return;
+                      await createGeneralPost(id, content, undefined, mediaUrls);
+                    }}
+                  />
+                  {activeGeneralPosts.length === 0 ? (
+                    <View style={styles.emptyState}>
+                      <Ionicons name="chatbubbles-outline" size={40} color={Colors.textMuted} />
+                      <Text style={styles.emptyText}>아직 게시글이 없습니다</Text>
+                      <Text style={styles.emptySubtext}>첫 게시글을 작성해보세요!</Text>
+                    </View>
+                  ) : (
+                    activeGeneralPosts.map((post) => (
+                      <PostItem
+                        key={post.id}
+                        post={post}
+                        currentUserId={user?.id}
+                        onLike={togglePostLike}
+                        onDelete={async (postId) => { await deleteGeneralPost(postId); }}
+                        onReply={async (parentId, content) => {
+                          if (!id) return;
+                          await createGeneralPost(id, content, parentId);
+                        }}
+                        onFetchReplies={fetchPostReplies}
+                      />
+                    ))
+                  )}
+                </>
               )}
 
               {activeTab === 'calendar' && (

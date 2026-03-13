@@ -139,6 +139,10 @@ function mapGeneralPost(row: any): GeneralPost {
     userId: row.user_id,
     content: row.content,
     parentId: row.parent_id ?? null,
+    mediaUrls: row.media_urls ?? [],
+    likeCount: row.like_count ?? 0,
+    replyCount: row.reply_count ?? 0,
+    viewCount: row.view_count ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     profile: row.profiles ? mapProfile(row.profiles) : undefined,
@@ -496,7 +500,12 @@ export async function fetchPostReplies(parentId: string): Promise<GeneralPost[]>
   return (data ?? []).map(mapGeneralPost);
 }
 
-export async function createGeneralPost(crewId: string, content: string, parentId?: string): Promise<GeneralPost> {
+export async function createGeneralPost(
+  crewId: string,
+  content: string,
+  parentId?: string,
+  mediaUrls?: string[],
+): Promise<GeneralPost> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
@@ -507,6 +516,7 @@ export async function createGeneralPost(crewId: string, content: string, parentI
       user_id: user.id,
       content: content.trim(),
       parent_id: parentId ?? null,
+      media_urls: mediaUrls ?? [],
     })
     .select('*, profiles:user_id(*)')
     .single();
@@ -522,6 +532,55 @@ export async function deleteGeneralPost(postId: string): Promise<void> {
     .eq('id', postId);
 
   if (error) throw new Error(error.message);
+}
+
+export async function togglePostLike(postId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('toggle_post_like', {
+    p_post_id: postId,
+  });
+  if (error) throw new Error(error.message);
+  return data as boolean;
+}
+
+export async function fetchUserLikes(postIds: string[]): Promise<Set<string>> {
+  if (postIds.length === 0) return new Set();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return new Set();
+
+  const { data, error } = await supabase
+    .from('post_likes')
+    .select('post_id')
+    .eq('user_id', user.id)
+    .in('post_id', postIds);
+
+  if (error) return new Set();
+  return new Set((data ?? []).map((r: any) => r.post_id));
+}
+
+export async function uploadPostMedia(uri: string): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const ext = uri.split('.').pop()?.toLowerCase() || 'jpg';
+  const fileName = `${user.id}/${Date.now()}.${ext}`;
+
+  const response = await fetch(uri);
+  const arrayBuffer = await response.arrayBuffer();
+
+  const { error } = await supabase.storage
+    .from('post-media')
+    .upload(fileName, arrayBuffer, {
+      contentType: ext === 'mp4' || ext === 'mov' ? 'video/mp4' : `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+      upsert: false,
+    });
+
+  if (error) throw new Error(error.message);
+
+  const { data: urlData } = supabase.storage
+    .from('post-media')
+    .getPublicUrl(fileName);
+
+  return urlData.publicUrl;
 }
 
 // ─── Storage ────────────────────────────────────────────
