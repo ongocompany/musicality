@@ -315,6 +315,9 @@ export default function PlayerScreen() {
   // ─── PhraseNote share ───
   const [shareModalVisible, setShareModalVisible] = useState(false);
 
+  // Edit mode toggle (none / note / formation)
+  const [editMode, setEditMode] = useState<'none' | 'note' | 'formation'>('none');
+
   // Formation editor modal state
   const [formationModalVisible, setFormationModalVisible] = useState(false);
   const [formationEditBeatIndex, setFormationEditBeatIndex] = useState(0);
@@ -574,15 +577,25 @@ export default function PlayerScreen() {
     }
   };
 
-  const handleAnalyze = async () => {
+  // Analyze mode selection
+  const [analyzeMenuVisible, setAnalyzeMenuVisible] = useState(false);
+  const [choreoDancerCount, setChoreoDancerCount] = useState(4);
+  const setServerFormation = useSettingsStore((s) => s.setServerFormation);
+
+  const handleAnalyzePress = () => {
     if (!currentTrack || currentTrack.analysisStatus === 'analyzing') return;
+    setAnalyzeMenuVisible(true);
+  };
+
+  const runAnalysis = async (withFormation: boolean) => {
+    if (!currentTrack) return;
+    setAnalyzeMenuVisible(false);
     setTrackAnalysisStatus(currentTrack.id, 'analyzing');
     try {
       const result = await analyzeTrack(currentTrack.uri, currentTrack.title, currentTrack.format);
       setTrackAnalysis(currentTrack.id, result);
       // Store server phrase boundaries as 'S' edition (beat indices)
       if (result.phraseBoundaries && result.phraseBoundaries.length > 0) {
-        // Convert timestamps to beat indices
         const boundaryBeatIndices = result.phraseBoundaries.map(ts => {
           let closest = 0;
           let minDiff = Math.abs(result.beats[0] - ts);
@@ -593,6 +606,16 @@ export default function PlayerScreen() {
           return closest;
         });
         setServerEdition(currentTrack.id, boundaryBeatIndices);
+      }
+      // Request formation suggestion if choreography mode
+      if (withFormation && result.beats.length >= 4) {
+        try {
+          const { requestFormationSuggestion } = await import('../../services/formationApi');
+          const formationData = await requestFormationSuggestion(result, choreoDancerCount, danceStyle);
+          setServerFormation(currentTrack.id, formationData);
+        } catch (fe: any) {
+          Alert.alert('Formation Error', fe.message || 'Could not generate formation suggestions.');
+        }
       }
     } catch (e: any) {
       setTrackAnalysisStatus(currentTrack.id, 'error');
@@ -659,7 +682,7 @@ export default function PlayerScreen() {
               </TouchableOpacity>
             )}
             {!isYouTube && (!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
-              <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyze}>
+              <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyzePress}>
                 <Ionicons name="analytics-outline" size={16} color={Colors.text} />
                 <Text style={styles.analyzeBtnText}>Analyze</Text>
               </TouchableOpacity>
@@ -728,6 +751,7 @@ export default function PlayerScreen() {
                   currentBeatNote={currentBeatNote}
                   formationData={activeFormationData}
                   onEditFormation={handleEditFormation}
+                  editMode={editMode}
                 />
               </View>
             )}
@@ -814,6 +838,7 @@ export default function PlayerScreen() {
                   currentBeatNote={currentBeatNote}
                   formationData={activeFormationData}
                   onEditFormation={handleEditFormation}
+                  editMode={editMode}
                 />
               </View>
             )}
@@ -861,6 +886,7 @@ export default function PlayerScreen() {
               currentBeatNote={currentBeatNote}
               formationData={activeFormationData}
               onEditFormation={handleEditFormation}
+              editMode={editMode}
             />
           </View>
         )}
@@ -967,7 +993,7 @@ export default function PlayerScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.editionPickerScroll}
             >
-              {/* "Mine" chip — original/user editions */}
+              {/* Server analysis chip — P (PhraseNote) or P+C (+ Choreography) */}
               <TouchableOpacity
                 style={[
                   styles.editionChip,
@@ -979,7 +1005,7 @@ export default function PlayerScreen() {
                   styles.editionChipText,
                   activeSource === 'mine' && styles.editionChipTextActive,
                 ]}>
-                  My Edition
+                  {activeFormationData ? 'P+C' : 'P'}
                 </Text>
               </TouchableOpacity>
 
@@ -1064,6 +1090,18 @@ export default function PlayerScreen() {
       {/* ─── Fixed Bottom Bar (above tab bar) ─── */}
       <View style={styles.bottomBar}>
         <View style={styles.bottomBarSide}>
+          {currentTrack?.analysisStatus === 'done' && (
+            <TouchableOpacity
+              onPress={() => setEditMode(editMode === 'note' ? 'none' : 'note')}
+              style={styles.editModeToggle}
+            >
+              <Ionicons
+                name={editMode === 'note' ? 'create' : 'create-outline'}
+                size={20}
+                color={editMode === 'note' ? Colors.accent : Colors.textMuted}
+              />
+            </TouchableOpacity>
+          )}
           <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
           <TouchableOpacity onPress={handleSkipBack}>
             <Ionicons name="play-back" size={22} color={Colors.text} />
@@ -1083,6 +1121,18 @@ export default function PlayerScreen() {
               color={cueEnabled ? Colors.accent : Colors.textMuted}
             />
           </TouchableOpacity>
+          {activeFormationData && (
+            <TouchableOpacity
+              onPress={() => setEditMode(editMode === 'formation' ? 'none' : 'formation')}
+              style={styles.editModeToggle}
+            >
+              <Ionicons
+                name={editMode === 'formation' ? 'people' : 'people-outline'}
+                size={20}
+                color={editMode === 'formation' ? Colors.accent : Colors.textMuted}
+              />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -1122,6 +1172,63 @@ export default function PlayerScreen() {
                 <Ionicons name="share-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
                 <Text style={styles.shareModalShareText}>Share</Text>
               </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Analyze Mode Selection Modal */}
+      <Modal
+        visible={analyzeMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAnalyzeMenuVisible(false)}
+      >
+        <Pressable
+          style={styles.shareModalBackdrop}
+          onPress={() => setAnalyzeMenuVisible(false)}
+        >
+          <Pressable style={styles.analyzeMenuContainer} onPress={() => {}}>
+            <Text style={styles.analyzeMenuTitle}>Analyze</Text>
+            <TouchableOpacity
+              style={styles.analyzeMenuOption}
+              onPress={() => runAnalysis(false)}
+            >
+              <Ionicons name="musical-notes-outline" size={22} color={Colors.primary} />
+              <View style={styles.analyzeMenuOptionText}>
+                <Text style={styles.analyzeMenuOptionTitle}>PhraseNote</Text>
+                <Text style={styles.analyzeMenuOptionDesc}>Beat analysis + phrase detection</Text>
+              </View>
+            </TouchableOpacity>
+            <View style={styles.analyzeMenuDivider} />
+            <TouchableOpacity
+              style={styles.analyzeMenuOption}
+              onPress={() => runAnalysis(true)}
+            >
+              <Ionicons name="people-outline" size={22} color={Colors.accent} />
+              <View style={styles.analyzeMenuOptionText}>
+                <Text style={styles.analyzeMenuOptionTitle}>Choreography</Text>
+                <Text style={styles.analyzeMenuOptionDesc}>PhraseNote + formation suggestions</Text>
+              </View>
+            </TouchableOpacity>
+            {/* Dancer count stepper — only for choreography */}
+            <View style={styles.dancerCountRow}>
+              <Text style={styles.dancerCountLabel}>Dancers</Text>
+              <View style={styles.dancerCountStepper}>
+                <TouchableOpacity
+                  style={styles.dancerCountBtn}
+                  onPress={() => setChoreoDancerCount(Math.max(2, choreoDancerCount - 1))}
+                >
+                  <Ionicons name="remove" size={18} color={Colors.text} />
+                </TouchableOpacity>
+                <Text style={styles.dancerCountValue}>{choreoDancerCount}</Text>
+                <TouchableOpacity
+                  style={styles.dancerCountBtn}
+                  onPress={() => setChoreoDancerCount(Math.min(12, choreoDancerCount + 1))}
+                >
+                  <Ionicons name="add" size={18} color={Colors.text} />
+                </TouchableOpacity>
+              </View>
             </View>
           </Pressable>
         </Pressable>
@@ -1375,6 +1482,79 @@ const styles = StyleSheet.create({
   },
   cueToggle: {
     padding: Spacing.xs,
+  },
+  editModeToggle: {
+    padding: Spacing.xs,
+  },
+  analyzeMenuContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    width: 280,
+    gap: Spacing.sm,
+  },
+  analyzeMenuTitle: {
+    color: Colors.text,
+    fontSize: FontSize.lg,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: Spacing.xs,
+  },
+  analyzeMenuOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: 10,
+  },
+  analyzeMenuOptionText: {
+    flex: 1,
+  },
+  analyzeMenuOptionTitle: {
+    color: Colors.text,
+    fontSize: FontSize.md,
+    fontWeight: '600',
+  },
+  analyzeMenuOptionDesc: {
+    color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    marginTop: 2,
+  },
+  analyzeMenuDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  dancerCountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.xs,
+  },
+  dancerCountLabel: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.sm,
+  },
+  dancerCountStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  dancerCountBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dancerCountValue: {
+    color: Colors.text,
+    fontSize: FontSize.lg,
+    fontWeight: '700',
+    minWidth: 24,
+    textAlign: 'center',
   },
 
   // ─── Loop (inline A-B controls in scroll area) ──

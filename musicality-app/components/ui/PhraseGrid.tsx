@@ -34,6 +34,8 @@ interface PhraseGridProps {
   // Formation mode
   formationData?: FormationData | null;
   onEditFormation?: (beatIndex: number) => void;
+  // Edit mode — changes cell tap behavior
+  editMode?: 'none' | 'note' | 'formation';
 }
 
 const noop = (_cellIndex: number) => {};  // stable ref for placeholder
@@ -52,6 +54,7 @@ export function PhraseGrid({
   cellNotes, onSetCellNote, onClearCellNote,
   currentBeatNote,
   formationData, onEditFormation,
+  editMode = 'none',
 }: PhraseGridProps) {
   const rowCount = rows ?? DEFAULT_ROWS;
   const CELLS_PER_PAGE = COLS * rowCount; // used only for placeholder
@@ -244,6 +247,19 @@ export function PhraseGrid({
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
+    // Edit mode: formation → open editor instead of seeking
+    if (editMode === 'formation' && onEditFormation) {
+      onEditFormation(globalBeat);
+      return;
+    }
+
+    // Edit mode: note → open note editor instead of seeking
+    if (editMode === 'note' && onSetCellNote) {
+      setMenuBeatIndex(globalBeat);
+      setMenuVisible(true);
+      return;
+    }
+
     // Show tooltip if cell has a note
     showTooltip(globalBeat);
 
@@ -258,7 +274,7 @@ export function PhraseGrid({
     } else {
       onTapBeat(globalBeat);
     }
-  }, [cellToGlobalBeat, isPlaying, beats, onSeekAndPlay, onSeekOnly, onTapBeat, showTooltip]);
+  }, [cellToGlobalBeat, isPlaying, beats, onSeekAndPlay, onSeekOnly, onTapBeat, showTooltip, editMode, onEditFormation, onSetCellNote]);
 
   // ─── Long-press handler ───
   const handleCellLongPress = useCallback((cellIndex: number) => {
