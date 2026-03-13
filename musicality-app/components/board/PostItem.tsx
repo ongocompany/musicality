@@ -115,15 +115,12 @@ export default function PostItem({
         <View style={styles.mediaGrid}>
           {post.mediaUrls.map((url, idx) => {
             const w = mediaImageWidth(post.mediaUrls.length);
-            console.log('[PostItem] rendering image:', w, 'x', w, url.slice(0, 60));
             return (
               <Image
                 key={`${url}-${idx}`}
                 source={{ uri: url }}
                 style={{ width: w, height: w, borderRadius: 8, backgroundColor: Colors.border }}
                 resizeMode="cover"
-                onError={(e) => console.warn('[PostItem] Image load error:', url, e.nativeEvent.error)}
-                onLoad={() => console.log('[PostItem] Image loaded OK:', url.slice(0, 60))}
               />
             );
           })}
