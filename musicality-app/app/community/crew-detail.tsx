@@ -13,10 +13,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { useCommunityStore } from '../../stores/communityStore';
+import { useCalendarStore } from '../../stores/calendarStore';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
+import EventCard from '../../components/calendar/EventCard';
+import EventFormModal from '../../components/calendar/EventFormModal';
 import type { CrewMember } from '../../types/community';
+import type { CalendarEvent, CreateEventInput } from '../../types/calendar';
 
-type Tab = 'songs' | 'board' | 'members';
+type Tab = 'songs' | 'board' | 'members' | 'calendar';
 
 export default function CrewDetailScreen() {
   const router = useRouter();
@@ -41,8 +45,24 @@ export default function CrewDetailScreen() {
     setActiveCrew,
   } = useCommunityStore();
 
+  const {
+    crewEvents,
+    savedEventIds,
+    fetchCrewEvents,
+    fetchSavedEventIds,
+    createCrewEvent,
+    updateCrewEvent,
+    deleteCrewEvent: deleteCrewEventAction,
+    toggleSaveEvent,
+    setMonth,
+    currentYear,
+    currentMonth,
+  } = useCalendarStore();
+
   const [activeTab, setActiveTab] = useState<Tab>('songs');
   const [refreshing, setRefreshing] = useState(false);
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
 
   const crew = id ? crewCache[id] : undefined;
   const isMember = id ? myCrewIds.includes(id) : false;
@@ -64,7 +84,9 @@ export default function CrewDetailScreen() {
     await Promise.all([
       fetchCrewDetail(id),
       fetchCrewMembers(id),
-      activeTab === 'songs' ? fetchSongThreads(id) : fetchGeneralPosts(id),
+      activeTab === 'songs' ? fetchSongThreads(id)
+        : activeTab === 'calendar' ? fetchCrewEvents(id)
+        : fetchGeneralPosts(id),
     ]);
     setRefreshing(false);
   }, [id, activeTab]);
@@ -89,6 +111,7 @@ export default function CrewDetailScreen() {
     if (!id) return;
     if (tab === 'songs') fetchSongThreads(id);
     else if (tab === 'board') fetchGeneralPosts(id);
+    else if (tab === 'calendar') { fetchCrewEvents(id); fetchSavedEventIds(); }
     else fetchCrewMembers(id);
   };
 
@@ -163,14 +186,14 @@ export default function CrewDetailScreen() {
         {isMember && (
           <>
             <View style={styles.tabBar}>
-              {(['songs', 'board', 'members'] as Tab[]).map((tab) => (
+              {(['songs', 'board', 'calendar', 'members'] as Tab[]).map((tab) => (
                 <TouchableOpacity
                   key={tab}
                   style={[styles.tab, activeTab === tab && styles.tabActive]}
                   onPress={() => handleTabChange(tab)}
                 >
                   <Ionicons
-                    name={tab === 'songs' ? 'musical-notes-outline' : tab === 'board' ? 'chatbubbles-outline' : 'people-outline'}
+                    name={tab === 'songs' ? 'musical-notes-outline' : tab === 'board' ? 'chatbubbles-outline' : tab === 'calendar' ? 'calendar-outline' : 'people-outline'}
                     size={18}
                     color={activeTab === tab ? Colors.primary : Colors.textMuted}
                   />
@@ -228,6 +251,48 @@ export default function CrewDetailScreen() {
                 </View>
               )}
 
+              {activeTab === 'calendar' && (
+                <>
+                  {(isCaptain || activeCrewMembers.some(m => m.userId === user?.id && (m.role === 'captain' || m.role === 'moderator'))) && (
+                    <TouchableOpacity
+                      style={styles.addEventButton}
+                      onPress={() => { setEditingEvent(null); setShowEventForm(true); }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
+                      <Text style={styles.addEventText}>일정 추가</Text>
+                    </TouchableOpacity>
+                  )}
+                  {crewEvents.length === 0 ? (
+                    <View style={styles.emptyState}>
+                      <Ionicons name="calendar-outline" size={40} color={Colors.textMuted} />
+                      <Text style={styles.emptyText}>일정이 없습니다</Text>
+                      <Text style={styles.emptySubtext}>캡틴이나 모더레이터가 일정을 추가할 수 있습니다</Text>
+                    </View>
+                  ) : (
+                    crewEvents.map((event) => {
+                      const canManage = isCaptain || activeCrewMembers.some(m => m.userId === user?.id && m.role === 'moderator');
+                      return (
+                        <EventCard
+                          key={event.id}
+                          event={event}
+                          canEdit={canManage}
+                          isSaved={savedEventIds.has(event.id)}
+                          onEdit={canManage ? (e) => { setEditingEvent(e); setShowEventForm(true); } : undefined}
+                          onDelete={canManage ? (eventId) => {
+                            Alert.alert('일정 삭제', '이 일정을 삭제하시겠습니까?', [
+                              { text: '취소', style: 'cancel' },
+                              { text: '삭제', style: 'destructive', onPress: () => deleteCrewEventAction(eventId) },
+                            ]);
+                          } : undefined}
+                          onToggleSave={(eventId) => toggleSaveEvent(eventId)}
+                        />
+                      );
+                    })
+                  )}
+                </>
+              )}
+
               {activeTab === 'members' && (
                 <>
                   {activeCrewMembers.map((member) => (
@@ -265,6 +330,22 @@ export default function CrewDetailScreen() {
           </>
         )}
       </View>
+
+      {/* Crew Event Form Modal */}
+      <EventFormModal
+        visible={showEventForm}
+        editEvent={editingEvent}
+        onSubmit={async (input: CreateEventInput) => {
+          if (!id) return;
+          if (editingEvent) {
+            await updateCrewEvent(editingEvent.id, input);
+            await fetchCrewEvents(id);
+          } else {
+            await createCrewEvent(id, input);
+          }
+        }}
+        onClose={() => { setShowEventForm(false); setEditingEvent(null); }}
+      />
     </>
   );
 }
@@ -483,5 +564,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#FFF',
+  },
+  // Calendar
+  addEventButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+  },
+  addEventText: {
+    fontSize: FontSize.md,
+    fontWeight: '500',
+    color: Colors.primary,
   },
 });

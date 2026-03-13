@@ -21,7 +21,7 @@ interface Props {
   onClose: () => void;
 }
 
-const PANEL_HEIGHT = 340;
+const PANEL_HEIGHT = 390;
 
 export default function ProfileSlidePanel({ visible, onClose }: Props) {
   const router = useRouter();
@@ -71,6 +71,11 @@ export default function ProfileSlidePanel({ visible, onClose }: Props) {
   const handleEditProfile = () => {
     handleClose();
     setTimeout(() => router.push('/profile/edit'), 250);
+  };
+
+  const handleCalendar = () => {
+    handleClose();
+    setTimeout(() => router.push('/calendar'), 250);
   };
 
   const handleLogout = () => {
@@ -139,6 +144,12 @@ export default function ProfileSlidePanel({ visible, onClose }: Props) {
           <TouchableOpacity style={styles.menuItem} onPress={handleEditProfile}>
             <Ionicons name="create-outline" size={20} color={Colors.primary} />
             <Text style={styles.menuLabel}>프로필 편집</Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={handleCalendar}>
+            <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
+            <Text style={styles.menuLabel}>캘린더</Text>
             <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
           </TouchableOpacity>
 
