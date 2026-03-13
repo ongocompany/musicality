@@ -277,16 +277,16 @@ const styles = StyleSheet.create({
   },
   handleHitArea: {
     position: 'absolute',
-    top: 4, // offset for container marginTop in SectionTimeline
+    top: 18, // offset for time row + container marginTop in SectionTimeline
     width: HIT_ZONE_PX,
-    height: 66,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 5,
   },
   handleLine: {
     width: 2,
-    height: 74,
+    height: 58,
     backgroundColor: Colors.textMuted,
     opacity: 0.35,
     borderRadius: 1,
@@ -303,6 +303,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderRadius: 2,
     transform: [{ rotate: '45deg' }],
-    top: 28, // vertically centered in 66px
+    top: 20, // vertically centered in 50px
   },
 });
