@@ -18,7 +18,7 @@ import type {
 // ─── Helpers ────────────────────────────────────────────
 
 /** Map Supabase snake_case row to camelCase Profile */
-function mapProfile(row: any): Profile {
+export function mapProfile(row: any): Profile {
   return {
     id: row.id,
     displayName: row.display_name ?? '',
