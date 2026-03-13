@@ -255,23 +255,20 @@ export const useCommunityStore = create<CommunityState>()(
       },
 
       createGeneralPost: async (crewId: string, content: string, parentId?: string, mediaUrls?: string[]) => {
-        await withLoading(set, 'createPost', async () => {
-          const post = await api.createGeneralPost(crewId, content, parentId, mediaUrls);
-          if (!parentId) {
-            set((s) => ({
-              activeGeneralPosts: [post, ...s.activeGeneralPosts],
-            }));
-          }
-        })();
+        // Don't use withLoading — let errors propagate to PostComposer
+        const post = await api.createGeneralPost(crewId, content, parentId, mediaUrls);
+        if (!parentId) {
+          set((s) => ({
+            activeGeneralPosts: [post, ...s.activeGeneralPosts],
+          }));
+        }
       },
 
       deleteGeneralPost: async (postId: string) => {
-        await withLoading(set, 'deletePost', async () => {
-          await api.deleteGeneralPost(postId);
-          set((s) => ({
-            activeGeneralPosts: s.activeGeneralPosts.filter((p) => p.id !== postId),
-          }));
-        })();
+        await api.deleteGeneralPost(postId);
+        set((s) => ({
+          activeGeneralPosts: s.activeGeneralPosts.filter((p) => p.id !== postId),
+        }));
       },
 
       togglePostLike: async (postId: string) => {

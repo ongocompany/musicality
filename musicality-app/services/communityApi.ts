@@ -509,15 +509,19 @@ export async function createGeneralPost(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
+  const insertPayload: Record<string, unknown> = {
+    crew_id: crewId,
+    user_id: user.id,
+    content: content.trim(),
+    parent_id: parentId ?? null,
+  };
+  if (mediaUrls && mediaUrls.length > 0) {
+    insertPayload.media_urls = mediaUrls;
+  }
+
   const { data, error } = await supabase
     .from('general_posts')
-    .insert({
-      crew_id: crewId,
-      user_id: user.id,
-      content: content.trim(),
-      parent_id: parentId ?? null,
-      media_urls: mediaUrls ?? [],
-    })
+    .insert(insertPayload)
     .select('*, profiles:user_id(*)')
     .single();
 
