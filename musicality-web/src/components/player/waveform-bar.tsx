@@ -149,7 +149,7 @@ export function WaveformBar({
 
       {/* Phrase segment bar */}
       {phraseSegments.length > 0 && (
-        <div className="relative h-2 rounded-full overflow-hidden bg-muted/20 cursor-pointer" onMouseDown={handleMouseDown}>
+        <div className="relative h-16 rounded-lg overflow-hidden bg-muted/20 cursor-pointer" onMouseDown={handleMouseDown}>
           {phraseSegments.map((seg, i) => (
             <div
               key={i}
