@@ -265,10 +265,15 @@ export function FormationStageView({
     (normX: number, normY: number): string | null => {
       if (!currentPositions) return null;
       let closest: string | null = null;
-      let closestDist = HIT_RADIUS / stageWidth; // normalize hit radius
+      let closestDist = Infinity;
+      const hitNormX = HIT_RADIUS / stageWidth;
+      const hitNormY = HIT_RADIUS / stageHeight;
       for (const pos of currentPositions) {
-        const dist = Math.hypot(pos.x - normX, pos.y - normY);
-        if (dist < closestDist) {
+        // Scale distance by aspect ratio so hit area is circular in pixels
+        const dx = (pos.x - normX) / hitNormX;
+        const dy = (pos.y - normY) / hitNormY;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 1.0 && dist < closestDist) {
           closestDist = dist;
           closest = pos.dancerId;
         }
@@ -286,12 +291,10 @@ export function FormationStageView({
         Math.abs(gs.dx) > 3 || Math.abs(gs.dy) > 3,
       onPanResponderGrant: (evt) => {
         const { locationX, locationY } = evt.nativeEvent;
-        // Map to stage area (below backstage)
+        // Map to stage coords (backstage = negative normY)
         const stageY = locationY - backstageHeight;
         const normX = locationX / stageWidth;
         const normY = stageY / stageHeight;
-
-        if (normY < 0 || normY > 1) return; // in backstage or outside
 
         const dancer = findClosestDancer(normX, normY);
         if (dancer) {
@@ -316,7 +319,8 @@ export function FormationStageView({
         const { locationX, locationY } = evt.nativeEvent;
         const stageY = locationY - backstageHeight;
         const normX = Math.max(0.02, Math.min(0.98, locationX / stageWidth));
-        const normY = Math.max(0.02, Math.min(0.98, stageY / stageHeight));
+        // Allow negative normY for backstage placement
+        const normY = Math.max(-backstageHeight / stageHeight, Math.min(0.98, stageY / stageHeight));
 
         const newPositions = currentPositions.map((p) =>
           p.dancerId === dragDancerId ? { ...p, x: normX, y: normY } : p,
@@ -413,6 +417,46 @@ export function FormationStageView({
     }
   }, [formationData, currentBeatIndex, onUpdate]);
 
+  // ─── Add / Remove dancers ─────────────────────────
+  const DANCER_COLORS = ['#4FC3F7', '#F48FB1', '#81C784', '#FFB74D', '#CE93D8', '#A1887F', '#4DD0E1', '#FF8A65', '#AED581', '#F06292', '#7986CB', '#DCE775'];
+
+  const handleAddDancer = useCallback(() => {
+    if (formationData.dancers.length >= 12) return;
+    const idx = formationData.dancers.length;
+    const role = idx % 2 === 0 ? 'leader' as const : 'follower' as const;
+    const newDancer: DancerDef = {
+      id: `D${idx + 1}`,
+      label: `${role === 'leader' ? 'L' : 'F'}${Math.ceil((idx + 1) / 2)}`,
+      role,
+      color: DANCER_COLORS[idx % DANCER_COLORS.length],
+    };
+    // Place new dancer in backstage (offstage, y < 0 in normalized coords)
+    const backstageX = 0.1 + (idx % 6) * 0.15;
+    const newData: FormationData = {
+      ...formationData,
+      dancers: [...formationData.dancers, newDancer],
+      keyframes: formationData.keyframes.map((kf) => ({
+        ...kf,
+        positions: [...kf.positions, { dancerId: newDancer.id, x: backstageX, y: -0.1, offstage: true }],
+      })),
+    };
+    onUpdate(newData);
+  }, [formationData, onUpdate]);
+
+  const handleRemoveDancer = useCallback(() => {
+    if (formationData.dancers.length <= 1) return;
+    const removedId = formationData.dancers[formationData.dancers.length - 1].id;
+    const newData: FormationData = {
+      ...formationData,
+      dancers: formationData.dancers.slice(0, -1),
+      keyframes: formationData.keyframes.map((kf) => ({
+        ...kf,
+        positions: kf.positions.filter((p) => p.dancerId !== removedId),
+      })),
+    };
+    onUpdate(newData);
+  }, [formationData, onUpdate]);
+
   const handleBeatNav = useCallback(
     (delta: number) => {
       const next = Math.max(0, Math.min(totalBeats - 1, currentBeatIndex + delta));
@@ -438,6 +482,13 @@ export function FormationStageView({
         </Pressable>
         {isEditing && (
           <View style={styles.configActions}>
+            <Pressable onPress={handleRemoveDancer} hitSlop={8} style={styles.dancerCountBtn}>
+              <Ionicons name="remove-circle-outline" size={18} color={formationData.dancers.length <= 1 ? Colors.textMuted : Colors.textSecondary} />
+            </Pressable>
+            <Text style={styles.dancerCountLabel}>{formationData.dancers.length}</Text>
+            <Pressable onPress={handleAddDancer} hitSlop={8} style={styles.dancerCountBtn}>
+              <Ionicons name="add-circle-outline" size={18} color={formationData.dancers.length >= 12 ? Colors.textMuted : Colors.textSecondary} />
+            </Pressable>
             <Text style={styles.beatIndicator}>
               Beat {currentBeatIndex + 1}
               <Text style={{ color: isKeyframe ? Colors.accent : Colors.textMuted }}>
@@ -476,17 +527,20 @@ export function FormationStageView({
         </View>
       )}
 
-      {/* Stage area */}
-      <View style={[styles.stageOuter, { width: stageWidth, height: totalHeight }]}>
+      {/* Stage area — panResponder on outer so backstage dots are draggable */}
+      <View
+        style={[styles.stageOuter, { width: stageWidth, height: totalHeight }]}
+        {...panResponder.panHandlers}
+      >
         {/* Backstage (top) */}
-        <View style={[styles.backstage, { height: backstageHeight }]}>
+        <View style={[styles.backstage, { height: backstageHeight }]} pointerEvents="none">
           <Text style={styles.backstageLabel}>BACKSTAGE</Text>
         </View>
 
         {/* Main stage */}
         <View
           style={[styles.stage, { width: stageWidth, height: stageHeight }]}
-          {...panResponder.panHandlers}
+          pointerEvents="none"
         >
           {/* Grid lines */}
           {gridLines.hLines.map((p, i) => (
@@ -536,92 +590,96 @@ export function FormationStageView({
             AUDIENCE ▼
           </Text>
 
-          {/* Dancers */}
-          {currentPositions?.map((pos) => {
-            const dancer = formationData.dancers.find((d) => d.id === pos.dancerId);
-            if (!dancer) return null;
-            const isSelected = selectedDancerIds.has(dancer.id);
-            const isDragging = dragDancerId === dancer.id;
-            const displayName = dancer.crewMemberName || dancer.label;
-            const shortName =
-              displayName.length > 8 ? displayName.slice(0, 7) + '…' : displayName;
+        </View>
 
-            const anim = animatedPositions.current.get(dancer.id);
-            const useAnimated = isPlaying && !isEditing && anim;
+        {/* Dancers — rendered at stageOuter level so backstage dots are visible */}
+        {currentPositions?.map((pos) => {
+          const dancer = formationData.dancers.find((d) => d.id === pos.dancerId);
+          if (!dancer) return null;
+          const isSelected = selectedDancerIds.has(dancer.id);
+          const isDragging = dragDancerId === dancer.id;
+          const displayName = dancer.crewMemberName || dancer.label;
+          const shortName =
+            displayName.length > 8 ? displayName.slice(0, 7) + '…' : displayName;
+          const isOffstage = pos.y < 0;
 
-            if (useAnimated) {
-              const dotLeft = Animated.multiply(anim.x, stageWidth);
-              const dotTop = Animated.multiply(anim.y, stageHeight);
-              return (
-                <View key={dancer.id} pointerEvents="none">
-                  {/* Name above dot */}
-                  <Animated.Text
-                    style={[
-                      styles.dancerName,
-                      {
-                        left: Animated.subtract(dotLeft, 24),
-                        top: Animated.subtract(dotTop, DOT_RADIUS - 12),
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {shortName}
-                  </Animated.Text>
-                  {/* Dot */}
-                  <Animated.View
-                    style={[
-                      styles.dancer,
-                      {
-                        left: Animated.subtract(dotLeft, DOT_RADIUS),
-                        top: Animated.subtract(dotTop, DOT_RADIUS),
-                        backgroundColor: dancer.color,
-                      },
-                    ]}
-                  />
-                </View>
-              );
-            }
+          const anim = animatedPositions.current.get(dancer.id);
+          const useAnimated = isPlaying && !isEditing && anim;
 
-            // Static positioning (editing or paused)
-            const dotLeft = pos.x * stageWidth - DOT_RADIUS;
-            const dotTop = pos.y * stageHeight - DOT_RADIUS;
-
+          // Pixel coords: y is relative to stageOuter (backstage + stage)
+          if (useAnimated) {
+            const dotLeft = Animated.multiply(anim.x, stageWidth);
+            const dotTop = Animated.add(
+              Animated.multiply(anim.y, stageHeight),
+              backstageHeight,
+            );
             return (
-              <View key={dancer.id} pointerEvents="none">
-                {/* Name above dot */}
-                <Text
+              <View key={dancer.id} pointerEvents="none" style={StyleSheet.absoluteFill}>
+                <Animated.Text
                   style={[
                     styles.dancerName,
                     {
-                      left: pos.x * stageWidth - 24,
-                      top: pos.y * stageHeight - DOT_RADIUS - 12,
+                      left: Animated.subtract(dotLeft, 24),
+                      top: Animated.subtract(dotTop, DOT_RADIUS + 12),
                     },
                   ]}
                   numberOfLines={1}
                 >
                   {shortName}
-                </Text>
-                {/* Dot */}
-                <View
+                </Animated.Text>
+                <Animated.View
                   style={[
                     styles.dancer,
                     {
-                      left: dotLeft,
-                      top: dotTop,
+                      left: Animated.subtract(dotLeft, DOT_RADIUS),
+                      top: Animated.subtract(dotTop, DOT_RADIUS),
                       backgroundColor: dancer.color,
-                      borderColor: isSelected
-                        ? '#FFFFFF'
-                        : isDragging
-                        ? '#FFD700'
-                        : 'transparent',
-                      transform: [{ scale: isDragging ? 1.5 : 1 }],
                     },
                   ]}
                 />
               </View>
             );
-          })}
-        </View>
+          }
+
+          // Static positioning (editing or paused)
+          const pixelLeft = pos.x * stageWidth;
+          const pixelTop = pos.y * stageHeight + backstageHeight;
+
+          return (
+            <View key={dancer.id} pointerEvents="none" style={StyleSheet.absoluteFill}>
+              <Text
+                style={[
+                  styles.dancerName,
+                  {
+                    left: pixelLeft - 24,
+                    top: pixelTop - DOT_RADIUS - 12,
+                    opacity: isOffstage ? 0.5 : 1,
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {shortName}
+              </Text>
+              <View
+                style={[
+                  styles.dancer,
+                  {
+                    left: pixelLeft - DOT_RADIUS,
+                    top: pixelTop - DOT_RADIUS,
+                    backgroundColor: dancer.color,
+                    opacity: isOffstage ? 0.5 : 1,
+                    borderColor: isSelected
+                      ? '#FFFFFF'
+                      : isDragging
+                      ? '#FFD700'
+                      : 'transparent',
+                    transform: [{ scale: isDragging ? 1.5 : 1 }],
+                  },
+                ]}
+              />
+            </View>
+          );
+        })}
       </View>
 
       {/* Editing controls */}
@@ -751,7 +809,21 @@ const styles = StyleSheet.create({
   },
   configActions: {
     flex: 1,
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 2,
+  },
+  dancerCountBtn: {
+    padding: 2,
+  },
+  dancerCountLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.text,
+    fontWeight: '600',
+    minWidth: 16,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
   beatIndicator: {
     fontSize: FontSize.xs,

@@ -930,6 +930,7 @@ export default function PlayerScreen() {
 
             {/* PhraseGrid — rhythm game style */}
             <PhraseGrid
+              rows={activeFormationData ? 4 : undefined}
               countInfo={countInfo}
               phraseMap={phraseMap ?? null}
               hasAnalysis={!!analysis}
