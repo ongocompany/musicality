@@ -54,10 +54,23 @@ export default function PostComposer({ onPost, placeholder = '무슨 이야기�
     if (!canPost || posting) return;
     setPosting(true);
     try {
-      // Upload media if any
+      // Upload media if any (failures are non-fatal — post text anyway)
       let uploadedUrls: string[] | undefined;
       if (mediaUris.length > 0) {
-        uploadedUrls = await Promise.all(mediaUris.map((uri) => api.uploadPostMedia(uri)));
+        try {
+          const results = await Promise.allSettled(
+            mediaUris.map((uri) => api.uploadPostMedia(uri)),
+          );
+          const succeeded = results
+            .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+            .map((r) => r.value);
+          if (succeeded.length > 0) uploadedUrls = succeeded;
+          if (succeeded.length < mediaUris.length) {
+            Alert.alert('일부 사진 업로드 실패', `${succeeded.length}/${mediaUris.length}장 업로드됨`);
+          }
+        } catch {
+          Alert.alert('사진 업로드 실패', '텍스트만 게시합니다');
+        }
       }
       await onPost(content.trim(), uploadedUrls);
       setContent('');

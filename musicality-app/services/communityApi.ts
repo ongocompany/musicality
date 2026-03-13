@@ -579,26 +579,10 @@ export async function uploadPostMedia(uri: string): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const ext = uri.split('.').pop()?.toLowerCase() || 'jpg';
-  const fileName = `${user.id}/${Date.now()}.${ext}`;
-
-  const response = await fetch(uri);
-  const arrayBuffer = await response.arrayBuffer();
-
-  const { error } = await supabase.storage
-    .from('post-media')
-    .upload(fileName, arrayBuffer, {
-      contentType: ext === 'mp4' || ext === 'mov' ? 'video/mp4' : `image/${ext === 'jpg' ? 'jpeg' : ext}`,
-      upsert: false,
-    });
-
-  if (error) throw new Error(error.message);
-
-  const { data: urlData } = supabase.storage
-    .from('post-media')
-    .getPublicUrl(fileName);
-
-  return urlData.publicUrl;
+  const ext = uri.split('.').pop()?.split('?')[0]?.toLowerCase() ?? 'jpg';
+  const path = `posts/${user.id}/${Date.now()}.${ext}`;
+  // Reuse crew-thumbnails bucket (guaranteed to exist)
+  return uploadImage('crew-thumbnails', path, uri);
 }
 
 // ─── Storage ────────────────────────────────────────────
