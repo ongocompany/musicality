@@ -3,7 +3,7 @@
  * Personal events use RLS; crew events use RPC functions.
  */
 import { supabase } from '../lib/supabase';
-import { mapProfile } from './communityApi';
+import { mapProfile, fetchProfilesByIds } from './communityApi';
 import type { CalendarEvent, CreateEventInput } from '../types/calendar';
 
 // ─── Helpers ────────────────────────────────────────────
@@ -20,10 +20,17 @@ function mapCalendarEvent(row: any): CalendarEvent {
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    profile: row.profiles ? mapProfile(row.profiles) : undefined,
     crewName: row.crews?.name ?? undefined,
     saved: row.saved ?? undefined,
   };
+}
+
+/** Attach profiles to events via batch fetch (avoids FK join issues) */
+async function attachProfilesToEvents(events: CalendarEvent[]): Promise<CalendarEvent[]> {
+  if (events.length === 0) return events;
+  const userIds = [...new Set(events.map((e) => e.createdBy).filter(Boolean))];
+  const profileMap = await fetchProfilesByIds(userIds);
+  return events.map((e) => ({ ...e, profile: profileMap.get(e.createdBy) }));
 }
 
 /** Get first/last day for a month range query */
@@ -41,7 +48,7 @@ export async function fetchPersonalEvents(year: number, month: number): Promise<
   const { from, to } = monthRange(year, month);
   const { data, error } = await supabase
     .from('events')
-    .select('*, profiles:created_by(*)')
+    .select('*, crews:crew_id(name)')
     .is('crew_id', null)
     .gte('event_date', from)
     .lt('event_date', to)
@@ -49,7 +56,8 @@ export async function fetchPersonalEvents(year: number, month: number): Promise<
     .order('event_time', { ascending: true });
 
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapCalendarEvent);
+  const events = (data ?? []).map(mapCalendarEvent);
+  return attachProfilesToEvents(events);
 }
 
 export async function createPersonalEvent(input: CreateEventInput): Promise<CalendarEvent> {
@@ -67,11 +75,14 @@ export async function createPersonalEvent(input: CreateEventInput): Promise<Cale
       crew_id: null,
       created_by: user.id,
     })
-    .select('*, profiles:created_by(*)')
+    .select('*, crews:crew_id(name)')
     .single();
 
   if (error) throw new Error(error.message);
-  return mapCalendarEvent(data);
+  const event = mapCalendarEvent(data);
+  const profileMap = await fetchProfilesByIds([event.createdBy]);
+  event.profile = profileMap.get(event.createdBy);
+  return event;
 }
 
 export async function updatePersonalEvent(eventId: string, input: Partial<CreateEventInput>): Promise<void> {
@@ -105,7 +116,7 @@ export async function fetchCrewEvents(crewId: string, year: number, month: numbe
   const { from, to } = monthRange(year, month);
   const { data, error } = await supabase
     .from('events')
-    .select('*, profiles:created_by(*), crews:crew_id(name)')
+    .select('*, crews:crew_id(name)')
     .eq('crew_id', crewId)
     .gte('event_date', from)
     .lt('event_date', to)
@@ -113,7 +124,8 @@ export async function fetchCrewEvents(crewId: string, year: number, month: numbe
     .order('event_time', { ascending: true });
 
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapCalendarEvent);
+  const events = (data ?? []).map(mapCalendarEvent);
+  return attachProfilesToEvents(events);
 }
 
 export async function createCrewEvent(crewId: string, input: CreateEventInput): Promise<string> {
@@ -160,13 +172,13 @@ export async function fetchSavedEvents(year: number, month: number): Promise<Cal
 
   const { data, error } = await supabase
     .from('user_saved_events')
-    .select('event_id, events:event_id(*, profiles:created_by(*), crews:crew_id(name))')
+    .select('event_id, events:event_id(*, crews:crew_id(name))')
     .eq('user_id', user.id);
 
   if (error) throw new Error(error.message);
   if (!data) return [];
 
-  return data
+  const events = data
     .map((row: any) => {
       if (!row.events) return null;
       const evt = mapCalendarEvent(row.events);
@@ -176,6 +188,8 @@ export async function fetchSavedEvents(year: number, month: number): Promise<Cal
     .filter((e: CalendarEvent | null): e is CalendarEvent =>
       e !== null && e.eventDate >= from && e.eventDate < to
     );
+
+  return attachProfilesToEvents(events);
 }
 
 export async function fetchSavedEventIds(): Promise<Set<string>> {
