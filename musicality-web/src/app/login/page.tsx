@@ -21,7 +21,7 @@ function LoginForm() {
   const redirect = searchParams.get('redirect') || '/crews';
   const supabase = createClient();
 
-  async function handleOAuth(provider: 'google' | 'kakao') {
+  async function handleOAuth(provider: 'google' | 'apple') {
     setLoading(provider);
     setError('');
     const { error: err } = await supabase.auth.signInWithOAuth({
@@ -45,7 +45,7 @@ function LoginForm() {
           </CardTitle>
           <p className="text-xs text-muted-foreground tracking-widest uppercase">Vibe with crew</p>
           <CardDescription className="text-sm pt-2">
-            소셜 계정으로 시작하세요
+            Sign in to get started
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -72,49 +72,28 @@ function LoginForm() {
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
               </svg>
             )}
-            Google로 계속하기
+            Continue with Google
           </Button>
 
-          {/* Kakao */}
+          {/* Apple */}
           <Button
             variant="outline"
-            className="w-full h-12 text-sm font-medium border-[#FEE500]/40 hover:bg-[#FEE500]/10"
-            onClick={() => handleOAuth('kakao')}
+            className="w-full h-12 text-sm font-medium"
+            onClick={() => handleOAuth('apple')}
             disabled={loading !== null}
           >
-            {loading === 'kakao' ? (
+            {loading === 'apple' ? (
               <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
             ) : (
-              <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24" fill="none">
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M12 4C7.03 4 3 7.13 3 10.96c0 2.44 1.6 4.58 4.01 5.84l-.72 2.67a.37.37 0 0 0 .56.4l3.13-2.07c.65.1 1.32.16 2.02.16 4.97 0 9-3.13 9-6.96S16.97 4 12 4z"
-                  fill="#3C1E1E"
-                />
+              <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C4.24 16.7 4.89 10.33 8.7 10.1c1.2.06 2.04.7 2.75.73.98-.2 1.92-.78 2.97-.7 1.26.1 2.2.6 2.83 1.52-2.58 1.53-1.97 4.88.48 5.82-.58 1.5-1.33 2.97-2.68 4.81zM12.03 10c-.12-2.08 1.6-3.88 3.53-4.05.28 2.35-2.13 4.25-3.53 4.05z" />
               </svg>
             )}
-            카카오로 계속하기
-          </Button>
-
-          {/* Naver — Coming Soon */}
-          <Button
-            variant="outline"
-            className="w-full h-12 text-sm font-medium opacity-40"
-            disabled
-          >
-            <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24" fill="none">
-              <rect x="2" y="2" width="20" height="20" rx="4" fill="#03C75A" />
-              <path d="M8 7.5h2.5l3 4.2V7.5H16v9h-2.5l-3-4.2v4.2H8v-9z" fill="white" />
-            </svg>
-            네이버로 계속하기
-            <span className="ml-auto text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-              준비중
-            </span>
+            Continue with Apple
           </Button>
 
           <p className="text-[11px] text-center text-muted-foreground pt-3">
-            로그인 시 자동으로 계정이 생성됩니다
+            A new account will be created automatically
           </p>
         </CardContent>
       </Card>
