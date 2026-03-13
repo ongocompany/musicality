@@ -2,7 +2,7 @@
  * Community API — Direct Supabase queries for crew system.
  * RLS policies handle authorization; no FastAPI proxy needed.
  */
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '../lib/supabase';
 import type {
