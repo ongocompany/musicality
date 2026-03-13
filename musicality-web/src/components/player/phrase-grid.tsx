@@ -259,17 +259,12 @@ export function PhraseGrid({
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       {/* Phrase header */}
-      <div className="flex items-center justify-between px-1 mb-1.5" style={{ maxWidth: gridContentWidth, margin: '0 auto 6px' }}>
+      <div className="flex items-center px-1 mb-1.5" style={{ maxWidth: gridContentWidth, margin: '0 auto 6px' }}>
         <span className="text-[11px] font-medium text-muted-foreground">
           {currentPhrase
             ? `Phrase ${currentPhrase.index + 1} / ${phraseMap?.phrases.length ?? 0}`
             : 'Phrase Grid'}
         </span>
-        <div className="flex gap-2 text-[10px] text-muted-foreground">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-            <span key={n} className="w-4 text-center opacity-60">{n}</span>
-          ))}
-        </div>
       </div>
 
       {/* Scrollable grid area */}

@@ -76,17 +76,12 @@ export function CountDisplay({
       )}
 
       {/* Large count number */}
-      <div
-        className="flex items-center justify-center w-24 h-24 rounded-2xl transition-colors duration-75"
-        style={{ backgroundColor: `${phraseColor}22` }}
+      <span
+        className="font-black tabular-nums leading-none transition-colors duration-75"
+        style={{ color: phraseColor, fontSize: '144px' }}
       >
-        <span
-          className="text-7xl font-black tabular-nums leading-none transition-colors duration-75"
-          style={{ color: phraseColor }}
-        >
-          {count}
-        </span>
-      </div>
+        {count}
+      </span>
 
       {/* 8-count dots */}
       <div className="flex gap-1.5 mt-2">
