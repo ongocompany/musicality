@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback } from 'react';
 import { usePlayerStore } from '../stores/playerStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { findCurrentBeatIndex, computeReferenceIndex, findCurrentPhrase, getBeatType } from '../utils/beatCounter';
-import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries } from '../utils/phraseDetector';
+import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, phrasesFromBeatIndices } from '../utils/phraseDetector';
 import { getCueSound } from '../constants/cueSounds';
 import { useSoundPool } from './useSoundPool';
 
@@ -43,6 +43,7 @@ export function useCuePlayer() {
     const {
       lookAheadMs, danceStyle, downbeatOffsets,
       phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks,
+      trackEditions,
     } = useSettingsStore.getState();
     const { beats, downbeats, sections, duration, phraseBoundaries } = currentTrack.analysis;
     if (beats.length === 0) return;
@@ -59,24 +60,53 @@ export function useCuePlayer() {
     const offsetBeatIndex = downbeatOffsets[currentTrack.id] ?? null;
     const refIdx = computeReferenceIndex(beats, downbeats, offsetBeatIndex, sections);
 
-    // Build phraseMap inline (same logic as player.tsx)
+    // Build phraseMap inline (same logic as player.tsx) — draft → edition → fallback
     let phraseMap;
-    switch (phraseDetectionMode) {
-      case 'rule-based':
-        phraseMap = detectPhrasesRuleBased(beats, refIdx, defaultBeatsPerPhrase, duration);
-        break;
-      case 'user-marked': {
-        const mark = phraseMarks[currentTrack.id];
-        phraseMap = mark != null
-          ? detectPhrasesFromUserMark(beats, refIdx, mark, duration)
-          : detectPhrasesRuleBased(beats, refIdx, defaultBeatsPerPhrase, duration);
-        break;
+
+    // 1. Check draft boundaries first (unsaved edits)
+    const { draftBoundaries } = useSettingsStore.getState();
+    const draft = draftBoundaries[currentTrack.id];
+    if (draft && draft.length > 0) {
+      phraseMap = phrasesFromBeatIndices(beats, draft, duration);
+    }
+
+    // 2. Check active edition (only if no draft)
+    if (!phraseMap) {
+      const editions = trackEditions[currentTrack.id];
+      if (editions) {
+        const activeId = editions.activeEditionId;
+        let boundaries: number[] | undefined;
+        if (activeId === 'S') {
+          boundaries = editions.server?.boundaries;
+        } else {
+          const userEd = editions.userEditions.find(e => e.id === activeId);
+          boundaries = userEd?.boundaries;
+        }
+        if (boundaries && boundaries.length > 0) {
+          phraseMap = phrasesFromBeatIndices(beats, boundaries, duration);
+        }
       }
-      case 'server':
-        phraseMap = phraseBoundaries?.length
-          ? phrasesFromBoundaries(beats, phraseBoundaries, duration)
-          : detectPhrasesRuleBased(beats, refIdx, defaultBeatsPerPhrase, duration);
-        break;
+    }
+
+    // 3. Fallback: detection mode
+    if (!phraseMap) {
+      switch (phraseDetectionMode) {
+        case 'rule-based':
+          phraseMap = detectPhrasesRuleBased(beats, refIdx, defaultBeatsPerPhrase, duration);
+          break;
+        case 'user-marked': {
+          const mark = phraseMarks[currentTrack.id];
+          phraseMap = mark != null
+            ? detectPhrasesFromUserMark(beats, refIdx, mark, duration)
+            : detectPhrasesRuleBased(beats, refIdx, defaultBeatsPerPhrase, duration);
+          break;
+        }
+        case 'server':
+          phraseMap = phraseBoundaries?.length
+            ? phrasesFromBoundaries(beats, phraseBoundaries, duration)
+            : detectPhrasesRuleBased(beats, refIdx, defaultBeatsPerPhrase, duration);
+          break;
+      }
     }
 
     // Phrase-aware count

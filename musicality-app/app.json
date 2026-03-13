@@ -13,7 +13,8 @@
       "backgroundColor": "#121212"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.musicality-app"
     },
     "android": {
       "adaptiveIcon": {
@@ -29,7 +30,9 @@
     },
     "plugins": [
       "expo-router",
-      "expo-document-picker"
+      "expo-document-picker",
+      "expo-web-browser",
+      "expo-localization"
     ]
   }
 }

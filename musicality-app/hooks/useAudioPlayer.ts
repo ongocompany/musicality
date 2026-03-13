@@ -36,7 +36,7 @@ export function useAudioPlayer() {
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: currentTrack.uri },
-        { shouldPlay: false, rate: playbackRate, progressUpdateIntervalMillis: 50 },
+        { shouldPlay: false, rate: playbackRate, progressUpdateIntervalMillis: 100 },
         onPlaybackStatusUpdate,
       );
 

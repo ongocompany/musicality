@@ -1,0 +1,1966 @@
+/**
+ * Community API — Web version.
+ * Direct Supabase queries for crew system. RLS handles authorization.
+ */
+import { SupabaseClient } from '@supabase/supabase-js';
+import type {
+  Profile,
+  Crew,
+  CrewMember,
+  CreateCrewInput,
+  JoinRequest,
+  SongThread,
+  CreateThreadInput,
+  ThreadPhraseNote,
+  GeneralPost,
+  UserFollow,
+  UserBlock,
+  UserNote,
+  DirectMessage,
+  ConversationThread,
+  UserSocialContext,
+  ChatRoom,
+  ChatRoomMember,
+  ChatRoomMessage,
+  InboxItem,
+  CalendarEvent,
+  CreateEventInput,
+  MemberRole,
+  PlayerTrack,
+  PlayerFolder,
+  TrackAnalysis,
+  PhraseEdition,
+  CellNotes,
+  TrackSettings,
+  Section,
+} from './types';
+
+// ─── Mappers (snake_case → camelCase) ───────────────────
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+function mapProfile(row: any): Profile {
+  return {
+    id: row.id,
+    displayName: row.display_name ?? '',
+    nickname: row.nickname ?? null,
+    avatarUrl: row.avatar_url ?? null,
+    phone: row.phone ?? null,
+    danceStyle: row.dance_style ?? 'bachata',
+    lastActiveAt: row.last_active_at ?? null,
+    nicknameChangedAt: row.nickname_changed_at ?? null,
+    followerCount: row.follower_count ?? 0,
+    followingCount: row.following_count ?? 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapCrew(row: any): Crew {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? '',
+    thumbnailUrl: row.thumbnail_url ?? null,
+    crewType: row.crew_type,
+    captainId: row.captain_id,
+    memberLimit: row.member_limit,
+    memberCount: row.member_count,
+    danceStyle: row.dance_style ?? 'bachata',
+    region: row.region ?? 'global',
+    inviteCode: row.invite_code ?? '',
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapCrewMember(row: any): CrewMember {
+  return {
+    id: row.id,
+    crewId: row.crew_id,
+    userId: row.user_id,
+    role: row.role,
+    joinedAt: row.joined_at,
+    profile: row.profiles ? mapProfile(row.profiles) : undefined,
+  };
+}
+
+function mapJoinRequest(row: any): JoinRequest {
+  return {
+    id: row.id,
+    crewId: row.crew_id,
+    userId: row.user_id,
+    status: row.status,
+    message: row.message ?? '',
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at,
+    resolvedBy: row.resolved_by,
+    profile: row.profiles ? mapProfile(row.profiles) : undefined,
+  };
+}
+
+function mapSongThread(row: any): SongThread {
+  return {
+    id: row.id,
+    crewId: row.crew_id,
+    title: row.title,
+    normalizedTitle: row.normalized_title,
+    youtubeId: row.youtube_id ?? null,
+    bpm: row.bpm ?? null,
+    danceStyle: row.dance_style ?? 'bachata',
+    postCount: row.post_count ?? 0,
+    lastActivityAt: row.last_activity_at,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+  };
+}
+
+function mapThreadPhraseNote(row: any): ThreadPhraseNote {
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    userId: row.user_id,
+    phraseNoteData: row.phrase_note_data,
+    description: row.description ?? '',
+    createdAt: row.created_at,
+    profile: row.profiles ? mapProfile(row.profiles) : undefined,
+  };
+}
+
+function mapGeneralPost(row: any): GeneralPost {
+  return {
+    id: row.id,
+    crewId: row.crew_id,
+    userId: row.user_id,
+    content: row.content,
+    parentId: row.parent_id ?? null,
+    mediaUrls: row.media_urls ?? [],
+    likeCount: row.like_count ?? 0,
+    replyCount: row.reply_count ?? 0,
+    viewCount: row.view_count ?? 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    profile: row.profiles ? mapProfile(row.profiles) : undefined,
+  };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+// ─── Helpers ─────────────────────────────────────────────
+
+/** Batch-fetch profiles by user IDs and return a map of userId → Profile */
+export async function fetchProfilesByIds(
+  supabase: SupabaseClient,
+  userIds: string[],
+): Promise<Map<string, Profile>> {
+  const map = new Map<string, Profile>();
+  if (userIds.length === 0) return map;
+
+  const unique = [...new Set(userIds)];
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .in('id', unique);
+
+  if (data) {
+    for (const row of data) {
+      map.set(row.id, mapProfile(row));
+    }
+  }
+  return map;
+}
+
+// ─── Profile ────────────────────────────────────────────
+
+export async function fetchMyProfile(supabase: SupabaseClient): Promise<Profile | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+
+  if (error) return null;
+  return mapProfile(data);
+}
+
+export async function updateProfile(
+  supabase: SupabaseClient,
+  updates: { displayName?: string; nickname?: string; avatarUrl?: string; phone?: string; danceStyle?: string },
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const payload: Record<string, unknown> = {};
+  if (updates.displayName !== undefined) payload.display_name = updates.displayName;
+  if (updates.nickname !== undefined) {
+    payload.nickname = updates.nickname;
+    payload.nickname_changed_at = new Date().toISOString();
+  }
+  if (updates.avatarUrl !== undefined) payload.avatar_url = updates.avatarUrl;
+  if (updates.phone !== undefined) payload.phone = updates.phone;
+  if (updates.danceStyle !== undefined) payload.dance_style = updates.danceStyle;
+  payload.updated_at = new Date().toISOString();
+
+  const { error } = await supabase.from('profiles').update(payload).eq('id', user.id);
+  if (error) {
+    if (error.message.includes('profiles_nickname_unique')) {
+      throw new Error('This nickname is already taken');
+    }
+    throw new Error(error.message);
+  }
+}
+
+/** Check if a nickname is available */
+export async function checkNicknameAvailable(supabase: SupabaseClient, nickname: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id')
+    .ilike('nickname', nickname)
+    .limit(1);
+  return (data ?? []).length === 0;
+}
+
+// ─── Crews ──────────────────────────────────────────────
+
+export async function fetchMyCrews(supabase: SupabaseClient): Promise<(Crew & { myRole: MemberRole })[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from('crew_members')
+    .select('crew_id, role, crews(*)')
+    .eq('user_id', user.id);
+
+  if (error) throw new Error(error.message);
+  return (data ?? [])
+    .filter((row: any) => row.crews) // eslint-disable-line @typescript-eslint/no-explicit-any
+    .map((row: any) => ({ ...mapCrew(row.crews), myRole: row.role as MemberRole })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+export async function fetchDiscoverCrews(supabase: SupabaseClient, search?: string): Promise<Crew[]> {
+  let query = supabase
+    .from('crews')
+    .select('*')
+    .eq('is_active', true)
+    .order('member_count', { ascending: false })
+    .limit(50);
+
+  if (search && search.trim()) {
+    query = query.ilike('name', `%${search.trim()}%`);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapCrew);
+}
+
+export async function fetchCrewById(supabase: SupabaseClient, crewId: string): Promise<Crew | null> {
+  const { data, error } = await supabase
+    .from('crews')
+    .select('*')
+    .eq('id', crewId)
+    .single();
+
+  if (error) return null;
+  return mapCrew(data);
+}
+
+export async function createCrew(supabase: SupabaseClient, input: CreateCrewInput): Promise<Crew> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('crews')
+    .insert({
+      name: input.name.trim(),
+      description: input.description?.trim() ?? '',
+      crew_type: input.crewType,
+      captain_id: user.id,
+      member_limit: input.memberLimit ?? 50,
+      dance_style: input.danceStyle ?? 'bachata',
+      region: input.region ?? 'global',
+      member_count: 1,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  await supabase.from('crew_members').insert({
+    crew_id: data.id,
+    user_id: user.id,
+    role: 'captain',
+  });
+
+  return mapCrew(data);
+}
+
+export async function updateCrew(
+  supabase: SupabaseClient,
+  crewId: string,
+  updates: Partial<Pick<Crew, 'name' | 'description' | 'crewType' | 'memberLimit' | 'thumbnailUrl' | 'region'>>,
+): Promise<void> {
+  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (updates.name !== undefined) payload.name = updates.name.trim();
+  if (updates.description !== undefined) payload.description = updates.description.trim();
+  if (updates.crewType !== undefined) payload.crew_type = updates.crewType;
+  if (updates.memberLimit !== undefined) payload.member_limit = updates.memberLimit;
+  if (updates.thumbnailUrl !== undefined) payload.thumbnail_url = updates.thumbnailUrl;
+  if (updates.region !== undefined) payload.region = updates.region;
+
+  const { error } = await supabase.from('crews').update(payload).eq('id', crewId);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Members ────────────────────────────────────────────
+
+export async function fetchCrewMembers(supabase: SupabaseClient, crewId: string): Promise<CrewMember[]> {
+  const { data, error } = await supabase
+    .from('crew_members')
+    .select('*')
+    .eq('crew_id', crewId)
+    .order('joined_at', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.user_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapCrewMember(row), profile: profileMap.get(row.user_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+export async function joinCrew(supabase: SupabaseClient, crewId: string): Promise<void> {
+  const { error } = await supabase.rpc('join_crew', { p_crew_id: crewId });
+  if (error) throw new Error(error.message);
+}
+
+export async function leaveCrew(supabase: SupabaseClient, crewId: string): Promise<void> {
+  const { error } = await supabase.rpc('leave_crew', { p_crew_id: crewId });
+  if (error) throw new Error(error.message);
+}
+
+export async function kickMember(supabase: SupabaseClient, crewId: string, userId: string): Promise<void> {
+  const { error } = await supabase.rpc('kick_member', {
+    p_crew_id: crewId,
+    p_target_user_id: userId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Change a member's role (captain/moderator only) */
+export async function changeMemberRole(
+  supabase: SupabaseClient,
+  crewId: string,
+  targetUserId: string,
+  newRole: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('change_member_role', {
+    p_crew_id: crewId,
+    p_target_user_id: targetUserId,
+    p_new_role: newRole,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Transfer captainship to another member */
+export async function transferCaptainship(
+  supabase: SupabaseClient,
+  crewId: string,
+  newCaptainId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('transfer_captainship', {
+    p_crew_id: crewId,
+    p_new_captain_id: newCaptainId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Touch last_active_at on profile */
+export async function touchLastActive(supabase: SupabaseClient): Promise<void> {
+  await supabase.rpc('touch_last_active');
+}
+
+/** Delete the current user's account. Fails if user is captain of any crew. */
+export async function deleteMyAccount(supabase: SupabaseClient): Promise<void> {
+  const { error } = await supabase.rpc('delete_my_account');
+  if (error) throw new Error(error.message);
+}
+
+// ─── Join Requests ──────────────────────────────────────
+
+export async function requestJoinCrew(supabase: SupabaseClient, crewId: string, message?: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase.from('crew_join_requests').insert({
+    crew_id: crewId,
+    user_id: user.id,
+    message: message?.trim() ?? '',
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function fetchJoinRequests(supabase: SupabaseClient, crewId: string): Promise<JoinRequest[]> {
+  const { data, error } = await supabase
+    .from('crew_join_requests')
+    .select('*')
+    .eq('crew_id', crewId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.user_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapJoinRequest(row), profile: profileMap.get(row.user_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+export async function approveJoinRequest(supabase: SupabaseClient, requestId: string): Promise<void> {
+  const { error } = await supabase.rpc('approve_join_request', { p_request_id: requestId });
+  if (error) throw new Error(error.message);
+}
+
+export async function rejectJoinRequest(supabase: SupabaseClient, requestId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('crew_join_requests')
+    .update({
+      status: 'rejected',
+      resolved_at: new Date().toISOString(),
+      resolved_by: user.id,
+    })
+    .eq('id', requestId);
+
+  if (error) throw new Error(error.message);
+}
+
+// ─── Song Threads ───────────────────────────────────────
+
+export async function fetchSongThreads(supabase: SupabaseClient, crewId: string): Promise<SongThread[]> {
+  const { data, error } = await supabase
+    .from('song_threads')
+    .select('*')
+    .eq('crew_id', crewId)
+    .order('last_activity_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapSongThread);
+}
+
+export async function createSongThread(
+  supabase: SupabaseClient,
+  crewId: string,
+  input: CreateThreadInput,
+): Promise<SongThread> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const title = input.title.trim();
+  const { data, error } = await supabase
+    .from('song_threads')
+    .insert({
+      crew_id: crewId,
+      title,
+      normalized_title: title.toLowerCase(),
+      youtube_id: input.youtubeId ?? null,
+      bpm: input.bpm ?? null,
+      dance_style: input.danceStyle ?? 'bachata',
+      created_by: user.id,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return mapSongThread(data);
+}
+
+// ─── Thread PhraseNotes ─────────────────────────────────
+
+export async function fetchThreadNotes(supabase: SupabaseClient, threadId: string): Promise<ThreadPhraseNote[]> {
+  const { data, error } = await supabase
+    .from('thread_phrase_notes')
+    .select('*')
+    .eq('thread_id', threadId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.user_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapThreadPhraseNote(row), profile: profileMap.get(row.user_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+export async function postPhraseNote(
+  supabase: SupabaseClient,
+  threadId: string,
+  phraseNoteData: Record<string, unknown>,
+  description?: string,
+): Promise<ThreadPhraseNote> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('thread_phrase_notes')
+    .insert({
+      thread_id: threadId,
+      user_id: user.id,
+      phrase_note_data: phraseNoteData,
+      description: description?.trim() ?? '',
+    })
+    .select('*')
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  // Update thread activity
+  const { count } = await supabase
+    .from('thread_phrase_notes')
+    .select('*', { count: 'exact', head: true })
+    .eq('thread_id', threadId);
+
+  await supabase
+    .from('song_threads')
+    .update({
+      last_activity_at: new Date().toISOString(),
+      post_count: count ?? 0,
+    })
+    .eq('id', threadId);
+
+  const profileMap = await fetchProfilesByIds(supabase, [user.id]);
+  return { ...mapThreadPhraseNote(data), profile: profileMap.get(user.id) };
+}
+
+// ─── General Posts ──────────────────────────────────────
+
+export async function fetchGeneralPosts(supabase: SupabaseClient, crewId: string): Promise<GeneralPost[]> {
+  const { data, error } = await supabase
+    .from('general_posts')
+    .select('*')
+    .eq('crew_id', crewId)
+    .is('parent_id', null)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.user_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapGeneralPost(row), profile: profileMap.get(row.user_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+export async function fetchPostReplies(supabase: SupabaseClient, parentId: string): Promise<GeneralPost[]> {
+  const { data, error } = await supabase
+    .from('general_posts')
+    .select('*')
+    .eq('parent_id', parentId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.user_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapGeneralPost(row), profile: profileMap.get(row.user_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+export async function createGeneralPost(
+  supabase: SupabaseClient,
+  crewId: string,
+  content: string,
+  parentId?: string,
+  mediaUrls?: string[],
+): Promise<GeneralPost> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('general_posts')
+    .insert({
+      crew_id: crewId,
+      user_id: user.id,
+      content: content.trim(),
+      parent_id: parentId ?? null,
+      media_urls: mediaUrls ?? [],
+    })
+    .select('*')
+    .single();
+
+  if (error) throw new Error(error.message);
+  const profileMap = await fetchProfilesByIds(supabase, [user.id]);
+  return { ...mapGeneralPost(data), profile: profileMap.get(user.id) };
+}
+
+export async function deleteGeneralPost(supabase: SupabaseClient, postId: string): Promise<void> {
+  const { error } = await supabase
+    .from('general_posts')
+    .delete()
+    .eq('id', postId);
+
+  if (error) throw new Error(error.message);
+}
+
+// ─── Likes ───────────────────────────────────────────────
+
+/** Toggle like on a post. Returns true if now liked, false if unliked. */
+export async function togglePostLike(supabase: SupabaseClient, postId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('toggle_post_like', { p_post_id: postId });
+  if (error) throw new Error(error.message);
+  return data as boolean;
+}
+
+/** Check which posts the current user has liked (batch). */
+export async function fetchUserLikes(supabase: SupabaseClient, postIds: string[]): Promise<Set<string>> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || postIds.length === 0) return new Set();
+
+  const { data } = await supabase
+    .from('post_likes')
+    .select('post_id')
+    .eq('user_id', user.id)
+    .in('post_id', postIds);
+
+  return new Set((data ?? []).map((r: any) => r.post_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+// ─── Post Media Upload ──────────────────────────────────
+
+export async function uploadPostMedia(
+  supabase: SupabaseClient,
+  file: File,
+): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const timestamp = Date.now();
+  const path = `${user.id}/${timestamp}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from('post-media')
+    .upload(path, file, { contentType: file.type });
+
+  if (error) throw new Error(error.message);
+
+  const { data } = supabase.storage.from('post-media').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// ─── Storage ────────────────────────────────────────────
+
+export async function uploadCrewThumbnail(
+  supabase: SupabaseClient,
+  crewId: string,
+  file: File,
+): Promise<string> {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const path = `${crewId}/thumbnail.${ext}`;
+
+  const { error } = await supabase.storage
+    .from('crew-thumbnails')
+    .upload(path, file, { upsert: true, contentType: file.type });
+
+  if (error) throw new Error(error.message);
+
+  const { data } = supabase.storage.from('crew-thumbnails').getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
+}
+
+export async function uploadProfileAvatar(
+  supabase: SupabaseClient,
+  file: File,
+): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const path = `avatars/${user.id}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from('crew-thumbnails')
+    .upload(path, file, { upsert: true, contentType: file.type });
+
+  if (error) throw new Error(error.message);
+
+  const { data } = supabase.storage.from('crew-thumbnails').getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
+}
+
+// ─── Social Mappers ─────────────────────────────────────
+
+function mapUserFollow(row: any): UserFollow {
+  return {
+    id: row.id,
+    followerId: row.follower_id,
+    followingId: row.following_id,
+    createdAt: row.created_at,
+  };
+}
+
+function mapUserBlock(row: any): UserBlock {
+  return {
+    id: row.id,
+    blockerId: row.blocker_id,
+    blockedId: row.blocked_id,
+    createdAt: row.created_at,
+  };
+}
+
+function mapUserNote(row: any): UserNote {
+  return {
+    id: row.id,
+    authorId: row.author_id,
+    targetUserId: row.target_user_id,
+    content: row.content,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapDirectMessage(row: any): DirectMessage {
+  return {
+    id: row.id,
+    senderId: row.sender_id,
+    recipientId: row.recipient_id,
+    content: row.content,
+    readAt: row.read_at ?? null,
+    archivedBySender: row.archived_by_sender ?? false,
+    archivedByRecipient: row.archived_by_recipient ?? false,
+    deletedBySender: row.deleted_by_sender ?? false,
+    deletedByRecipient: row.deleted_by_recipient ?? false,
+    createdAt: row.created_at,
+  };
+}
+
+// ─── Social: User Context ───────────────────────────────
+
+export async function fetchUserSocialContext(
+  supabase: SupabaseClient,
+  targetUserId: string,
+): Promise<UserSocialContext> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const [followRes, blockRes, noteRes, profileRes] = await Promise.all([
+    supabase.from('user_follows').select('id').eq('follower_id', user.id).eq('following_id', targetUserId).maybeSingle(),
+    supabase.from('user_blocks').select('id').eq('blocker_id', user.id).eq('blocked_id', targetUserId).maybeSingle(),
+    supabase.from('user_notes').select('*').eq('author_id', user.id).eq('target_user_id', targetUserId).maybeSingle(),
+    supabase.from('profiles').select('follower_count, following_count').eq('id', targetUserId).single(),
+  ]);
+
+  return {
+    isFollowing: !!followRes.data,
+    isBlocked: !!blockRes.data,
+    note: noteRes.data ? mapUserNote(noteRes.data) : null,
+    followerCount: profileRes.data?.follower_count ?? 0,
+    followingCount: profileRes.data?.following_count ?? 0,
+  };
+}
+
+// ─── Social: Follow ─────────────────────────────────────
+
+export async function toggleFollow(supabase: SupabaseClient, targetUserId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('toggle_follow', { p_target_user_id: targetUserId });
+  if (error) throw new Error(error.message);
+  return data as boolean;
+}
+
+export async function fetchFollowers(supabase: SupabaseClient, userId: string): Promise<UserFollow[]> {
+  const { data, error } = await supabase
+    .from('user_follows')
+    .select('*')
+    .eq('following_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.follower_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapUserFollow(row), profile: profileMap.get(row.follower_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+export async function fetchFollowing(supabase: SupabaseClient, userId: string): Promise<UserFollow[]> {
+  const { data, error } = await supabase
+    .from('user_follows')
+    .select('*')
+    .eq('follower_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.following_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapUserFollow(row), profile: profileMap.get(row.following_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+// ─── Social: Block ──────────────────────────────────────
+
+export async function toggleBlock(supabase: SupabaseClient, targetUserId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('toggle_block', { p_target_user_id: targetUserId });
+  if (error) throw new Error(error.message);
+  return data as boolean;
+}
+
+export async function fetchBlockedUsers(supabase: SupabaseClient): Promise<UserBlock[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('user_blocks')
+    .select('*')
+    .eq('blocker_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.blocked_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapUserBlock(row), profile: profileMap.get(row.blocked_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+// ─── Social: Notes ──────────────────────────────────────
+
+export async function upsertUserNote(
+  supabase: SupabaseClient,
+  targetUserId: string,
+  content: string,
+): Promise<UserNote> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('user_notes')
+    .upsert(
+      {
+        author_id: user.id,
+        target_user_id: targetUserId,
+        content: content.trim(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'author_id,target_user_id' },
+    )
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return mapUserNote(data);
+}
+
+export async function deleteUserNote(supabase: SupabaseClient, targetUserId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('user_notes')
+    .delete()
+    .eq('author_id', user.id)
+    .eq('target_user_id', targetUserId);
+
+  if (error) throw new Error(error.message);
+}
+
+// ─── Social: Direct Messages ────────────────────────────
+
+export async function sendMessage(
+  supabase: SupabaseClient,
+  recipientId: string,
+  content: string,
+): Promise<string> {
+  const { data, error } = await supabase.rpc('send_message', {
+    p_recipient_id: recipientId,
+    p_content: content.trim(),
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function fetchConversations(supabase: SupabaseClient): Promise<ConversationThread[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Get all messages involving the user, ordered by most recent
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('*')
+    .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+
+  // Group by conversation partner
+  const conversationMap = new Map<string, { messages: any[]; unread: number }>();
+
+  for (const row of rows) {
+    const isSender = row.sender_id === user.id;
+    // Skip deleted messages
+    if (isSender && row.deleted_by_sender) continue;
+    if (!isSender && row.deleted_by_recipient) continue;
+
+    const otherId = isSender ? row.recipient_id : row.sender_id;
+
+    if (!conversationMap.has(otherId)) {
+      conversationMap.set(otherId, { messages: [], unread: 0 });
+    }
+    const conv = conversationMap.get(otherId)!;
+    conv.messages.push(row);
+    if (!isSender && !row.read_at) conv.unread++;
+  }
+
+  // Fetch profiles for all conversation partners
+  const otherIds = Array.from(conversationMap.keys());
+  if (otherIds.length === 0) return [];
+
+  const profileMap = await fetchProfilesByIds(supabase, otherIds);
+
+  // Build conversation threads sorted by most recent message
+  const threads: ConversationThread[] = [];
+  for (const [otherId, conv] of conversationMap) {
+    const profile = profileMap.get(otherId);
+    if (!profile) continue;
+
+    threads.push({
+      otherUserId: otherId,
+      otherProfile: profile,
+      lastMessage: mapDirectMessage(conv.messages[0]),
+      unreadCount: conv.unread,
+    });
+  }
+
+  return threads.sort(
+    (a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime(),
+  );
+}
+
+export async function fetchConversation(
+  supabase: SupabaseClient,
+  otherUserId: string,
+): Promise<DirectMessage[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('*')
+    .or(
+      `and(sender_id.eq.${user.id},recipient_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},recipient_id.eq.${user.id})`,
+    )
+    .order('created_at', { ascending: true });
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? [])
+    .filter((row: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      const isSender = row.sender_id === user.id;
+      if (isSender && row.deleted_by_sender) return false;
+      if (!isSender && row.deleted_by_recipient) return false;
+      return true;
+    })
+    .map(mapDirectMessage);
+}
+
+export async function markMessagesRead(supabase: SupabaseClient, senderId: string): Promise<void> {
+  const { error } = await supabase.rpc('mark_messages_read', { p_sender_id: senderId });
+  if (error) throw new Error(error.message);
+}
+
+export async function fetchUnreadMessageCount(supabase: SupabaseClient): Promise<number> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { count, error } = await supabase
+    .from('direct_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('recipient_id', user.id)
+    .is('read_at', null)
+    .eq('deleted_by_recipient', false);
+
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+export async function deleteMessage(supabase: SupabaseClient, messageId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Soft-delete: mark as deleted for this user
+  const { data: msg } = await supabase
+    .from('direct_messages')
+    .select('sender_id, recipient_id')
+    .eq('id', messageId)
+    .single();
+
+  if (!msg) throw new Error('Message not found');
+
+  const update: Record<string, boolean> = {};
+  if (msg.sender_id === user.id) update.deleted_by_sender = true;
+  if (msg.recipient_id === user.id) update.deleted_by_recipient = true;
+
+  if (Object.keys(update).length === 0) throw new Error('Not authorized');
+
+  const { error } = await supabase
+    .from('direct_messages')
+    .update(update)
+    .eq('id', messageId);
+
+  if (error) throw new Error(error.message);
+}
+
+// ─── Group Chat Mappers ─────────────────────────────────
+
+function mapChatRoom(row: any): ChatRoom { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return {
+    id: row.id,
+    name: row.name ?? null,
+    type: row.type,
+    createdBy: row.created_by,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapChatRoomMember(row: any): ChatRoomMember { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    userId: row.user_id,
+    role: row.role,
+    joinedAt: row.joined_at,
+    removedAt: row.removed_at ?? null,
+  };
+}
+
+function mapChatRoomMessage(row: any): ChatRoomMessage { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    senderId: row.sender_id,
+    content: row.content,
+    messageType: row.message_type,
+    createdAt: row.created_at,
+  };
+}
+
+// ─── Group Chat: Room Operations ─────────────────────────
+
+export async function createChatRoom(
+  supabase: SupabaseClient,
+  memberIds: string[],
+  name?: string,
+  type: 'dm_converted' | 'group' = 'group',
+): Promise<string> {
+  const { data, error } = await supabase.rpc('create_chat_room', {
+    p_member_ids: memberIds,
+    p_name: name ?? null,
+    p_type: type,
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function sendRoomMessage(
+  supabase: SupabaseClient,
+  roomId: string,
+  content: string,
+): Promise<string> {
+  const { data, error } = await supabase.rpc('send_room_message', {
+    p_room_id: roomId,
+    p_content: content.trim(),
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function inviteToRoom(
+  supabase: SupabaseClient,
+  roomId: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('invite_to_room', {
+    p_room_id: roomId,
+    p_user_id: userId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function kickFromRoom(
+  supabase: SupabaseClient,
+  roomId: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('kick_from_room', {
+    p_room_id: roomId,
+    p_user_id: userId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function leaveRoom(supabase: SupabaseClient, roomId: string): Promise<void> {
+  const { error } = await supabase.rpc('leave_room', { p_room_id: roomId });
+  if (error) throw new Error(error.message);
+}
+
+export async function closeRoom(supabase: SupabaseClient, roomId: string): Promise<void> {
+  const { error } = await supabase.rpc('close_room', { p_room_id: roomId });
+  if (error) throw new Error(error.message);
+}
+
+export async function markRoomMessagesRead(supabase: SupabaseClient, roomId: string): Promise<void> {
+  const { error } = await supabase.rpc('mark_room_messages_read', { p_room_id: roomId });
+  if (error) throw new Error(error.message);
+}
+
+// ─── Group Chat: Queries ─────────────────────────────────
+
+export async function fetchRoomMessages(
+  supabase: SupabaseClient,
+  roomId: string,
+): Promise<ChatRoomMessage[]> {
+  const { data, error } = await supabase
+    .from('chat_room_messages')
+    .select('*')
+    .eq('room_id', roomId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+
+  const senderIds = [...new Set(rows.filter((r: any) => r.message_type === 'message').map((r: any) => r.sender_id))]; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const profileMap = await fetchProfilesByIds(supabase, senderIds);
+
+  return rows.map((row: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+    ...mapChatRoomMessage(row),
+    senderProfile: profileMap.get(row.sender_id),
+  }));
+}
+
+export async function fetchRoomMembers(
+  supabase: SupabaseClient,
+  roomId: string,
+): Promise<ChatRoomMember[]> {
+  const { data, error } = await supabase
+    .from('chat_room_members')
+    .select('*')
+    .eq('room_id', roomId)
+    .is('removed_at', null)
+    .order('joined_at', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const profileMap = await fetchProfilesByIds(supabase, rows.map((r: any) => r.user_id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return rows.map((row: any) => ({ ...mapChatRoomMember(row), profile: profileMap.get(row.user_id) })); // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+export async function fetchMyRooms(supabase: SupabaseClient): Promise<ChatRoom[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  // Get room IDs where user is active member
+  const { data: memberRows, error: memberErr } = await supabase
+    .from('chat_room_members')
+    .select('room_id')
+    .eq('user_id', user.id)
+    .is('removed_at', null);
+
+  if (memberErr) throw new Error(memberErr.message);
+  const roomIds = (memberRows ?? []).map((r: any) => r.room_id); // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (roomIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('chat_rooms')
+    .select('*')
+    .in('id', roomIds)
+    .eq('is_active', true)
+    .order('updated_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapChatRoom);
+}
+
+// ─── Unified Inbox ──────────────────────────────────────
+
+export async function fetchUnifiedInbox(supabase: SupabaseClient): Promise<InboxItem[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Fetch DM threads and room data in parallel
+  const [dmThreads, rooms] = await Promise.all([
+    fetchConversations(supabase),
+    fetchMyRooms(supabase),
+  ]);
+
+  const items: InboxItem[] = [];
+
+  // Add DM items
+  for (const thread of dmThreads) {
+    items.push({
+      type: 'dm',
+      lastActivityAt: thread.lastMessage.createdAt,
+      unreadCount: thread.unreadCount,
+      otherUserId: thread.otherUserId,
+      otherProfile: thread.otherProfile,
+      lastMessage: thread.lastMessage,
+    });
+  }
+
+  // Add room items — fetch last message + members + unread for each
+  if (rooms.length > 0) {
+    const roomIds = rooms.map((r) => r.id);
+
+    // Batch fetch last messages for all rooms
+    const { data: lastMsgRows } = await supabase
+      .from('chat_room_messages')
+      .select('*')
+      .in('room_id', roomIds)
+      .order('created_at', { ascending: false });
+
+    const lastMsgByRoom = new Map<string, any>(); // eslint-disable-line @typescript-eslint/no-explicit-any
+    for (const row of lastMsgRows ?? []) {
+      if (!lastMsgByRoom.has(row.room_id)) {
+        lastMsgByRoom.set(row.room_id, row);
+      }
+    }
+
+    // Batch fetch members for all rooms
+    const { data: memberRows } = await supabase
+      .from('chat_room_members')
+      .select('*')
+      .in('room_id', roomIds)
+      .is('removed_at', null);
+
+    const membersByRoom = new Map<string, any[]>(); // eslint-disable-line @typescript-eslint/no-explicit-any
+    for (const row of memberRows ?? []) {
+      if (!membersByRoom.has(row.room_id)) {
+        membersByRoom.set(row.room_id, []);
+      }
+      membersByRoom.get(row.room_id)!.push(row);
+    }
+
+    // Fetch profiles for all members
+    const allMemberIds = [...new Set((memberRows ?? []).map((r: any) => r.user_id))]; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const profileMap = await fetchProfilesByIds(supabase, allMemberIds);
+
+    // Batch fetch read cursors
+    const { data: readRows } = await supabase
+      .from('chat_room_reads')
+      .select('*')
+      .eq('user_id', user.id)
+      .in('room_id', roomIds);
+
+    const readByRoom = new Map<string, string>();
+    for (const row of readRows ?? []) {
+      readByRoom.set(row.room_id, row.last_read_at);
+    }
+
+    // Count unread per room
+    for (const room of rooms) {
+      const lastReadAt = readByRoom.get(room.id);
+      let unreadCount = 0;
+
+      if (lastReadAt) {
+        // Count messages after last_read_at
+        const { count } = await supabase
+          .from('chat_room_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('room_id', room.id)
+          .gt('created_at', lastReadAt);
+        unreadCount = count ?? 0;
+      } else {
+        // Never read — all messages are unread
+        const { count } = await supabase
+          .from('chat_room_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('room_id', room.id)
+          .eq('message_type', 'message');
+        unreadCount = count ?? 0;
+      }
+
+      const lastMsgRow = lastMsgByRoom.get(room.id);
+      const members = (membersByRoom.get(room.id) ?? []).map((row: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+        ...mapChatRoomMember(row),
+        profile: profileMap.get(row.user_id),
+      }));
+
+      items.push({
+        type: 'room',
+        lastActivityAt: lastMsgRow?.created_at ?? room.updatedAt,
+        unreadCount,
+        room,
+        roomMembers: members,
+        lastRoomMessage: lastMsgRow ? mapChatRoomMessage(lastMsgRow) : undefined,
+      });
+    }
+  }
+
+  // Sort by most recent activity
+  items.sort((a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime());
+
+  return items;
+}
+
+// ─── Combined Unread Count ──────────────────────────────
+
+export async function fetchTotalUnreadCount(supabase: SupabaseClient): Promise<number> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  // DM unread count
+  const { count: dmCount } = await supabase
+    .from('direct_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('recipient_id', user.id)
+    .is('read_at', null)
+    .eq('deleted_by_recipient', false);
+
+  // Room unread count: sum of unread messages across all rooms
+  let roomUnread = 0;
+
+  const { data: memberRows } = await supabase
+    .from('chat_room_members')
+    .select('room_id')
+    .eq('user_id', user.id)
+    .is('removed_at', null);
+
+  const roomIds = (memberRows ?? []).map((r: any) => r.room_id); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  if (roomIds.length > 0) {
+    // Check which rooms are active
+    const { data: activeRooms } = await supabase
+      .from('chat_rooms')
+      .select('id')
+      .in('id', roomIds)
+      .eq('is_active', true);
+
+    const activeRoomIds = (activeRooms ?? []).map((r: any) => r.id); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    if (activeRoomIds.length > 0) {
+      // Get read cursors
+      const { data: readRows } = await supabase
+        .from('chat_room_reads')
+        .select('room_id, last_read_at')
+        .eq('user_id', user.id)
+        .in('room_id', activeRoomIds);
+
+      const readByRoom = new Map<string, string>();
+      for (const row of readRows ?? []) {
+        readByRoom.set(row.room_id, row.last_read_at);
+      }
+
+      for (const roomId of activeRoomIds) {
+        const lastReadAt = readByRoom.get(roomId);
+        if (lastReadAt) {
+          const { count } = await supabase
+            .from('chat_room_messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('room_id', roomId)
+            .gt('created_at', lastReadAt);
+          roomUnread += count ?? 0;
+        } else {
+          const { count } = await supabase
+            .from('chat_room_messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('room_id', roomId)
+            .eq('message_type', 'message');
+          roomUnread += count ?? 0;
+        }
+      }
+    }
+  }
+
+  return (dmCount ?? 0) + roomUnread;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Calendar Events
+// ═══════════════════════════════════════════════════════════
+
+function mapCalendarEvent(row: any): CalendarEvent {
+  return {
+    id: row.id,
+    title: row.title,
+    eventDate: row.event_date,
+    eventTime: row.event_time,
+    location: row.location ?? '',
+    description: row.description ?? '',
+    crewId: row.crew_id,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    profile: row.profiles ? mapProfile(row.profiles) : undefined,
+    crewName: row.crews?.name ?? undefined,
+    saved: row.saved,
+  };
+}
+
+/** Fetch crew events for a given month */
+export async function fetchCrewEvents(
+  supabase: SupabaseClient,
+  crewId: string,
+  year: number,
+  month: number,
+): Promise<CalendarEvent[]> {
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endMonth = month === 12 ? 1 : month + 1;
+  const endYear = month === 12 ? year + 1 : year;
+  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('crew_id', crewId)
+    .gte('event_date', startDate)
+    .lt('event_date', endDate)
+    .order('event_date', { ascending: true })
+    .order('event_time', { ascending: true, nullsFirst: false });
+
+  if (error) throw error;
+  return (data ?? []).map(mapCalendarEvent);
+}
+
+/** Fetch personal events for a given month */
+export async function fetchPersonalEvents(
+  supabase: SupabaseClient,
+  year: number,
+  month: number,
+): Promise<CalendarEvent[]> {
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endMonth = month === 12 ? 1 : month + 1;
+  const endYear = month === 12 ? year + 1 : year;
+  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .is('crew_id', null)
+    .gte('event_date', startDate)
+    .lt('event_date', endDate)
+    .order('event_date', { ascending: true })
+    .order('event_time', { ascending: true, nullsFirst: false });
+
+  if (error) throw error;
+  return (data ?? []).map(mapCalendarEvent);
+}
+
+/** Fetch events the user saved from crews */
+export async function fetchSavedEvents(
+  supabase: SupabaseClient,
+  year: number,
+  month: number,
+): Promise<CalendarEvent[]> {
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endMonth = month === 12 ? 1 : month + 1;
+  const endYear = month === 12 ? year + 1 : year;
+  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+  const { data, error } = await supabase
+    .from('user_saved_events')
+    .select('event_id, events:event_id(*, crews:crew_id(name))')
+    .gte('events.event_date', startDate)
+    .lt('events.event_date', endDate);
+
+  if (error) throw error;
+  return (data ?? [])
+    .filter((row: any) => row.events)
+    .map((row: any) => mapCalendarEvent({ ...row.events, saved: true }));
+}
+
+/** Fetch set of event IDs the user has saved (for marking stars) */
+export async function fetchUserSavedEventIds(
+  supabase: SupabaseClient,
+): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from('user_saved_events')
+    .select('event_id');
+  if (error) throw error;
+  return new Set((data ?? []).map((r: any) => r.event_id));
+}
+
+/** Create a personal event */
+export async function createPersonalEvent(
+  supabase: SupabaseClient,
+  input: CreateEventInput,
+): Promise<CalendarEvent> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('events')
+    .insert({
+      title: input.title,
+      event_date: input.eventDate,
+      event_time: input.eventTime ?? null,
+      location: input.location ?? '',
+      description: input.description ?? '',
+      crew_id: null,
+      created_by: user.id,
+    })
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return mapCalendarEvent(data);
+}
+
+/** Update a personal event */
+export async function updatePersonalEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+  input: Partial<CreateEventInput>,
+): Promise<void> {
+  const updates: Record<string, unknown> = {};
+  if (input.title !== undefined) updates.title = input.title;
+  if (input.eventDate !== undefined) updates.event_date = input.eventDate;
+  if (input.eventTime !== undefined) updates.event_time = input.eventTime;
+  if (input.location !== undefined) updates.location = input.location;
+  if (input.description !== undefined) updates.description = input.description;
+  updates.updated_at = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('events')
+    .update(updates)
+    .eq('id', eventId);
+
+  if (error) throw error;
+}
+
+/** Delete a personal event */
+export async function deletePersonalEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('events')
+    .delete()
+    .eq('id', eventId);
+
+  if (error) throw error;
+}
+
+/** Create a crew event (captain/moderator only, via RPC) */
+export async function createCrewEvent(
+  supabase: SupabaseClient,
+  crewId: string,
+  input: CreateEventInput,
+): Promise<string> {
+  const { data, error } = await supabase.rpc('create_crew_event', {
+    p_crew_id: crewId,
+    p_title: input.title,
+    p_event_date: input.eventDate,
+    p_event_time: input.eventTime ?? null,
+    p_location: input.location ?? '',
+    p_description: input.description ?? '',
+  });
+
+  if (error) throw error;
+  return data as string;
+}
+
+/** Update a crew event (captain/moderator only, via RPC) */
+export async function updateCrewEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+  input: Partial<CreateEventInput>,
+): Promise<void> {
+  const { error } = await supabase.rpc('update_crew_event', {
+    p_event_id: eventId,
+    p_title: input.title ?? null,
+    p_event_date: input.eventDate ?? null,
+    p_event_time: input.eventTime ?? null,
+    p_location: input.location ?? null,
+    p_description: input.description ?? null,
+  });
+
+  if (error) throw error;
+}
+
+/** Delete a crew event (captain/moderator only, via RPC) */
+export async function deleteCrewEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('delete_crew_event', {
+    p_event_id: eventId,
+  });
+
+  if (error) throw error;
+}
+
+/** Toggle save/unsave a crew event to personal calendar (via RPC) */
+export async function toggleSaveEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('toggle_save_event', {
+    p_event_id: eventId,
+  });
+
+  if (error) throw error;
+  return data as boolean;
+}
+
+// ─── Player: Mappers ──────────────────────────────────────
+
+function mapTrackAnalysis(row: any): TrackAnalysis {
+  return {
+    id: row.id,
+    trackId: row.track_id,
+    userId: row.user_id,
+    bpm: row.bpm,
+    beats: row.beats ?? [],
+    downbeats: row.downbeats ?? [],
+    beatsPerBar: row.beats_per_bar ?? 4,
+    confidence: row.confidence ?? 0,
+    sections: (row.sections ?? []) as Section[],
+    phraseBoundaries: row.phrase_boundaries ?? [],
+    waveformPeaks: row.waveform_peaks ?? [],
+    fingerprint: row.fingerprint ?? null,
+    createdAt: row.created_at,
+  };
+}
+
+function mapPlayerTrack(row: any): PlayerTrack {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    mediaType: row.media_type,
+    fingerprint: row.fingerprint ?? null,
+    fileHash: row.file_hash ?? null,
+    fileSize: row.file_size ?? null,
+    format: row.format ?? null,
+    duration: row.duration ?? null,
+    youtubeUrl: row.youtube_url ?? null,
+    youtubeVideoId: row.youtube_video_id ?? null,
+    folderId: row.folder_id ?? null,
+    danceStyle: row.dance_style ?? 'bachata',
+    sortOrder: row.sort_order ?? 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    analysis: row.track_analyses?.[0] ? mapTrackAnalysis(row.track_analyses[0]) : undefined,
+    settings: row.track_settings?.[0] ? mapTrackSettings(row.track_settings[0]) : undefined,
+  };
+}
+
+function mapPlayerFolder(row: any): PlayerFolder {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    mediaType: row.media_type ?? 'audio',
+    sortOrder: row.sort_order ?? 0,
+    createdAt: row.created_at,
+  };
+}
+
+function mapPhraseEdition(row: any): PhraseEdition {
+  return {
+    id: row.id,
+    trackId: row.track_id,
+    userId: row.user_id,
+    editionId: row.edition_id,
+    boundaries: row.boundaries ?? [],
+    isActive: row.is_active ?? false,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapCellNotes(row: any): CellNotes {
+  return {
+    id: row.id,
+    trackId: row.track_id,
+    userId: row.user_id,
+    editionId: row.edition_id ?? 'S',
+    notes: row.notes ?? {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapTrackSettings(row: any): TrackSettings {
+  return {
+    id: row.id,
+    trackId: row.track_id,
+    userId: row.user_id,
+    downbeatOffset: row.downbeat_offset ?? 0,
+    danceStyleOverride: row.dance_style_override ?? null,
+    playbackRate: row.playback_rate ?? 1.0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// ─── Player: Tracks ───────────────────────────────────────
+
+export async function fetchPlayerTracks(supabase: SupabaseClient): Promise<PlayerTrack[]> {
+  const { data, error } = await supabase
+    .from('player_tracks')
+    .select('*, track_analyses(*), track_settings(*)')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapPlayerTrack);
+}
+
+export async function fetchPlayerTrack(supabase: SupabaseClient, trackId: string): Promise<PlayerTrack | null> {
+  const { data, error } = await supabase
+    .from('player_tracks')
+    .select('*, track_analyses(*), track_settings(*)')
+    .eq('id', trackId)
+    .single();
+
+  if (error) return null;
+  return mapPlayerTrack(data);
+}
+
+export async function upsertTrackWithAnalysis(
+  supabase: SupabaseClient,
+  input: {
+    title: string;
+    mediaType: string;
+    fingerprint?: string;
+    fileHash?: string;
+    fileSize?: number;
+    format?: string;
+    duration?: number;
+    youtubeUrl?: string;
+    youtubeVideoId?: string;
+    danceStyle?: string;
+    folderId?: string;
+    bpm?: number;
+    beats?: number[];
+    downbeats?: number[];
+    beatsPerBar?: number;
+    confidence?: number;
+    sections?: Section[];
+    phraseBoundaries?: number[];
+    waveformPeaks?: number[];
+  },
+): Promise<string> {
+  const { data, error } = await supabase.rpc('upsert_track_with_analysis', {
+    p_title: input.title,
+    p_media_type: input.mediaType,
+    p_fingerprint: input.fingerprint ?? null,
+    p_file_hash: input.fileHash ?? null,
+    p_file_size: input.fileSize ?? null,
+    p_format: input.format ?? null,
+    p_duration: input.duration ?? null,
+    p_youtube_url: input.youtubeUrl ?? null,
+    p_youtube_video_id: input.youtubeVideoId ?? null,
+    p_dance_style: input.danceStyle ?? 'bachata',
+    p_folder_id: input.folderId ?? null,
+    p_bpm: input.bpm ?? null,
+    p_beats: input.beats ? JSON.stringify(input.beats) : '[]',
+    p_downbeats: input.downbeats ? JSON.stringify(input.downbeats) : '[]',
+    p_beats_per_bar: input.beatsPerBar ?? 4,
+    p_confidence: input.confidence ?? 0,
+    p_sections: input.sections ? JSON.stringify(input.sections) : '[]',
+    p_phrase_boundaries: input.phraseBoundaries ? JSON.stringify(input.phraseBoundaries) : '[]',
+    p_waveform_peaks: input.waveformPeaks ? JSON.stringify(input.waveformPeaks) : '[]',
+  });
+
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function deletePlayerTrack(supabase: SupabaseClient, trackId: string): Promise<void> {
+  const { error } = await supabase.from('player_tracks').delete().eq('id', trackId);
+  if (error) throw new Error(error.message);
+}
+
+export async function updatePlayerTrack(
+  supabase: SupabaseClient,
+  trackId: string,
+  updates: { title?: string; folderId?: string | null; danceStyle?: string; sortOrder?: number },
+): Promise<void> {
+  const payload: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (updates.title !== undefined) payload.title = updates.title;
+  if (updates.folderId !== undefined) payload.folder_id = updates.folderId;
+  if (updates.danceStyle !== undefined) payload.dance_style = updates.danceStyle;
+  if (updates.sortOrder !== undefined) payload.sort_order = updates.sortOrder;
+
+  const { error } = await supabase.from('player_tracks').update(payload).eq('id', trackId);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Player: Fingerprint Matching ─────────────────────────
+
+export async function matchTrackByFingerprint(
+  supabase: SupabaseClient,
+  fingerprint: string,
+): Promise<TrackAnalysis | null> {
+  const { data, error } = await supabase.rpc('match_track_by_fingerprint', {
+    p_fingerprint: fingerprint,
+  });
+
+  if (error || !data || (Array.isArray(data) && data.length === 0)) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    id: row.analysis_id,
+    trackId: row.track_id,
+    userId: '',
+    bpm: row.bpm,
+    beats: row.beats ?? [],
+    downbeats: row.downbeats ?? [],
+    beatsPerBar: row.beats_per_bar ?? 4,
+    confidence: row.confidence ?? 0,
+    sections: (row.sections ?? []) as Section[],
+    phraseBoundaries: row.phrase_boundaries ?? [],
+    waveformPeaks: row.waveform_peaks ?? [],
+    fingerprint,
+    createdAt: '',
+  };
+}
+
+// ─── Player: Folders ──────────────────────────────────────
+
+export async function fetchPlayerFolders(supabase: SupabaseClient): Promise<PlayerFolder[]> {
+  const { data, error } = await supabase
+    .from('player_folders')
+    .select('*')
+    .order('sort_order')
+    .order('created_at');
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapPlayerFolder);
+}
+
+export async function createPlayerFolder(
+  supabase: SupabaseClient,
+  input: { name: string; mediaType?: string },
+): Promise<PlayerFolder> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('player_folders')
+    .insert({ user_id: user.id, name: input.name, media_type: input.mediaType ?? 'audio' })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return mapPlayerFolder(data);
+}
+
+export async function deletePlayerFolder(supabase: SupabaseClient, folderId: string): Promise<void> {
+  const { error } = await supabase.from('player_folders').delete().eq('id', folderId);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Player: Phrase Editions ──────────────────────────────
+
+export async function fetchPhraseEditions(supabase: SupabaseClient, trackId: string): Promise<PhraseEdition[]> {
+  const { data, error } = await supabase
+    .from('phrase_editions')
+    .select('*')
+    .eq('track_id', trackId)
+    .order('edition_id');
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapPhraseEdition);
+}
+
+export async function upsertPhraseEdition(
+  supabase: SupabaseClient,
+  trackId: string,
+  editionId: string,
+  boundaries: number[],
+  isActive: boolean,
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('phrase_editions')
+    .upsert(
+      {
+        track_id: trackId,
+        user_id: user.id,
+        edition_id: editionId,
+        boundaries: JSON.stringify(boundaries),
+        is_active: isActive,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'track_id,user_id,edition_id' },
+    );
+
+  if (error) throw new Error(error.message);
+}
+
+export async function deletePhraseEdition(supabase: SupabaseClient, editionId: string): Promise<void> {
+  const { error } = await supabase.from('phrase_editions').delete().eq('id', editionId);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Player: Cell Notes ───────────────────────────────────
+
+export async function fetchCellNotes(supabase: SupabaseClient, trackId: string, editionId?: string): Promise<CellNotes | null> {
+  let query = supabase
+    .from('cell_notes')
+    .select('*')
+    .eq('track_id', trackId);
+
+  if (editionId) query = query.eq('edition_id', editionId);
+
+  const { data, error } = await query.maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? mapCellNotes(data) : null;
+}
+
+export async function upsertCellNotes(
+  supabase: SupabaseClient,
+  trackId: string,
+  editionId: string,
+  notes: Record<string, string>,
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('cell_notes')
+    .upsert(
+      {
+        track_id: trackId,
+        user_id: user.id,
+        edition_id: editionId,
+        notes: JSON.stringify(notes),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'track_id,user_id,edition_id' },
+    );
+
+  if (error) throw new Error(error.message);
+}
+
+// ─── Player: Track Settings ──────────────────────────────
+
+export async function fetchTrackSettings(supabase: SupabaseClient, trackId: string): Promise<TrackSettings | null> {
+  const { data, error } = await supabase
+    .from('track_settings')
+    .select('*')
+    .eq('track_id', trackId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data ? mapTrackSettings(data) : null;
+}
+
+export async function upsertTrackSettings(
+  supabase: SupabaseClient,
+  trackId: string,
+  settings: { downbeatOffset?: number; danceStyleOverride?: string | null; playbackRate?: number },
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const payload: Record<string, any> = {
+    track_id: trackId,
+    user_id: user.id,
+    updated_at: new Date().toISOString(),
+  };
+  if (settings.downbeatOffset !== undefined) payload.downbeat_offset = settings.downbeatOffset;
+  if (settings.danceStyleOverride !== undefined) payload.dance_style_override = settings.danceStyleOverride;
+  if (settings.playbackRate !== undefined) payload.playback_rate = settings.playbackRate;
+
+  const { error } = await supabase
+    .from('track_settings')
+    .upsert(payload, { onConflict: 'track_id,user_id' });
+
+  if (error) throw new Error(error.message);
+}

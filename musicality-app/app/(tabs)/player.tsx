@@ -1,12 +1,13 @@
-import { useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { SeekBar } from '../../components/ui/SeekBar';
-import { CountDisplay } from '../../components/ui/CountDisplay';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
-import { InteractiveSectionTimeline } from '../../components/ui/InteractiveSectionTimeline';
+import { SectionTimeline } from '../../components/ui/SectionTimeline';
+import { PhraseGrid } from '../../components/ui/PhraseGrid';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -16,8 +17,10 @@ import { useVideoPlayer } from '../../hooks/useVideoPlayer';
 import { useYouTubePlayer } from '../../hooks/useYouTubePlayer';
 import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
-import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, findCurrentBeatIndex } from '../../utils/beatCounter';
-import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, extractBoundaries } from '../../utils/phraseDetector';
+import { buildPhraseNoteFile, exportPhraseNote, pickPhraseNoteFile, findMatchingTrack, validatePhraseNote } from '../../services/phraseNoteService';
+import { ImportedPhraseNote } from '../../types/phraseNote';
+import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, CountInfo } from '../../utils/beatCounter';
+import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, phrasesFromBeatIndices } from '../../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
 import { Colors, Spacing, FontSize, getPhraseColor } from '../../constants/theme';
 
@@ -49,9 +52,20 @@ export default function PlayerScreen() {
     setTrackAnalysis,
   } = usePlayerStore();
 
+  const videoAspectRatio = usePlayerStore((s) => s.videoAspectRatio);
+
   const isVideo = currentTrack?.mediaType === 'video';
   const isYouTube = currentTrack?.mediaType === 'youtube';
   const isVisual = isVideo || isYouTube;
+
+  // Dynamic grid rows for video mode based on aspect ratio
+  const videoGridRows = useMemo(() => {
+    if (isYouTube) return 5;                  // YouTube always landscape
+    if (!isVideo) return 8;
+    if (videoAspectRatio >= 1.5) return 5;    // landscape (16:9+)
+    if (videoAspectRatio >= 1.0) return 4;    // square~landscape
+    return 4;                                  // portrait
+  }, [isVideo, isYouTube, videoAspectRatio]);
 
   const audioPlayer = useAudioPlayer();
   const videoPlayer = useVideoPlayer();
@@ -86,10 +100,23 @@ export default function PlayerScreen() {
   const phraseDetectionMode = useSettingsStore((s) => s.phraseDetectionMode);
   const defaultBeatsPerPhrase = useSettingsStore((s) => s.defaultBeatsPerPhrase);
   const phraseMarks = useSettingsStore((s) => s.phraseMarks);
-  const setPhraseMark = useSettingsStore((s) => s.setPhraseMark);
-  const phraseBoundaryOverrides = useSettingsStore((s) => s.phraseBoundaryOverrides);
-  const setPhraseBoundaryOverrides = useSettingsStore((s) => s.setPhraseBoundaryOverrides);
-  const setBoundaryCorrection = useSettingsStore((s) => s.setBoundaryCorrection);
+  const trackEditions = useSettingsStore((s) => s.trackEditions);
+  const setServerEdition = useSettingsStore((s) => s.setServerEdition);
+  const draftBoundaries = useSettingsStore((s) => s.draftBoundaries);
+  const setDraftBoundaries = useSettingsStore((s) => s.setDraftBoundaries);
+  const clearDraft = useSettingsStore((s) => s.clearDraft);
+  const saveDraftAsEdition = useSettingsStore((s) => s.saveDraftAsEdition);
+  const gridScrollMode = useSettingsStore((s) => s.gridScrollMode);
+  const toggleGridScrollMode = useSettingsStore((s) => s.toggleGridScrollMode);
+  const cellNotes = useSettingsStore((s) => s.cellNotes);
+  const setCellNote = useSettingsStore((s) => s.setCellNote);
+  const clearCellNote = useSettingsStore((s) => s.clearCellNote);
+  const importedNotes = useSettingsStore((s) => s.importedNotes);
+  const addImportedNote = useSettingsStore((s) => s.addImportedNote);
+  const removeImportedNote = useSettingsStore((s) => s.removeImportedNote);
+  const setActiveImportedNote = useSettingsStore((s) => s.setActiveImportedNote);
+
+  const tracks = usePlayerStore((s) => s.tracks);
 
   const onYtStateChange = useCallback((state: string) => {
     youtubePlayer.onStateChange(state);
@@ -98,15 +125,67 @@ export default function PlayerScreen() {
   const analysis = currentTrack?.analysis;
   const offsetBeatIndex = currentTrack ? (downbeatOffsets[currentTrack.id] ?? null) : null;
 
-  const phraseMap = useMemo(() => {
-    if (!analysis || analysis.beats.length === 0) return undefined;
+  // ─── Imported notes for current track ───
+  const trackImportedNotes = useMemo(() => {
+    if (!currentTrack) return [];
+    return importedNotes.filter(n => n.trackId === currentTrack.id);
+  }, [currentTrack?.id, importedNotes]);
 
-    // User-adjusted boundary overrides take priority
-    const overrides = currentTrack ? phraseBoundaryOverrides[currentTrack.id] : undefined;
-    if (overrides && overrides.length > 0) {
-      return phrasesFromBoundaries(analysis.beats, overrides, analysis.duration);
+  const activeImportedNote = useMemo(() => {
+    return trackImportedNotes.find(n => n.isActive) ?? null;
+  }, [trackImportedNotes]);
+
+  // ─── Effective beats/analysis: use imported data when active ───
+  const effectiveAnalysisData = useMemo(() => {
+    if (activeImportedNote) {
+      const pn = activeImportedNote.phraseNote;
+      return {
+        beats: pn.analysis.beats,
+        downbeats: pn.analysis.downbeats,
+        duration: pn.music.duration,
+        offsetBeatIndex: pn.analysis.downbeatOffset,
+        boundaries: pn.phrases.boundaries,
+        beatsPerPhrase: pn.phrases.beatsPerPhrase,
+        isImported: true,
+      };
+    }
+    return null;
+  }, [activeImportedNote]);
+
+  const phraseMap = useMemo(() => {
+    // ─── Imported PhraseNote active → use its boundaries ───
+    if (effectiveAnalysisData?.isImported) {
+      const { beats, boundaries, duration } = effectiveAnalysisData;
+      if (beats.length > 0 && boundaries.length > 0) {
+        return phrasesFromBeatIndices(beats, boundaries, duration);
+      }
     }
 
+    if (!analysis || analysis.beats.length === 0) return undefined;
+
+    // ─── Draft boundaries (unsaved edits) take highest priority ───
+    const draft = currentTrack ? draftBoundaries[currentTrack.id] : undefined;
+    if (draft && draft.length > 0) {
+      return phrasesFromBeatIndices(analysis.beats, draft, analysis.duration);
+    }
+
+    // ─── Active edition boundaries ───
+    const editions = currentTrack ? trackEditions[currentTrack.id] : undefined;
+    if (editions) {
+      const activeId = editions.activeEditionId;
+      let boundaries: number[] | undefined;
+      if (activeId === 'S') {
+        boundaries = editions.server?.boundaries;
+      } else {
+        const userEd = editions.userEditions.find(e => e.id === activeId);
+        boundaries = userEd?.boundaries;
+      }
+      if (boundaries && boundaries.length > 0) {
+        return phrasesFromBeatIndices(analysis.beats, boundaries, analysis.duration);
+      }
+    }
+
+    // Fallback: detection mode
     const refIdx = computeReferenceIndex(analysis.beats, analysis.downbeats, offsetBeatIndex, analysis.sections);
     switch (phraseDetectionMode) {
       case 'rule-based':
@@ -122,22 +201,321 @@ export default function PlayerScreen() {
           ? phrasesFromBoundaries(analysis.beats, analysis.phraseBoundaries, analysis.duration)
           : detectPhrasesRuleBased(analysis.beats, refIdx, defaultBeatsPerPhrase, analysis.duration);
     }
-  }, [analysis, offsetBeatIndex, phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks, currentTrack?.id, phraseBoundaryOverrides]);
+  }, [analysis, offsetBeatIndex, phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks, currentTrack?.id, trackEditions, draftBoundaries, effectiveAnalysisData]);
 
-  const countInfo = analysis
-    ? getPhraseCountInfo(position + lookAheadMs, analysis.beats, analysis.downbeats, offsetBeatIndex, danceStyle, phraseMap)
-    : null;
+  // Stable countInfo — only update reference when beatIndex/phraseIndex actually change
+  // This prevents PhraseGrid re-renders on every 50ms position tick
+  const prevCountRef = useRef<CountInfo | null>(null);
+  const countInfo = useMemo(() => {
+    // When imported note is active, use its beats/downbeats/offset
+    const effBeats = effectiveAnalysisData?.beats ?? analysis?.beats;
+    const effDownbeats = effectiveAnalysisData?.downbeats ?? analysis?.downbeats;
+    const effOffset = effectiveAnalysisData?.offsetBeatIndex ?? offsetBeatIndex;
+    const raw = effBeats
+      ? getPhraseCountInfo(position + lookAheadMs, effBeats, effDownbeats ?? [], effOffset, danceStyle, phraseMap)
+      : null;
+    const prev = prevCountRef.current;
+    if (prev && raw && prev.beatIndex === raw.beatIndex && prev.phraseIndex === raw.phraseIndex) {
+      return prev;
+    }
+    prevCountRef.current = raw;
+    return raw;
+  }, [position, lookAheadMs, analysis, offsetBeatIndex, danceStyle, phraseMap]);
 
-  const handleBoundariesChanged = useCallback((newBoundaries: number[], originalBoundaries: number[]) => {
+  // Bounce animation for count number
+  const countBounceAnim = useRef(new Animated.Value(1)).current;
+  const prevCountNumRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (countInfo && countInfo.count !== prevCountNumRef.current) {
+      prevCountNumRef.current = countInfo.count;
+      countBounceAnim.setValue(1.3);
+      Animated.spring(countBounceAnim, {
+        toValue: 1,
+        friction: 4,
+        tension: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [countInfo?.count]);
+
+  const handleGridTapBeat = useCallback((globalBeatIndex: number) => {
     if (!currentTrack) return;
-    setPhraseBoundaryOverrides(currentTrack.id, newBoundaries);
-    // Store correction data for future model training
-    setBoundaryCorrection(currentTrack.id, {
-      originalBoundaries,
-      correctedBoundaries: newBoundaries,
-      timestamp: Date.now(),
+    setDownbeatOffset(currentTrack.id, globalBeatIndex);
+  }, [currentTrack, setDownbeatOffset]);
+
+  // Phrase boundary: add a new boundary to split the current phrase
+  // e.g. Yellow[0-47](48beats) + Green[48-95](48beats) → tap beat 24 in Yellow
+  //   → Yellow[0-23](24beats) + Orange[24-47](24beats) + Green[48-95](48beats)
+  const handleStartPhraseHere = useCallback((globalBeatIndex: number) => {
+    if (!currentTrack || !analysis || !phraseMap) return;
+    const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+    const newBoundaries = [...new Set([...currentBoundaries, globalBeatIndex])].sort((a, b) => a - b);
+    setDraftBoundaries(currentTrack.id, newBoundaries);
+    // Seek to the new phrase start so grid refreshes with this as cell 1
+    if (globalBeatIndex < analysis.beats.length) {
+      seekTo(analysis.beats[globalBeatIndex] * 1000);
+    }
+  }, [currentTrack, analysis, phraseMap, setDraftBoundaries, seekTo]);
+
+  // Paused tap: seek to beat and start playback (preview)
+  const handleSeekAndPlay = useCallback((beatTimeMs: number) => {
+    seekTo(beatTimeMs);
+    if (!isPlaying) togglePlay();
+  }, [seekTo, isPlaying, togglePlay]);
+
+  // Seek only (no play) — for paused cell tap to preview position
+  const handleSeekOnly = useCallback((beatTimeMs: number) => {
+    seekTo(beatTimeMs);
+  }, [seekTo]);
+
+  // Merge: remove phrase boundary to merge with previous phrase
+  const handleMergeWithPrevious = useCallback((globalBeatIndex: number) => {
+    if (!currentTrack || !phraseMap) return;
+    const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+    // Remove this boundary (keep the first boundary at index 0 always)
+    const newBoundaries = currentBoundaries.filter(b => b !== globalBeatIndex);
+    setDraftBoundaries(currentTrack.id, newBoundaries);
+  }, [currentTrack, phraseMap, setDraftBoundaries]);
+
+  // ─── Effective beats array (imported or original) ───
+  const effectiveBeats = useMemo(() => {
+    return effectiveAnalysisData?.beats ?? analysis?.beats ?? [];
+  }, [effectiveAnalysisData, analysis]);
+
+  // ─── Cell notes for current track (use imported notes when active) ───
+  const currentCellNotes = useMemo(() => {
+    if (activeImportedNote) {
+      return activeImportedNote.phraseNote.cellNotes;
+    }
+    if (!currentTrack) return undefined;
+    return cellNotes[currentTrack.id];
+  }, [currentTrack?.id, cellNotes, activeImportedNote]);
+
+  // Current beat's note (for persistent banner during playback)
+  const currentBeatNote = useMemo(() => {
+    if (!currentCellNotes || !countInfo || countInfo.beatIndex < 0) return null;
+    return currentCellNotes[String(countInfo.beatIndex)] ?? null;
+  }, [currentCellNotes, countInfo?.beatIndex]);
+
+  const handleSetCellNote = useCallback((beatIndex: number, note: string) => {
+    if (!currentTrack) return;
+    setCellNote(currentTrack.id, beatIndex, note);
+  }, [currentTrack, setCellNote]);
+
+  const handleClearCellNote = useCallback((beatIndex: number) => {
+    if (!currentTrack) return;
+    clearCellNote(currentTrack.id, beatIndex);
+  }, [currentTrack, clearCellNote]);
+
+  // ─── PhraseNote share ───
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [shareAuthorName, setShareAuthorName] = useState('');
+  const router = useRouter();
+
+  const handleSharePhraseNote = useCallback(() => {
+    if (!currentTrack || !analysis || !phraseMap) return;
+    Alert.alert('Share PhraseNote', 'Choose how to share', [
+      {
+        text: 'Share to Crew',
+        onPress: () => {
+          const trackId = currentTrack.id;
+          const offset = downbeatOffsets[trackId] ?? 0;
+          const boundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+          const notes = cellNotes[trackId] ?? {};
+          const pnote = buildPhraseNoteFile({
+            author: '',
+            title: currentTrack.title,
+            analysis,
+            danceStyle,
+            downbeatOffset: offset,
+            boundaries,
+            beatsPerPhrase: phraseMap.beatsPerPhrase,
+            cellNotes: notes,
+          });
+          router.push({
+            pathname: '/community/share-to-crew',
+            params: {
+              phraseNoteData: JSON.stringify(pnote),
+              songTitle: currentTrack.title,
+              bpm: analysis.bpm ? String(Math.round(analysis.bpm)) : '',
+              danceStyle,
+            },
+          });
+        },
+      },
+      {
+        text: 'External Share',
+        onPress: () => {
+          setShareAuthorName('');
+          setShareModalVisible(true);
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [currentTrack, analysis, phraseMap, downbeatOffsets, cellNotes, danceStyle, router]);
+
+  const handleShareConfirm = useCallback(async () => {
+    if (!currentTrack || !analysis || !phraseMap) return;
+    // Build pnote data while modal is still visible
+    const trackId = currentTrack.id;
+    const offset = downbeatOffsets[trackId] ?? 0;
+    const boundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+    const notes = cellNotes[trackId] ?? {};
+    const pnote = buildPhraseNoteFile({
+      author: shareAuthorName,
+      title: currentTrack.title,
+      analysis,
+      danceStyle,
+      downbeatOffset: offset,
+      boundaries,
+      beatsPerPhrase: phraseMap.beatsPerPhrase,
+      cellNotes: notes,
     });
-  }, [currentTrack, setPhraseBoundaryOverrides, setBoundaryCorrection]);
+    // Close modal first, then wait for dismiss animation before opening share sheet
+    setShareModalVisible(false);
+    await new Promise(resolve => setTimeout(resolve, 400));
+    try {
+      await exportPhraseNote(pnote, currentTrack.title);
+    } catch (err: any) {
+      console.warn('[PhraseNote Share]', err?.message || err);
+      if (err?.message !== 'User did not share') {
+        Alert.alert('Share Error', err?.message || 'Failed to share PhraseNote');
+      }
+    }
+  }, [currentTrack, analysis, phraseMap, downbeatOffsets, cellNotes, danceStyle, shareAuthorName]);
+
+  // ─── Edition picker active state ───
+  // 'source' = 'mine' (original/user editions) or 'imported-{noteId}'
+  const activeSource = useMemo((): string => {
+    if (activeImportedNote) return `imported-${activeImportedNote.id}`;
+    return 'mine';
+  }, [activeImportedNote]);
+
+  const handleSelectMine = useCallback(() => {
+    if (!currentTrack) return;
+    setActiveImportedNote(currentTrack.id, null); // deactivate all imports
+  }, [currentTrack, setActiveImportedNote]);
+
+  const handleSelectImported = useCallback((noteId: string) => {
+    if (!currentTrack) return;
+    setActiveImportedNote(currentTrack.id, noteId);
+  }, [currentTrack, setActiveImportedNote]);
+
+  const handleDeleteImported = useCallback((noteId: string) => {
+    Alert.alert('Delete imported note?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: () => {
+          removeImportedNote(noteId);
+        },
+      },
+    ]);
+  }, [removeImportedNote]);
+
+  // ─── Import PhraseNote flow ───
+  const handleImportPhraseNote = useCallback(async () => {
+    try {
+      const pnote = await pickPhraseNoteFile();
+      if (!pnote) return; // cancelled
+
+      // Try to auto-match track
+      const tracksWithAnalysis = tracks
+        .filter(t => t.analysis)
+        .map(t => ({ id: t.id, analysis: t.analysis! }));
+      let matchedTrackId = findMatchingTrack(tracksWithAnalysis, pnote);
+
+      if (!matchedTrackId && currentTrack) {
+        // No auto-match — ask user if they want to apply to current track
+        await new Promise<void>((resolve) => {
+          Alert.alert(
+            'No matching track found',
+            `Apply "${pnote.metadata.author}'s notes" to the current track "${currentTrack.title}"?`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve() },
+              {
+                text: 'Apply',
+                onPress: () => {
+                  matchedTrackId = currentTrack.id;
+                  resolve();
+                },
+              },
+            ],
+          );
+        });
+      }
+
+      if (!matchedTrackId) return;
+
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const imported: ImportedPhraseNote = {
+        id,
+        trackId: matchedTrackId,
+        phraseNote: pnote,
+        importedAt: Date.now(),
+        isActive: true,
+      };
+
+      // Deactivate other imports for this track, then add new
+      setActiveImportedNote(matchedTrackId, null);
+      addImportedNote(imported);
+
+      Alert.alert('Imported!', `${pnote.metadata.author}'s PhraseNote has been loaded.`);
+    } catch (err: any) {
+      Alert.alert('Import Failed', err.message || 'Could not read PhraseNote file.');
+    }
+  }, [tracks, currentTrack, addImportedNote, setActiveImportedNote]);
+
+  // Phrase-based skip back (single tap = current phrase start, double tap = previous phrase)
+  const lastBackTapRef = useRef<number>(0);
+  const handleSkipBack = useCallback(() => {
+    if (!phraseMap || !countInfo || !analysis) {
+      seekTo(Math.max(0, position - 10000)); // fallback: 10s
+      return;
+    }
+    const now = Date.now();
+    const isDoubleTap = now - lastBackTapRef.current < 400;
+    lastBackTapRef.current = now;
+
+    const idx = countInfo.phraseIndex;
+    const phrase = phraseMap.phrases[idx];
+    if (!phrase) return;
+
+    if (isDoubleTap && idx > 0) {
+      // Double tap: go to previous phrase start
+      seekTo(phraseMap.phrases[idx - 1].startTime * 1000);
+    } else {
+      // Single tap: go to current phrase start
+      seekTo(phrase.startTime * 1000);
+    }
+  }, [phraseMap, countInfo, analysis, position, seekTo]);
+
+  // Phrase-based skip forward (go to next phrase start)
+  const handleSkipForward = useCallback(() => {
+    if (!phraseMap || !countInfo || !analysis) {
+      seekTo(Math.min(duration, position + 10000)); // fallback: 10s
+      return;
+    }
+    const nextIdx = countInfo.phraseIndex + 1;
+    if (nextIdx < phraseMap.phrases.length) {
+      seekTo(phraseMap.phrases[nextIdx].startTime * 1000);
+    }
+  }, [phraseMap, countInfo, analysis, duration, position, seekTo]);
+
+  // A-B loop: alternating A/B point setting from grid long-press
+  const handleSetLoopPoint = useCallback((beatTimeMs: number) => {
+    if (loopStart == null || loopEnd != null) {
+      // No loop or loop complete → start new: set A
+      clearLoop();
+      setLoopStart(beatTimeMs);
+    } else {
+      // A is set, B not set → set B (auto-swap if needed)
+      const start = Math.min(loopStart, beatTimeMs);
+      const end = Math.max(loopStart, beatTimeMs);
+      setLoopStart(start);
+      setLoopEnd(end);
+    }
+  }, [loopStart, loopEnd, setLoopStart, setLoopEnd, clearLoop]);
 
   const handleNowIsOne = () => {
     if (!currentTrack) return;
@@ -163,6 +541,20 @@ export default function PlayerScreen() {
     try {
       const result = await analyzeTrack(currentTrack.uri, currentTrack.title, currentTrack.format);
       setTrackAnalysis(currentTrack.id, result);
+      // Store server phrase boundaries as 'S' edition (beat indices)
+      if (result.phraseBoundaries && result.phraseBoundaries.length > 0) {
+        // Convert timestamps to beat indices
+        const boundaryBeatIndices = result.phraseBoundaries.map(ts => {
+          let closest = 0;
+          let minDiff = Math.abs(result.beats[0] - ts);
+          for (let i = 1; i < result.beats.length; i++) {
+            const diff = Math.abs(result.beats[i] - ts);
+            if (diff < minDiff) { minDiff = diff; closest = i; }
+          }
+          return closest;
+        });
+        setServerEdition(currentTrack.id, boundaryBeatIndices);
+      }
     } catch (e: any) {
       setTrackAnalysisStatus(currentTrack.id, 'error');
       Alert.alert('Analysis Failed', e.message || 'Could not connect to analysis server.');
@@ -197,11 +589,35 @@ export default function PlayerScreen() {
           <Text style={styles.compactTitle} numberOfLines={1}>{currentTrack.title}</Text>
           <View style={styles.headerMeta}>
             {analysis && (
-              <View style={styles.bpmBadge}>
-                <Text style={styles.bpmText}>
-                  {Math.round(analysis.bpm)} BPM
-                </Text>
-              </View>
+              <>
+                <TouchableOpacity onPress={toggleGridScrollMode} style={styles.scrollModeBtn}>
+                  <Ionicons
+                    name={gridScrollMode ? 'swap-vertical' : 'grid-outline'}
+                    size={16}
+                    color={gridScrollMode ? Colors.primary : Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+                <View style={styles.bpmBadge}>
+                  <Text style={styles.bpmText}>
+                    {Math.round(analysis.bpm)} BPM
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={handleSharePhraseNote} style={styles.scrollModeBtn}>
+                  <Ionicons name="share-outline" size={16} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              </>
+            )}
+            {isYouTube && analysis && (
+              <TouchableOpacity
+                style={styles.analyzeBtn}
+                onPress={() => {
+                  setTrackAnalysisStatus(currentTrack.id, 'idle');
+                  resetTapTempo();
+                }}
+              >
+                <Ionicons name="refresh" size={16} color={Colors.text} />
+                <Text style={styles.analyzeBtnText}>Re-tap</Text>
+              </TouchableOpacity>
             )}
             {!isYouTube && (!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
               <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyze}>
@@ -246,101 +662,212 @@ export default function PlayerScreen() {
                 </View>
               )}
             </View>
+
+            {/* Analysis done → PhraseGrid */}
+            {currentTrack.analysisStatus === 'done' && (
+              <View style={styles.videoCountSection}>
+                <PhraseGrid
+                  rows={videoGridRows}
+                  countInfo={countInfo}
+                  phraseMap={phraseMap ?? null}
+                  hasAnalysis={!!analysis}
+                  beats={effectiveBeats}
+                  isPlaying={isPlaying}
+                  onTapBeat={handleGridTapBeat}
+                  onStartPhraseHere={handleStartPhraseHere}
+                  onSetLoopPoint={handleSetLoopPoint}
+                  onClearLoop={clearLoop}
+                  onSeekAndPlay={handleSeekAndPlay}
+                  onSeekOnly={handleSeekOnly}
+                  onMergeWithPrevious={handleMergeWithPrevious}
+                  loopStart={loopStart}
+                  loopEnd={loopEnd}
+                  scrollMode={gridScrollMode}
+                  cellNotes={currentCellNotes}
+                  onSetCellNote={handleSetCellNote}
+                  onClearCellNote={handleClearCellNote}
+                  currentBeatNote={currentBeatNote}
+                />
+              </View>
+            )}
+
+            {/* No analysis → Tap Tempo UI */}
+            {currentTrack.analysisStatus !== 'done' && (
+              <View style={styles.tapTempoSection}>
+                {/* Row 1: TAP button + BPM display */}
+                <View style={styles.tapTempoRow}>
+                  <TouchableOpacity style={styles.tapButton} onPress={recordTap} activeOpacity={0.6}>
+                    <Ionicons name="hand-left" size={24} color={Colors.text} />
+                    <Text style={styles.tapButtonText}>TAP</Text>
+                  </TouchableOpacity>
+                  <View style={styles.tapBpmContainer}>
+                    <TouchableOpacity onPress={() => adjustBpm(-1)} style={styles.bpmAdjust}>
+                      <Ionicons name="remove-circle-outline" size={28} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                    <Text style={styles.tapBpmValue}>{tapBpm > 0 ? tapBpm : '--'}</Text>
+                    <Text style={styles.tapBpmLabel}>BPM</Text>
+                    <TouchableOpacity onPress={() => adjustBpm(1)} style={styles.bpmAdjust}>
+                      <Ionicons name="add-circle-outline" size={28} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {/* Row 2: "지금이 1" full-width button */}
+                <TouchableOpacity
+                  style={[styles.nowIsOneButtonWide, tapBpm <= 0 && styles.disabledButton]}
+                  onPress={handleNowIsOne}
+                  disabled={tapBpm <= 0}
+                >
+                  <Ionicons name="locate" size={20} color={tapBpm > 0 ? Colors.tapAccent : Colors.textMuted} />
+                  <Text style={[styles.nowIsOneTextInline, tapBpm <= 0 && { color: Colors.textMuted }]}>
+                    지금이 1
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.tapTempoHint}>
+                  TAP으로 BPM을 맞추고, 영상의 1박에 "지금이 1"을 누르세요
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
         {/* ② Video Player */}
         {isVideo && (
           <View style={styles.videoSection}>
-            <View style={styles.videoContainer}>
+            <View style={[styles.videoContainer, { aspectRatio: videoAspectRatio }]}>
               <Video
                 ref={videoPlayer.videoRef}
                 source={{ uri: currentTrack.uri }}
                 style={styles.video}
                 resizeMode={ResizeMode.CONTAIN}
                 shouldPlay={false}
-                progressUpdateIntervalMillis={50}
+                progressUpdateIntervalMillis={100}
                 onPlaybackStatusUpdate={videoPlayer.onPlaybackStatusUpdate}
+                onReadyForDisplay={videoPlayer.onReadyForDisplay}
               />
               {currentTrack.analysisStatus === 'done' && (
                 <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
               )}
             </View>
             {currentTrack.analysisStatus === 'done' && (
-              <TouchableOpacity style={styles.nowIsOneButton} onPress={handleNowIsOne}>
-                <Ionicons name="locate-outline" size={18} color={Colors.tapAccent} />
-                <Text style={styles.nowIsOneText}>지금이 1</Text>
-              </TouchableOpacity>
+              <View style={styles.videoCountSection}>
+                <PhraseGrid
+                  rows={videoGridRows}
+                  countInfo={countInfo}
+                  phraseMap={phraseMap ?? null}
+                  hasAnalysis={!!analysis}
+                  beats={effectiveBeats}
+                  isPlaying={isPlaying}
+                  onTapBeat={handleGridTapBeat}
+                  onStartPhraseHere={handleStartPhraseHere}
+                  onSetLoopPoint={handleSetLoopPoint}
+                  onClearLoop={clearLoop}
+                  onSeekAndPlay={handleSeekAndPlay}
+                  onSeekOnly={handleSeekOnly}
+                  onMergeWithPrevious={handleMergeWithPrevious}
+                  loopStart={loopStart}
+                  loopEnd={loopEnd}
+                  scrollMode={gridScrollMode}
+                  cellNotes={currentCellNotes}
+                  onSetCellNote={handleSetCellNote}
+                  onClearCellNote={handleClearCellNote}
+                  currentBeatNote={currentBeatNote}
+                />
+              </View>
             )}
           </View>
         )}
 
-        {/* ③ Count Display (audio only) */}
+        {/* ③ Compact Count + PhraseGrid (audio only) */}
         {!isVisual && currentTrack.analysisStatus === 'done' && (
           <View style={styles.countSection}>
-            {countInfo && countInfo.totalPhrases > 0 && (
-              <View style={[styles.sectionBadge, { backgroundColor: getPhraseColor(countInfo.phraseIndex) }]}>
-                <Text style={styles.sectionBadgeText}>PHRASE {countInfo.phraseIndex + 1}</Text>
-              </View>
-            )}
-            <CountDisplay countInfo={countInfo} hasAnalysis={!!analysis} />
-            <View style={styles.countButtonsRow}>
-              <TouchableOpacity style={styles.nowIsOneButton} onPress={handleNowIsOne}>
-                <Ionicons name="locate-outline" size={18} color={Colors.tapAccent} />
-                <Text style={styles.nowIsOneText}>지금이 1</Text>
-              </TouchableOpacity>
-              {phraseDetectionMode === 'user-marked' && analysis && (
-                <TouchableOpacity
-                  style={styles.markPhraseButton}
-                  onPress={() => {
-                    if (!currentTrack || !analysis) return;
-                    const beatIdx = findCurrentBeatIndex(position, analysis.beats);
-                    if (beatIdx >= 0) setPhraseMark(currentTrack.id, beatIdx);
-                  }}
-                >
-                  <Ionicons name="flag-outline" size={18} color={Colors.accent} />
-                  <Text style={styles.markPhraseText}>프레이즈 표시</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+            {/* Count number with bounce animation */}
+            <Animated.Text
+              style={[
+                styles.compactCount,
+                {
+                  color: countInfo && countInfo.totalPhrases > 0
+                    ? getPhraseColor(countInfo.phraseIndex)
+                    : Colors.textMuted,
+                  transform: [{ scale: countBounceAnim }],
+                },
+              ]}
+            >
+              {countInfo?.count ?? '--'}
+            </Animated.Text>
+
+            {/* PhraseGrid — rhythm game style */}
+            <PhraseGrid
+              countInfo={countInfo}
+              phraseMap={phraseMap ?? null}
+              hasAnalysis={!!analysis}
+              beats={effectiveBeats}
+              isPlaying={isPlaying}
+              onTapBeat={handleGridTapBeat}
+              onStartPhraseHere={handleStartPhraseHere}
+              onSetLoopPoint={handleSetLoopPoint}
+              onClearLoop={clearLoop}
+              onSeekAndPlay={handleSeekAndPlay}
+              onSeekOnly={handleSeekOnly}
+              onMergeWithPrevious={handleMergeWithPrevious}
+              loopStart={loopStart}
+              loopEnd={loopEnd}
+              scrollMode={gridScrollMode}
+              cellNotes={currentCellNotes}
+              onSetCellNote={handleSetCellNote}
+              onClearCellNote={handleClearCellNote}
+              currentBeatNote={currentBeatNote}
+            />
           </View>
         )}
 
-        {/* ④ YouTube Tap Tempo */}
-        {isYouTube && (
-          <View style={styles.tapTempoSection}>
-            <Text style={styles.sectionLabel}>Tap Tempo</Text>
-            <View style={styles.tapTempoRow}>
-              <TouchableOpacity style={styles.tapButton} onPress={recordTap} activeOpacity={0.6}>
-                <Ionicons name="hand-left" size={24} color={Colors.text} />
-                <Text style={styles.tapButtonText}>TAP</Text>
-              </TouchableOpacity>
-              <View style={styles.tapBpmContainer}>
-                <TouchableOpacity onPress={() => adjustBpm(-1)} style={styles.bpmAdjust}>
-                  <Ionicons name="remove-circle-outline" size={28} color={Colors.textSecondary} />
-                </TouchableOpacity>
-                <Text style={styles.tapBpmValue}>{tapBpm > 0 ? tapBpm : '--'}</Text>
-                <Text style={styles.tapBpmLabel}>BPM</Text>
-                <TouchableOpacity onPress={() => adjustBpm(1)} style={styles.bpmAdjust}>
-                  <Ionicons name="add-circle-outline" size={28} color={Colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity
-                style={[styles.nowIsOneButtonInline, tapBpm <= 0 && styles.disabledButton]}
-                onPress={handleNowIsOne}
-                disabled={tapBpm <= 0}
-              >
-                <Ionicons name="locate" size={20} color={tapBpm > 0 ? Colors.tapAccent : Colors.textMuted} />
-                <Text style={[styles.nowIsOneTextInline, tapBpm <= 0 && { color: Colors.textMuted }]}>
-                  지금이 1
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.tapTempoHint}>
-              {!analysis
-                ? 'TAP으로 BPM을 맞추고, 영상의 1박에 "지금이 1"을 누르세요'
-                : `${Math.round(analysis.bpm)} BPM · 카운트 활성`}
-            </Text>
+        {/* Draft Save/Discard */}
+        {currentTrack && draftBoundaries[currentTrack.id] && (
+          <View style={styles.draftActions}>
+            <TouchableOpacity
+              style={styles.draftSaveButton}
+              onPress={() => {
+                const editions = trackEditions[currentTrack.id];
+                const usedSlots = editions?.userEditions?.length ?? 0;
+
+                if (usedSlots >= 3) {
+                  // 3개 슬롯 꽉 참 → 가장 오래된 슬롯 교체 경고
+                  const sorted = [...(editions?.userEditions ?? [])].sort((a, b) => a.createdAt - b.createdAt);
+                  const evictId = sorted[0]?.id ?? '1';
+                  Alert.alert(
+                    '슬롯 부족',
+                    `3개 슬롯이 모두 사용 중입니다.\nEdition ${evictId}을 대체하고 저장할까요?`,
+                    [
+                      { text: '취소', style: 'cancel' },
+                      {
+                        text: '대체하고 저장',
+                        style: 'destructive',
+                        onPress: () => {
+                          const slotId = saveDraftAsEdition(currentTrack.id);
+                          if (slotId) {
+                            Alert.alert('Saved', `Edition ${slotId}에 저장되었습니다`);
+                          }
+                        },
+                      },
+                    ],
+                  );
+                } else {
+                  const slotId = saveDraftAsEdition(currentTrack.id);
+                  if (slotId) {
+                    Alert.alert('Saved', `Edition ${slotId}에 저장되었습니다`);
+                  }
+                }
+              }}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+              <Text style={styles.draftSaveText}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.draftDiscardButton}
+              onPress={() => clearDraft(currentTrack.id)}
+            >
+              <Ionicons name="close-circle" size={20} color={Colors.error} />
+              <Text style={styles.draftDiscardText}>Discard</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -363,18 +890,76 @@ export default function PlayerScreen() {
             <Text style={styles.timeText}>{formatTime(duration)}</Text>
           </View>
 
-          {/* ⑥ Phrase Timeline (interactive with drag-to-adjust) */}
+          {/* ⑥ Phrase Timeline (overview bar) */}
           {phraseMap && phraseMap.phrases.length > 0 && analysis && (
-            <InteractiveSectionTimeline
+            <SectionTimeline
               phrases={phraseMap.phrases}
               duration={analysis.duration}
               currentTimeMs={position}
-              waveformPeaks={analysis.waveformPeaks}
-              beats={analysis.beats}
-              onBoundariesChanged={handleBoundariesChanged}
+              onSeekToPhrase={seekTo}
             />
           )}
         </View>
+
+        {/* ⑥b Edition Picker (chips: mine + imported notes) */}
+        {currentTrack.analysisStatus === 'done' && (trackImportedNotes.length > 0 || analysis) && (
+          <View style={styles.editionPickerSection}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.editionPickerScroll}
+            >
+              {/* "Mine" chip — original/user editions */}
+              <TouchableOpacity
+                style={[
+                  styles.editionChip,
+                  activeSource === 'mine' && styles.editionChipActive,
+                ]}
+                onPress={handleSelectMine}
+              >
+                <Text style={[
+                  styles.editionChipText,
+                  activeSource === 'mine' && styles.editionChipTextActive,
+                ]}>
+                  My Edition
+                </Text>
+              </TouchableOpacity>
+
+              {/* Imported note chips */}
+              {trackImportedNotes.map((note) => {
+                const isActive = activeSource === `imported-${note.id}`;
+                return (
+                  <TouchableOpacity
+                    key={note.id}
+                    style={[
+                      styles.editionChip,
+                      styles.editionChipImported,
+                      isActive && styles.editionChipActive,
+                    ]}
+                    onPress={() => handleSelectImported(note.id)}
+                    onLongPress={() => handleDeleteImported(note.id)}
+                    delayLongPress={500}
+                  >
+                    <Text style={[
+                      styles.editionChipText,
+                      isActive && styles.editionChipTextActive,
+                    ]}>
+                      {note.phraseNote.metadata.author} ♪
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* [+] Import button */}
+              <TouchableOpacity
+                style={[styles.editionChip, styles.editionChipAdd]}
+                onPress={handleImportPhraseNote}
+              >
+                <Ionicons name="add" size={16} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        )}
 
         {/* ⑦ Loop A-B inline controls (only visible when loop is being set) */}
         {(loopStart !== null || loopEnd !== null) && (
@@ -420,50 +1005,69 @@ export default function PlayerScreen() {
 
       {/* ─── Fixed Bottom Bar (above tab bar) ─── */}
       <View style={styles.bottomBar}>
-        <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
-        <TouchableOpacity onPress={() => seekTo(Math.max(0, position - 10000))}>
-          <Ionicons name="play-back" size={28} color={Colors.text} />
-        </TouchableOpacity>
+        <View style={styles.bottomBarSide}>
+          <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
+          <TouchableOpacity onPress={handleSkipBack}>
+            <Ionicons name="play-back" size={28} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
           <Ionicons name={isPlaying ? 'pause' : 'play'} size={32} color={Colors.text} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => seekTo(Math.min(duration, position + 10000))}>
-          <Ionicons name="play-forward" size={28} color={Colors.text} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={toggleCue} style={styles.cueToggle}>
-          <Ionicons
-            name={cueEnabled ? 'volume-high' : 'volume-mute'}
-            size={22}
-            color={cueEnabled ? Colors.accent : Colors.textMuted}
-          />
-        </TouchableOpacity>
-        {/* Compact loop toggle — mirrors speed button on the left */}
-        <TouchableOpacity
-          style={styles.loopToggle}
-          onPress={() => {
-            if (loopStart !== null && loopEnd !== null) {
-              // Already has A-B: toggle or clear
-              clearLoop();
-            } else if (loopStart === null) {
-              // Set A point
-              setLoopStart(position);
-            } else {
-              // A is set, set B point
-              if (position > loopStart) setLoopEnd(position);
-            }
-          }}
-          onLongPress={clearLoop}
-        >
-          <Ionicons
-            name={loopEnabled ? 'repeat' : 'repeat-outline'}
-            size={20}
-            color={loopEnabled ? Colors.primary : loopStart !== null ? Colors.accent : Colors.textMuted}
-          />
-          {loopStart !== null && !loopEnd && (
-            <View style={styles.loopDot} />
-          )}
-        </TouchableOpacity>
+        <View style={styles.bottomBarSide}>
+          <TouchableOpacity onPress={handleSkipForward}>
+            <Ionicons name="play-forward" size={28} color={Colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleCue} style={styles.cueToggle}>
+            <Ionicons
+              name={cueEnabled ? 'volume-high' : 'volume-mute'}
+              size={22}
+              color={cueEnabled ? Colors.accent : Colors.textMuted}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Share PhraseNote — author name modal */}
+      <Modal
+        visible={shareModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setShareModalVisible(false); Keyboard.dismiss(); }}
+      >
+        <Pressable
+          style={styles.shareModalBackdrop}
+          onPress={() => { setShareModalVisible(false); Keyboard.dismiss(); }}
+        >
+          <Pressable style={styles.shareModalContainer} onPress={() => {}}>
+            <Text style={styles.shareModalTitle}>Share PhraseNote</Text>
+            <Text style={styles.shareModalSubtitle}>Enter your name (displayed to recipients)</Text>
+            <TextInput
+              style={styles.shareModalInput}
+              value={shareAuthorName}
+              onChangeText={setShareAuthorName}
+              maxLength={30}
+              placeholder="Author name"
+              placeholderTextColor={Colors.textMuted}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleShareConfirm}
+            />
+            <View style={styles.shareModalButtons}>
+              <TouchableOpacity
+                style={styles.shareModalCancel}
+                onPress={() => { setShareModalVisible(false); Keyboard.dismiss(); }}
+              >
+                <Text style={styles.shareModalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.shareModalShare} onPress={handleShareConfirm}>
+                <Ionicons name="share-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
+                <Text style={styles.shareModalShareText}>Share</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -496,6 +1100,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
   },
+  scrollModeBtn: {
+    padding: 4,
+    marginRight: 4,
+  },
   bpmBadge: {
     backgroundColor: Colors.primary,
     paddingHorizontal: 8,
@@ -522,28 +1130,26 @@ const styles = StyleSheet.create({
   videoSection: { alignItems: 'center' },
   videoContainer: {
     width: '100%',
-    aspectRatio: 9 / 16,
     maxHeight: 480,
     backgroundColor: '#000',
     overflow: 'hidden',
   },
   video: { width: '100%', height: '100%' },
+  videoCountSection: {
+    width: '100%',
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.sm,
+  },
   youtubeContainer: { width: '100%', backgroundColor: '#000' },
   youtubeOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 10 },
 
-  // ─── Count Display ──────────────────────────────
+  // ─── Count Display + PhraseGrid ─────────────────
   countSection: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  sectionBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: 4,
+  compactCount: {
+    fontSize: 48,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
     marginBottom: Spacing.xs,
-  },
-  sectionBadgeText: {
-    color: Colors.text,
-    fontSize: FontSize.xs,
-    fontWeight: '700',
-    letterSpacing: 1,
   },
   nowIsOneButton: {
     flexDirection: 'row',
@@ -558,27 +1164,6 @@ const styles = StyleSheet.create({
   },
   nowIsOneText: {
     color: Colors.tapAccent,
-    fontSize: FontSize.sm,
-    fontWeight: '600',
-  },
-  countButtonsRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginTop: Spacing.sm,
-  },
-  markPhraseButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.surfaceLight,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.accent,
-  },
-  markPhraseText: {
-    color: Colors.accent,
     fontSize: FontSize.sm,
     fontWeight: '600',
   },
@@ -644,6 +1229,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.tapAccent,
   },
+  nowIsOneButtonWide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: Colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: Colors.tapAccent,
+    marginTop: Spacing.sm,
+  },
   nowIsOneTextInline: {
     color: Colors.tapAccent,
     fontSize: 10,
@@ -670,14 +1267,19 @@ const styles = StyleSheet.create({
   // ─── Bottom Bar (fixed above tab bar) ──────────
   bottomBar: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: Spacing.lg,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+  },
+  bottomBarSide: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.lg,
   },
   playButton: {
     width: 56,
@@ -686,12 +1288,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    marginHorizontal: Spacing.md,
   },
   cueToggle: {
     padding: Spacing.xs,
   },
 
-  // ─── Loop (inline A-B controls + bottom bar toggle) ──
+  // ─── Loop (inline A-B controls in scroll area) ──
   loopInlineSection: {
     marginTop: Spacing.sm,
     paddingHorizontal: Spacing.lg,
@@ -711,21 +1314,161 @@ const styles = StyleSheet.create({
   loopButtonTextActive: { color: Colors.primary },
   loopClear: { padding: Spacing.xs },
   loopStatus: { color: Colors.primary, fontSize: FontSize.xs, textAlign: 'center', marginTop: Spacing.xs },
-  loopToggle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+
+  // ─── Draft Save/Discard ──────────────────────────
+  draftActions: {
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.xs,
   },
-  loopDot: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.accent,
+  draftSaveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.4)',
+  },
+  draftSaveText: {
+    color: '#4CAF50',
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+  },
+  draftDiscardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(207, 102, 121, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(207, 102, 121, 0.4)',
+  },
+  draftDiscardText: {
+    color: Colors.error,
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+  },
+  // Share PhraseNote modal
+  shareModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareModalContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    minWidth: 280,
+    maxWidth: '85%',
+    borderWidth: 1,
+    borderColor: Colors.surfaceLight,
+  },
+  shareModalTitle: {
+    color: Colors.text,
+    fontSize: FontSize.lg,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  shareModalSubtitle: {
+    color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  shareModalInput: {
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.surfaceLight,
+    color: Colors.text,
+    fontSize: FontSize.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  shareModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  shareModalCancel: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+  },
+  shareModalCancelText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.md,
+    fontWeight: '600',
+  },
+  shareModalShare: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  shareModalShareText: {
+    color: '#FFFFFF',
+    fontSize: FontSize.md,
+    fontWeight: '700',
+  },
+
+  // ─── Edition Picker ──────────────────────────────
+  editionPickerSection: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  editionPickerScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingRight: Spacing.md,
+  },
+  editionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: Colors.surfaceLight,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  editionChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(187, 134, 252, 0.15)',
+  },
+  editionChipImported: {
+    backgroundColor: 'rgba(45, 212, 191, 0.1)',
+  },
+  editionChipAdd: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderStyle: 'dashed' as any,
+    borderWidth: 1,
+    borderColor: Colors.textMuted,
+  },
+  editionChipText: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '600',
+  },
+  editionChipTextActive: {
+    color: Colors.primary,
+    fontWeight: '700',
   },
 });

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Music structure analyzer for Latin dance music (v2.1).
 Detects sections: intro, derecho, majao, mambo, bridge, outro.

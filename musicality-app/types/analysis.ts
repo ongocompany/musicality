@@ -37,6 +37,25 @@ export interface AnalysisResult {
   sections?: Section[];      // music structure sections (backward compat)
   phraseBoundaries?: number[]; // phrase boundary timestamps from server (seconds)
   waveformPeaks?: number[];    // normalized amplitude peaks (0-1) for waveform visualization
+  fingerprint?: string;        // Chromaprint audio fingerprint for track identification
 }
 
 export type AnalysisStatus = 'idle' | 'analyzing' | 'done' | 'error';
+
+// ─── Phrase Edition System ───────────────────────────
+
+/** Edition identifier: 'S' = server original, '1'|'2'|'3' = user editions */
+export type EditionId = 'S' | '1' | '2' | '3';
+
+export interface PhraseEdition {
+  id: EditionId;
+  boundaries: number[];   // beat indices (not timestamps)
+  createdAt: number;       // Date.now()
+  updatedAt: number;       // Date.now()
+}
+
+export interface TrackEditions {
+  server: PhraseEdition | null;     // 'S' edition — from server analysis
+  userEditions: PhraseEdition[];    // max 3 user editions
+  activeEditionId: EditionId;       // currently active
+}

@@ -18,6 +18,9 @@ class AnalysisResult(BaseModel):
     sections: list[SectionInfo] = []  # music structure sections (backward compatible)
     phrase_boundaries: list[float] = []  # phrase boundary timestamps in seconds (auto-detected)
     waveform_peaks: list[float] = []  # 200 normalized amplitude peaks (0.0-1.0) for visualization
+    fingerprint: str = ""  # Chromaprint audio fingerprint for track identification
+    cached: bool = False  # True if result came from cache
+    file_hash: str = ""  # SHA-256 hash of the uploaded file
 
 
 class HealthResponse(BaseModel):
