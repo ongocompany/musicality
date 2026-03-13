@@ -4,7 +4,6 @@ import { Video, ResizeMode } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { SeekBar } from '../../components/ui/SeekBar';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { PhraseGrid } from '../../components/ui/PhraseGrid';
@@ -640,7 +639,7 @@ export default function PlayerScreen() {
             <View style={styles.youtubeContainer}>
               <YoutubePlayer
                 ref={youtubePlayer.playerRef}
-                height={240}
+                height={200}
                 videoId={currentTrack.uri}
                 play={isPlaying}
                 onReady={youtubePlayer.onReady}
@@ -871,33 +870,46 @@ export default function PlayerScreen() {
           </View>
         )}
 
-        {/* ⑤ Seek Bar + Time */}
+        {/* ⑤ Phrase Timeline (seek + waveform + playhead) */}
         <View style={[styles.seekSection, isVisual && { paddingHorizontal: Spacing.lg }]}>
-          <SeekBar
-            value={position}
-            max={duration || 1}
-            onSeek={seekTo}
-            onSeekStart={() => setIsSeeking(true)}
-            onSeekEnd={() => setIsSeeking(false)}
-            loopStart={loopStart}
-            loopEnd={loopEnd}
-            loopEnabled={loopEnabled}
-            phrases={phraseMap?.phrases}
-            durationSec={analysis?.duration}
-          />
-          <View style={styles.timeRow}>
-            <Text style={styles.timeText}>{formatTime(position)}</Text>
-            <Text style={styles.timeText}>{formatTime(duration)}</Text>
-          </View>
-
-          {/* ⑥ Phrase Timeline (overview bar) */}
           {phraseMap && phraseMap.phrases.length > 0 && analysis && (
             <SectionTimeline
               phrases={phraseMap.phrases}
               duration={analysis.duration}
               currentTimeMs={position}
-              onSeekToPhrase={seekTo}
+              waveformPeaks={analysis.waveformPeaks}
+              onSeek={seekTo}
+              onSeekStart={() => setIsSeeking(true)}
+              onSeekEnd={() => setIsSeeking(false)}
+              loopStart={loopStart}
+              loopEnd={loopEnd}
+              loopEnabled={loopEnabled}
             />
+          )}
+          {/* Fallback: simple progress bar when no analysis */}
+          {(!phraseMap || phraseMap.phrases.length === 0 || !analysis) && duration > 0 && (
+            <View>
+              <View style={styles.timeRow}>
+                <Text style={styles.timeText}>{formatTime(position)}</Text>
+                <Text style={styles.timeText}>{formatTime(duration)}</Text>
+              </View>
+              <View
+                style={styles.fallbackBar}
+                onStartShouldSetResponder={() => true}
+                onResponderGrant={(evt) => {
+                  const x = evt.nativeEvent.locationX;
+                  const pct = Math.max(0, Math.min(1, x / (evt.nativeEvent.target ? 300 : 300)));
+                  // Use pageX for accuracy
+                  evt.currentTarget.measure?.((_x: number, _y: number, w: number, _h: number, pageX: number) => {
+                    const relX = evt.nativeEvent.pageX - pageX;
+                    const p = Math.max(0, Math.min(1, relX / w));
+                    seekTo(Math.round(p * duration));
+                  });
+                }}
+              >
+                <View style={[styles.fallbackFill, { width: `${(position / duration) * 100}%` }]} />
+              </View>
+            </View>
           )}
         </View>
 
@@ -1130,7 +1142,7 @@ const styles = StyleSheet.create({
   videoSection: { alignItems: 'center' },
   videoContainer: {
     width: '100%',
-    maxHeight: 480,
+    maxHeight: 360,
     backgroundColor: '#000',
     overflow: 'hidden',
   },
@@ -1263,6 +1275,18 @@ const styles = StyleSheet.create({
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.xs },
   timeText: { color: Colors.textSecondary, fontSize: FontSize.sm },
   sectionLabel: { color: Colors.textSecondary, fontSize: FontSize.sm, marginBottom: Spacing.sm },
+  fallbackBar: {
+    height: 6,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginTop: Spacing.xs,
+  },
+  fallbackFill: {
+    height: '100%',
+    backgroundColor: Colors.primary,
+    borderRadius: 3,
+  },
 
   // ─── Bottom Bar (fixed above tab bar) ──────────
   bottomBar: {
