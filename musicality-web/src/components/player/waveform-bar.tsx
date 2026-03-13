@@ -121,8 +121,6 @@ export function WaveformBar({
         {/* Bars */}
         <div className="absolute inset-0 flex items-end gap-px px-px">
           {displayPeaks.map((peak, i) => {
-            const ratio = i / displayPeaks.length;
-            const isPast = ratio <= progress;
             const height = Math.max(2, (peak / maxPeak) * 100);
 
             return (
@@ -131,9 +129,7 @@ export function WaveformBar({
                 className="flex-1 rounded-t-sm transition-colors duration-75"
                 style={{
                   height: `${height}%`,
-                  backgroundColor: isPast
-                    ? 'hsl(var(--primary))'
-                    : 'hsl(var(--muted-foreground) / 0.3)',
+                  backgroundColor: 'hsl(var(--muted-foreground) / 0.3)',
                 }}
               />
             );
