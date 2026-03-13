@@ -270,10 +270,12 @@ export default function PlayerPage() {
 
         addTrack(track);
 
-        // Compute fingerprint in background (non-blocking)
+        // Compute fingerprint in background, then auto-match with Supabase
         computeQuickHash(file)
           .then((hash) => {
             updateTrack(id, { fingerprint: hash });
+            // Try to find existing analysis in Supabase by fingerprint
+            trackSync.autoMatchAndAttach(id, hash).catch(() => {});
           })
           .catch((err) => {
             console.warn('Fingerprint failed:', err);
@@ -442,7 +444,7 @@ export default function PlayerPage() {
         onAnalyze={handleAnalyze}
         onSyncTrack={(track) => trackSync.syncTrackToCloud(track)}
         onSyncAll={() => trackSync.syncAllToCloud()}
-        onLoadFromCloud={() => trackSync.loadFromCloud()}
+        onLoadFromCloud={() => { trackSync.loadFromCloud(); trackSync.loadFoldersFromCloud(); }}
         syncStatus={trackSync.syncStatus}
         folders={folders}
         onCreateFolder={createFolder}
