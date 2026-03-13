@@ -3,6 +3,7 @@
  * RLS policies handle authorization; no FastAPI proxy needed.
  */
 import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import { supabase } from '../lib/supabase';
 import type {
   Profile,
@@ -600,16 +601,10 @@ async function uploadImage(bucket: string, path: string, imageUri: string): Prom
   const base64 = await FileSystem.readAsStringAsync(imageUri, {
     encoding: FileSystem.EncodingType.Base64,
   });
-  // Convert base64 to Uint8Array
-  const binaryStr = atob(base64);
-  const bytes = new Uint8Array(binaryStr.length);
-  for (let i = 0; i < binaryStr.length; i++) {
-    bytes[i] = binaryStr.charCodeAt(i);
-  }
 
   const { error } = await supabase.storage
     .from(bucket)
-    .upload(fullPath, bytes, { upsert: true, contentType });
+    .upload(fullPath, decode(base64), { upsert: true, contentType });
 
   if (error) throw new Error(error.message);
 
