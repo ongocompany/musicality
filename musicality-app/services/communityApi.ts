@@ -599,7 +599,7 @@ async function uploadImage(bucket: string, path: string, imageUri: string): Prom
 
   // Read file as base64 using expo-file-system (fetch() fails for local URIs on iOS)
   const base64 = await FileSystem.readAsStringAsync(imageUri, {
-    encoding: FileSystem.EncodingType.Base64,
+    encoding: 'base64',
   });
 
   const { error } = await supabase.storage
