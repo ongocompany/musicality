@@ -8,13 +8,16 @@ import {
   TextInput,
   RefreshControl,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
 import { useCommunityStore } from '../../stores/communityStore';
+import { useSocialStore } from '../../stores/socialStore';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 import CrewCard from '../../components/community/CrewCard';
+import ProfileSlidePanel from '../../components/social/ProfileSlidePanel';
 
 export default function CommunityScreen() {
   const router = useRouter();
@@ -28,8 +31,10 @@ export default function CommunityScreen() {
     fetchDiscoverCrews,
   } = useCommunityStore();
 
+  const { myProfile, fetchMyProfile } = useSocialStore();
   const [searchText, setSearchText] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [profilePanelVisible, setProfilePanelVisible] = useState(false);
 
   const isAuthenticated = user !== null;
 
@@ -38,6 +43,7 @@ export default function CommunityScreen() {
     if (isAuthenticated) {
       fetchMyCrews();
       fetchDiscoverCrews();
+      fetchMyProfile();
     }
   }, [isAuthenticated]);
 
@@ -86,9 +92,31 @@ export default function CommunityScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header — avatar + stats + create button */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Community</Text>
+        <TouchableOpacity
+          style={styles.avatarButton}
+          onPress={() => setProfilePanelVisible(true)}
+          activeOpacity={0.7}
+        >
+          {(myProfile?.avatarUrl || user?.user_metadata?.avatar_url) ? (
+            <Image
+              source={{ uri: myProfile?.avatarUrl || user?.user_metadata?.avatar_url }}
+              style={styles.headerAvatar}
+            />
+          ) : (
+            <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
+              <Ionicons name="person" size={18} color={Colors.textMuted} />
+            </View>
+          )}
+        </TouchableOpacity>
+        <View style={styles.headerStats}>
+          <Text style={styles.headerStatNumber}>{myProfile?.followerCount ?? 0}</Text>
+          <Text style={styles.headerStatLabel}>팔로워</Text>
+          <View style={styles.headerStatDot} />
+          <Text style={styles.headerStatNumber}>{myProfile?.followingCount ?? 0}</Text>
+          <Text style={styles.headerStatLabel}>팔로잉</Text>
+        </View>
         <TouchableOpacity
           style={styles.createButton}
           onPress={() => router.push('/community/create-crew')}
@@ -185,6 +213,12 @@ export default function CommunityScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Profile Slide Panel */}
+      <ProfileSlidePanel
+        visible={profilePanelVisible}
+        onClose={() => setProfilePanelVisible(false)}
+      />
     </View>
   );
 }
@@ -198,16 +232,47 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    gap: Spacing.sm,
   },
-  headerTitle: {
-    fontSize: FontSize.xl,
-    fontWeight: '700',
+  avatarButton: {},
+  headerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surfaceLight,
+  },
+  headerAvatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  headerStats: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  headerStatNumber: {
     color: Colors.text,
+    fontSize: FontSize.md,
+    fontWeight: '700',
+  },
+  headerStatLabel: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    marginRight: 4,
+  },
+  headerStatDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: Colors.textMuted,
+    marginHorizontal: 2,
   },
   createButton: {
     width: 36,

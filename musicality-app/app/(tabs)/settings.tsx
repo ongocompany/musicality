@@ -1,7 +1,6 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 import { checkServerHealth } from '../../services/analysisApi';
@@ -9,7 +8,6 @@ import { API_BASE_URL } from '../../constants/config';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
-import { useSocialStore } from '../../stores/socialStore';
 import { DanceStyle } from '../../utils/beatCounter';
 import { CueType, CUE_TYPE_LABELS } from '../../types/cue';
 import { PhraseDetectionMode } from '../../types/analysis';
@@ -24,8 +22,6 @@ export default function SettingsScreen() {
     defaultBeatsPerPhrase, setDefaultBeatsPerPhrase,
   } = useSettingsStore();
   const { user, guestMode, signOut } = useAuthStore();
-  const { myProfile, fetchMyProfile: fetchSocialProfile } = useSocialStore();
-  const router = useRouter();
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -38,65 +34,19 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     checkServer();
-    if (user) fetchSocialProfile();
-  }, [checkServer, user?.id]);
+  }, [checkServer]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Profile / Account */}
+      {/* Account */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Profile</Text>
+        <Text style={styles.sectionTitle}>Account</Text>
         {user ? (
           <>
-            {/* Enhanced profile card */}
-            <View style={styles.profileCard}>
-              {(myProfile?.avatarUrl || user.user_metadata?.avatar_url) ? (
-                <Image
-                  source={{ uri: myProfile?.avatarUrl || user.user_metadata?.avatar_url }}
-                  style={styles.profileAvatar}
-                />
-              ) : (
-                <View style={[styles.profileAvatar, styles.profileAvatarPlaceholder]}>
-                  <Ionicons name="person" size={32} color={Colors.textMuted} />
-                </View>
-              )}
-              <View style={styles.profileInfo}>
-                <Text style={styles.profileName} numberOfLines={1}>
-                  {myProfile?.displayName || user.user_metadata?.full_name || '사용자'}
-                </Text>
-                {myProfile?.nickname && (
-                  <Text style={styles.profileNickname}>@{myProfile.nickname}</Text>
-                )}
-                <Text style={styles.profileEmail}>{user.email || ''}</Text>
-              </View>
+            <View style={styles.row}>
+              <Ionicons name="mail-outline" size={20} color={Colors.textSecondary} />
+              <Text style={styles.label}>{user.email || '이메일 없음'}</Text>
             </View>
-
-            {/* Follower / Following */}
-            {myProfile && (
-              <View style={styles.profileStats}>
-                <View style={styles.profileStatItem}>
-                  <Text style={styles.profileStatNumber}>{myProfile.followerCount}</Text>
-                  <Text style={styles.profileStatLabel}>팔로워</Text>
-                </View>
-                <View style={styles.profileStatDivider} />
-                <View style={styles.profileStatItem}>
-                  <Text style={styles.profileStatNumber}>{myProfile.followingCount}</Text>
-                  <Text style={styles.profileStatLabel}>팔로잉</Text>
-                </View>
-              </View>
-            )}
-
-            {/* Edit Profile */}
-            <TouchableOpacity
-              style={styles.row}
-              onPress={() => router.push('/profile/edit')}
-            >
-              <Ionicons name="create-outline" size={20} color={Colors.primary} />
-              <Text style={[styles.label, { color: Colors.primary }]}>프로필 편집</Text>
-              <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-            </TouchableOpacity>
-
-            {/* Logout */}
             <TouchableOpacity
               style={styles.row}
               onPress={() => {
@@ -393,80 +343,5 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     marginTop: Spacing.xs,
     paddingLeft: Spacing.xl + Spacing.md,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
-  avatarPlaceholder: {
-    backgroundColor: Colors.surfaceLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
-  },
-  profileAvatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.surfaceLight,
-  },
-  profileAvatarPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  profileInfo: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  profileName: {
-    color: Colors.text,
-    fontSize: FontSize.xl,
-    fontWeight: '700',
-  },
-  profileNickname: {
-    color: Colors.textSecondary,
-    fontSize: FontSize.md,
-    marginTop: 2,
-  },
-  profileEmail: {
-    color: Colors.textMuted,
-    fontSize: FontSize.sm,
-    marginTop: 2,
-  },
-  profileStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  profileStatItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  profileStatNumber: {
-    color: Colors.text,
-    fontSize: FontSize.lg,
-    fontWeight: '700',
-  },
-  profileStatLabel: {
-    color: Colors.textMuted,
-    fontSize: FontSize.xs,
-    marginTop: 2,
-  },
-  profileStatDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: Colors.border,
   },
 });
