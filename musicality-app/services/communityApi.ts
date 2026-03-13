@@ -476,28 +476,38 @@ async function getThreadPostCount(threadId: string): Promise<number> {
 
 // ─── General Posts ──────────────────────────────────────
 
+/** Attach profiles to posts via batch fetch (avoids FK join issues) */
+async function attachProfilesToPosts(posts: GeneralPost[]): Promise<GeneralPost[]> {
+  if (posts.length === 0) return posts;
+  const userIds = [...new Set(posts.map((p) => p.userId))];
+  const profileMap = await fetchProfilesByIds(userIds);
+  return posts.map((p) => ({ ...p, profile: profileMap.get(p.userId) }));
+}
+
 export async function fetchGeneralPosts(crewId: string): Promise<GeneralPost[]> {
   const { data, error } = await supabase
     .from('general_posts')
-    .select('*, profiles:user_id(*)')
+    .select('*')
     .eq('crew_id', crewId)
     .is('parent_id', null)
     .order('created_at', { ascending: false })
     .limit(50);
 
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapGeneralPost);
+  const posts = (data ?? []).map(mapGeneralPost);
+  return attachProfilesToPosts(posts);
 }
 
 export async function fetchPostReplies(parentId: string): Promise<GeneralPost[]> {
   const { data, error } = await supabase
     .from('general_posts')
-    .select('*, profiles:user_id(*)')
+    .select('*')
     .eq('parent_id', parentId)
     .order('created_at', { ascending: true });
 
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapGeneralPost);
+  const posts = (data ?? []).map(mapGeneralPost);
+  return attachProfilesToPosts(posts);
 }
 
 export async function createGeneralPost(
@@ -522,11 +532,15 @@ export async function createGeneralPost(
   const { data, error } = await supabase
     .from('general_posts')
     .insert(insertPayload)
-    .select('*, profiles:user_id(*)')
+    .select('*')
     .single();
 
   if (error) throw new Error(error.message);
-  return mapGeneralPost(data);
+  const post = mapGeneralPost(data);
+  // Attach current user's profile
+  const profileMap = await fetchProfilesByIds([post.userId]);
+  post.profile = profileMap.get(post.userId);
+  return post;
 }
 
 export async function deleteGeneralPost(postId: string): Promise<void> {
