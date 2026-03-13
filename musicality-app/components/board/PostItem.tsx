@@ -13,7 +13,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
-import { parseYouTubeUrl } from '../../services/fileImport';
+import { parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
+import { usePlayerStore } from '../../stores/playerStore';
 import type { GeneralPost } from '../../types/community';
 
 interface Props {
@@ -246,10 +247,12 @@ function PostContent({ content }: { content: string }) {
   );
 }
 
-/** Inline YouTube player — shows thumbnail first, taps to play */
+/** Inline YouTube player — shows thumbnail first, taps to play, long-press to save */
 function InlineYouTube({ videoId }: { videoId: string }) {
   const [playing, setPlaying] = useState(false);
   const [activated, setActivated] = useState(false);
+  const addTrack = usePlayerStore((s) => s.addTrack);
+  const tracks = usePlayerStore((s) => s.tracks);
   const playerW = SCREEN_WIDTH - 64;
   const playerH = Math.round(playerW * 9 / 16);
 
@@ -257,11 +260,33 @@ function InlineYouTube({ videoId }: { videoId: string }) {
     if (state === 'ended') setPlaying(false);
   }, []);
 
+  const handleLongPress = useCallback(() => {
+    // Check if already in library
+    const exists = tracks.some((t) => t.mediaType === 'youtube' && t.uri === videoId);
+    if (exists) {
+      Alert.alert('이미 추가됨', '이 영상은 이미 라이브러리에 있습니다.');
+      return;
+    }
+    Alert.alert('라이브러리에 추가', '이 YouTube 영상을 내 라이브러리에 저장하시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '저장',
+        onPress: () => {
+          const track = createYouTubeTrack(videoId);
+          addTrack(track);
+          Alert.alert('저장 완료', '라이브러리에 추가되었습니다.');
+        },
+      },
+    ]);
+  }, [videoId, tracks, addTrack]);
+
   if (!activated) {
     return (
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={() => { setActivated(true); setPlaying(true); }}
+        onLongPress={handleLongPress}
+        delayLongPress={500}
         style={styles.ytPreview}
       >
         <Image
