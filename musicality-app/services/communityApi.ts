@@ -313,12 +313,16 @@ export async function updateCrew(crewId: string, updates: Partial<Pick<Crew, 'na
 export async function fetchCrewMembers(crewId: string): Promise<CrewMember[]> {
   const { data, error } = await supabase
     .from('crew_members')
-    .select('*, profiles(*)')
+    .select('*')
     .eq('crew_id', crewId)
     .order('joined_at', { ascending: true });
 
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapCrewMember);
+  const members = (data ?? []).map(mapCrewMember);
+  if (members.length === 0) return members;
+  const userIds = [...new Set(members.map((m) => m.userId))];
+  const profileMap = await fetchProfilesByIds(userIds);
+  return members.map((m) => ({ ...m, profile: profileMap.get(m.userId) }));
 }
 
 /** Join open crew via DB function (atomic) */
@@ -365,13 +369,17 @@ export async function requestJoinCrew(crewId: string, message?: string): Promise
 export async function fetchJoinRequests(crewId: string): Promise<JoinRequest[]> {
   const { data, error } = await supabase
     .from('crew_join_requests')
-    .select('*, profiles:user_id(*)')
+    .select('*')
     .eq('crew_id', crewId)
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
 
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapJoinRequest);
+  const requests = (data ?? []).map(mapJoinRequest);
+  if (requests.length === 0) return requests;
+  const userIds = [...new Set(requests.map((r) => r.userId))];
+  const profileMap = await fetchProfilesByIds(userIds);
+  return requests.map((r) => ({ ...r, profile: profileMap.get(r.userId) }));
 }
 
 export async function approveJoinRequest(requestId: string): Promise<void> {
@@ -436,12 +444,16 @@ export async function createSongThread(crewId: string, input: CreateThreadInput)
 export async function fetchThreadNotes(threadId: string): Promise<ThreadPhraseNote[]> {
   const { data, error } = await supabase
     .from('thread_phrase_notes')
-    .select('*, profiles:user_id(*)')
+    .select('*')
     .eq('thread_id', threadId)
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapThreadPhraseNote);
+  const notes = (data ?? []).map(mapThreadPhraseNote);
+  if (notes.length === 0) return notes;
+  const userIds = [...new Set(notes.map((n) => n.userId))];
+  const profileMap = await fetchProfilesByIds(userIds);
+  return notes.map((n) => ({ ...n, profile: profileMap.get(n.userId) }));
 }
 
 export async function postPhraseNote(
@@ -460,7 +472,7 @@ export async function postPhraseNote(
       phrase_note_data: phraseNoteData,
       description: description?.trim() ?? '',
     })
-    .select('*, profiles:user_id(*)')
+    .select('*')
     .single();
 
   if (error) throw new Error(error.message);
@@ -474,7 +486,10 @@ export async function postPhraseNote(
     })
     .eq('id', threadId);
 
-  return mapThreadPhraseNote(data);
+  const note = mapThreadPhraseNote(data);
+  const profileMap = await fetchProfilesByIds([note.userId]);
+  note.profile = profileMap.get(note.userId);
+  return note;
 }
 
 async function getThreadPostCount(threadId: string): Promise<number> {
