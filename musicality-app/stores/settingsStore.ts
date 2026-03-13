@@ -5,6 +5,7 @@ import { DanceStyle } from '../utils/beatCounter';
 import { CueType } from '../types/cue';
 import { PhraseDetectionMode, EditionId, PhraseEdition, TrackEditions } from '../types/analysis';
 import { ImportedPhraseNote } from '../types/phraseNote';
+import { FormationData, FormationEditionId, FormationEdition, TrackFormations } from '../types/formation';
 
 interface SettingsState {
   // Dance style (global setting)
@@ -81,6 +82,27 @@ interface SettingsState {
   addImportedNote: (note: ImportedPhraseNote) => void;
   removeImportedNote: (id: string) => void;
   setActiveImportedNote: (trackId: string, noteId: string | null) => void;
+
+  // ─── Formation System ─────────────────────────────
+  trackFormations: Record<string, TrackFormations>;
+
+  /** Store server-suggested formation as 'S' edition */
+  setServerFormation: (trackId: string, data: FormationData) => void;
+
+  /** Create or update a user formation edition, set as active */
+  setFormationEdition: (trackId: string, editionId: FormationEditionId, data: FormationData) => void;
+
+  /** Switch active formation edition */
+  setActiveFormationEdition: (trackId: string, editionId: FormationEditionId) => void;
+
+  /** Delete a user formation edition (S cannot be deleted) */
+  deleteFormationEdition: (trackId: string, editionId: FormationEditionId) => void;
+
+  // Draft formation (for live editing before saving)
+  draftFormation: Record<string, FormationData>;
+  setDraftFormation: (trackId: string, data: FormationData) => void;
+  clearFormationDraft: (trackId: string) => void;
+  saveFormationDraftAsEdition: (trackId: string) => FormationEditionId | null;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -332,10 +354,165 @@ export const useSettingsStore = create<SettingsState>()(
             return { ...n, isActive: n.id === noteId };
           }),
         })),
+
+      // ─── Formation System ───────────────────────────
+
+      trackFormations: {},
+
+      setServerFormation: (trackId, data) =>
+        set((state) => {
+          const existing = state.trackFormations[trackId] ?? {
+            server: null, userEditions: [], activeEditionId: 'S' as FormationEditionId,
+          };
+          const now = Date.now();
+          return {
+            trackFormations: {
+              ...state.trackFormations,
+              [trackId]: {
+                ...existing,
+                server: {
+                  id: 'S' as FormationEditionId,
+                  data,
+                  createdAt: existing.server?.createdAt ?? now,
+                  updatedAt: now,
+                },
+                activeEditionId: existing.activeEditionId || 'S',
+              },
+            },
+          };
+        }),
+
+      setFormationEdition: (trackId, editionId, data) =>
+        set((state) => {
+          if (editionId === 'S') return state;
+
+          const existing = state.trackFormations[trackId] ?? {
+            server: null, userEditions: [], activeEditionId: 'S' as FormationEditionId,
+          };
+          const now = Date.now();
+          const idx = existing.userEditions.findIndex(e => e.id === editionId);
+          let newUserEditions: FormationEdition[];
+
+          if (idx >= 0) {
+            newUserEditions = existing.userEditions.map((e, i) =>
+              i === idx ? { ...e, data, updatedAt: now } : e
+            );
+          } else {
+            newUserEditions = [
+              ...existing.userEditions,
+              { id: editionId, data, createdAt: now, updatedAt: now },
+            ];
+          }
+
+          return {
+            trackFormations: {
+              ...state.trackFormations,
+              [trackId]: {
+                ...existing,
+                userEditions: newUserEditions,
+                activeEditionId: editionId,
+              },
+            },
+          };
+        }),
+
+      setActiveFormationEdition: (trackId, editionId) =>
+        set((state) => {
+          const formations = state.trackFormations[trackId];
+          if (!formations) return state;
+
+          if (editionId === 'S' && !formations.server) return state;
+          if (editionId !== 'S' && !formations.userEditions.find(e => e.id === editionId)) return state;
+
+          return {
+            trackFormations: {
+              ...state.trackFormations,
+              [trackId]: { ...formations, activeEditionId: editionId },
+            },
+          };
+        }),
+
+      deleteFormationEdition: (trackId, editionId) =>
+        set((state) => {
+          if (editionId === 'S') return state;
+          const formations = state.trackFormations[trackId];
+          if (!formations) return state;
+
+          const newUserEditions = formations.userEditions.filter(e => e.id !== editionId);
+          const newActive = formations.activeEditionId === editionId
+            ? 'S' as FormationEditionId : formations.activeEditionId;
+
+          return {
+            trackFormations: {
+              ...state.trackFormations,
+              [trackId]: {
+                ...formations,
+                userEditions: newUserEditions,
+                activeEditionId: newActive,
+              },
+            },
+          };
+        }),
+
+      // ─── Formation Draft System ────────────────────
+
+      draftFormation: {},
+
+      setDraftFormation: (trackId, data) =>
+        set((state) => ({
+          draftFormation: { ...state.draftFormation, [trackId]: data },
+        })),
+
+      clearFormationDraft: (trackId) =>
+        set((state) => {
+          const { [trackId]: _, ...rest } = state.draftFormation;
+          return { draftFormation: rest };
+        }),
+
+      saveFormationDraftAsEdition: (trackId) => {
+        const state = get();
+        const draft = state.draftFormation[trackId];
+        if (!draft) return null;
+
+        const formations = state.trackFormations[trackId] ?? {
+          server: null, userEditions: [], activeEditionId: 'S' as FormationEditionId,
+        };
+
+        const usedIds = new Set(formations.userEditions.map(e => e.id));
+        let slotId: FormationEditionId;
+        const available = (['1', '2', '3'] as FormationEditionId[]).filter(id => !usedIds.has(id));
+
+        if (available.length > 0) {
+          slotId = available[0];
+        } else {
+          const sorted = [...formations.userEditions].sort((a, b) => a.createdAt - b.createdAt);
+          slotId = sorted[0].id;
+        }
+
+        const now = Date.now();
+        const newUserEditions = formations.userEditions
+          .filter(e => e.id !== slotId)
+          .concat({ id: slotId, data: draft, createdAt: now, updatedAt: now });
+
+        const { [trackId]: _, ...restDrafts } = state.draftFormation;
+        set({
+          draftFormation: restDrafts,
+          trackFormations: {
+            ...state.trackFormations,
+            [trackId]: {
+              ...formations,
+              userEditions: newUserEditions,
+              activeEditionId: slotId,
+            },
+          },
+        });
+
+        return slotId;
+      },
     }),
     {
       name: 'musicality-settings',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persistedState: any, version: number) => {
         let state = { ...persistedState };
@@ -364,6 +541,10 @@ export const useSettingsStore = create<SettingsState>()(
           // Add importedNotes array
           state.importedNotes = state.importedNotes ?? [];
         }
+        if (version < 4) {
+          // Add trackFormations
+          state.trackFormations = state.trackFormations ?? {};
+        }
         return state as SettingsState;
       },
       partialize: (state) => ({
@@ -380,6 +561,7 @@ export const useSettingsStore = create<SettingsState>()(
         trackEditions: state.trackEditions,
         cellNotes: state.cellNotes,
         importedNotes: state.importedNotes,
+        trackFormations: state.trackFormations,
       }),
     },
   ),

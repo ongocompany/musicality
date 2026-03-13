@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers.analysis import router as analysis_router
+from routers.formations import router as formations_router
 from models.schemas import HealthResponse
 
 app = FastAPI(
@@ -32,6 +33,7 @@ app.add_middleware(
 
 # Routes
 app.include_router(analysis_router)
+app.include_router(formations_router)
 
 
 @app.get("/health", response_model=HealthResponse)
