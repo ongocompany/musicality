@@ -69,6 +69,7 @@ export default function PlayerPage() {
   const togglePlay = mediaType === 'youtube' ? ytPlayer.togglePlay : mediaType === 'video' ? videoPlayer.togglePlay : audioPlayer.togglePlay;
   const seekTo = mediaType === 'youtube' ? ytPlayer.seekTo : mediaType === 'video' ? videoPlayer.seekTo : audioPlayer.seekTo;
 
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [danceStyle, setDanceStyle] = useState<DanceStyle>('bachata');
   const [offsetBeatIndex, setOffsetBeatIndex] = useState<number | null>(null);
   const [cellNotes, setCellNotes] = useState<Record<string, string>>({});
@@ -437,6 +438,8 @@ export default function PlayerPage() {
         tracks={tracks}
         currentTrack={currentTrack}
         isPlaying={isPlaying}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen((v) => !v)}
         onSelectTrack={setCurrentTrack}
         onAddFiles={handleFiles}
         onAddYouTube={handleAddYouTube}

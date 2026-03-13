@@ -30,6 +30,8 @@ interface PlayerSidebarProps {
   tracks: LocalTrack[];
   currentTrack: LocalTrack | null;
   isPlaying: boolean;
+  isOpen: boolean;
+  onToggle: () => void;
   onSelectTrack: (track: LocalTrack) => void;
   onAddFiles: (files: FileList | File[]) => void;
   onAddYouTube: (url: string) => void;
@@ -56,6 +58,8 @@ export function PlayerSidebar({
   tracks,
   currentTrack,
   isPlaying,
+  isOpen,
+  onToggle,
   onSelectTrack,
   onAddFiles,
   onAddYouTube,
@@ -217,13 +221,20 @@ export function PlayerSidebar({
 
   // ─── Render ────────────────────────────────────
 
+  const trackCount = tracks.length;
+
   return (
-    <div
-      className="w-80 shrink-0 border-r border-border bg-card flex flex-col h-full"
-      onDrop={handleDrop}
-      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-      onDragLeave={() => setDragOver(false)}
-    >
+    <div className="relative shrink-0 h-full flex">
+      {/* Sliding panel */}
+      <div
+        className={cn(
+          'w-80 border-r border-border bg-card flex flex-col h-full transition-[margin] duration-300 ease-in-out',
+          !isOpen && '-ml-80',
+        )}
+        onDrop={handleDrop}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+      >
       {/* Header actions */}
       <div className="p-3 border-b border-border space-y-2">
         <div className="flex items-center gap-2">
@@ -605,6 +616,45 @@ export function PlayerSidebar({
           </div>
         )}
       </div>
+      </div>
+
+      {/* Toggle handle */}
+      <button
+        onClick={onToggle}
+        className={cn(
+          'h-full w-6 flex items-center justify-center',
+          'bg-card/80 hover:bg-accent/80 border-r border-border',
+          'transition-colors duration-200 cursor-pointer shrink-0',
+          'focus:outline-none',
+        )}
+        title={isOpen ? 'Hide playlist' : 'Show playlist'}
+        aria-label={isOpen ? 'Hide playlist' : 'Show playlist'}
+      >
+        <div className="flex flex-col items-center gap-1">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={cn(
+              'text-muted-foreground transition-transform duration-300',
+              !isOpen && 'rotate-180',
+            )}
+          >
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+          {!isOpen && trackCount > 0 && (
+            <span className="text-[9px] text-muted-foreground font-medium leading-none">
+              {trackCount}
+            </span>
+          )}
+        </div>
+      </button>
     </div>
   );
 }
