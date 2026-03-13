@@ -2,13 +2,13 @@ import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   Pressable,
   PanResponder,
   Dimensions,
   ScrollView,
   Animated,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -161,6 +161,13 @@ const DOT_RADIUS = 6;
 const HIT_RADIUS = 24; // touch hit area
 const BACKSTAGE_RATIO = 0.12; // backstage height as fraction of stage
 
+const COLOR_PALETTE = [
+  '#4488FF', '#2196F3', '#1565C0', '#00BCD4',
+  '#4CAF50', '#8BC34A', '#FF6B9D', '#E91E63',
+  '#FF5722', '#FF9800', '#FFC107', '#9C27B0',
+  '#CE93D8', '#A1887F', '#78909C', '#FFFFFF',
+];
+
 // ─── Props ──────────────────────────────────────────────
 interface FormationStageViewProps {
   formationData: FormationData;
@@ -188,6 +195,8 @@ export function FormationStageView({
   const [selectedDancerIds, setSelectedDancerIds] = useState<Set<string>>(new Set());
   const [dragDancerId, setDragDancerId] = useState<string | null>(null);
   const [showSizeMenu, setShowSizeMenu] = useState(false);
+  const [editingDancerId, setEditingDancerId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const screenWidth = Dimensions.get('window').width;
@@ -305,8 +314,11 @@ export function FormationStageView({
             setDragDancerId(null);
           }, 500);
         } else {
-          // Tap on empty space → deselect all
+          // Tap on empty space → deselect all + close popup
           setSelectedDancerIds(new Set());
+          if (editingDancerId) {
+            handleNameConfirm();
+          }
         }
       },
       onPanResponderMove: (evt) => {
@@ -360,32 +372,38 @@ export function FormationStageView({
     (dancerId: string) => {
       const dancer = formationData.dancers.find((d) => d.id === dancerId);
       if (!dancer) return;
-      const displayName = dancer.crewMemberName || dancer.label;
-      Alert.alert(
-        displayName,
-        `Role: ${dancer.role}`,
-        [
-          {
-            text: 'Change Color',
-            onPress: () => {
-              // Cycle through colors
-              const colors = dancer.role === 'leader'
-                ? ['#4488FF', '#2196F3', '#1565C0', '#00BCD4', '#4CAF50', '#FF9800']
-                : ['#FF6B9D', '#E91E63', '#C2185B', '#9C27B0', '#FF5722', '#FFC107'];
-              const currentIdx = colors.indexOf(dancer.color);
-              const nextColor = colors[(currentIdx + 1) % colors.length];
-              const updatedDancers = formationData.dancers.map((d) =>
-                d.id === dancerId ? { ...d, color: nextColor } : d,
-              );
-              onUpdate({ ...formationData, dancers: updatedDancers });
-            },
-          },
-          { text: 'Cancel', style: 'cancel' },
-        ],
-      );
+      setEditingDancerId(dancerId);
+      setEditingName(dancer.crewMemberName || dancer.label);
     },
-    [formationData, onUpdate],
+    [formationData],
   );
+
+  const handleColorChange = useCallback(
+    (color: string) => {
+      if (!editingDancerId) return;
+      const updatedDancers = formationData.dancers.map((d) =>
+        d.id === editingDancerId ? { ...d, color } : d,
+      );
+      onUpdate({ ...formationData, dancers: updatedDancers });
+    },
+    [editingDancerId, formationData, onUpdate],
+  );
+
+  const handleNameConfirm = useCallback(() => {
+    if (!editingDancerId) return;
+    const trimmed = editingName.trim();
+    if (trimmed) {
+      const updatedDancers = formationData.dancers.map((d) =>
+        d.id === editingDancerId ? { ...d, crewMemberName: trimmed } : d,
+      );
+      onUpdate({ ...formationData, dancers: updatedDancers });
+    }
+    setEditingDancerId(null);
+  }, [editingDancerId, editingName, formationData, onUpdate]);
+
+  const editingDancer = editingDancerId
+    ? formationData.dancers.find((d) => d.id === editingDancerId)
+    : null;
 
   // ─── Actions ────────────────────────────────────────
   const handleApplyPattern = useCallback(
@@ -681,6 +699,42 @@ export function FormationStageView({
           );
         })}
       </View>
+
+      {/* Dancer edit popup (longpress) */}
+      {editingDancer && (
+        <View style={styles.dancerEditPopup}>
+          <View style={styles.dancerEditHeader}>
+            <View style={[styles.dancerEditDot, { backgroundColor: editingDancer.color }]} />
+            <TextInput
+              style={styles.dancerEditInput}
+              value={editingName}
+              onChangeText={setEditingName}
+              onSubmitEditing={handleNameConfirm}
+              placeholder="Name"
+              placeholderTextColor={Colors.textMuted}
+              autoFocus
+              selectTextOnFocus
+            />
+            <Text style={styles.dancerEditRole}>{editingDancer.role === 'leader' ? 'L' : 'F'}</Text>
+            <Pressable onPress={handleNameConfirm} hitSlop={8} style={styles.dancerEditDone}>
+              <Ionicons name="checkmark-circle" size={22} color={Colors.accent} />
+            </Pressable>
+          </View>
+          <View style={styles.colorPalette}>
+            {COLOR_PALETTE.map((color) => (
+              <Pressable
+                key={color}
+                style={[
+                  styles.colorSwatch,
+                  { backgroundColor: color },
+                  editingDancer.color === color && styles.colorSwatchActive,
+                ]}
+                onPress={() => handleColorChange(color)}
+              />
+            ))}
+          </View>
+        </View>
+      )}
 
       {/* Editing controls */}
       {isEditing && (
@@ -1004,8 +1058,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   stripCellKeyframe: {
-    borderWidth: 1,
-    borderColor: Colors.accent,
+    borderWidth: 1.5,
+    borderColor: '#FF6B00',
+    backgroundColor: 'rgba(255, 107, 0, 0.25)',
   },
   stripText: {
     fontSize: 9,
@@ -1015,5 +1070,61 @@ const styles = StyleSheet.create({
   stripTextActive: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  // Dancer edit popup
+  dancerEditPopup: {
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    marginHorizontal: 8,
+    marginTop: 4,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  dancerEditHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  dancerEditDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+  },
+  dancerEditInput: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    color: Colors.text,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  dancerEditRole: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontWeight: '600',
+  },
+  dancerEditDone: {
+    padding: 2,
+  },
+  colorPalette: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  colorSwatch: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  colorSwatchActive: {
+    borderColor: '#FFFFFF',
+    borderWidth: 2.5,
   },
 });

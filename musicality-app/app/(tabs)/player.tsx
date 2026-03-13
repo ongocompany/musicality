@@ -359,12 +359,14 @@ export default function PlayerScreen() {
     }
   }, [effectiveBeats, seekTo]);
 
-  // Sync formation beat index with playback position (when not in edit mode)
+  // Sync formation beat index with playback position
+  // Always sync when playing (even in formation edit mode) so dots animate
   useEffect(() => {
-    if (editMode !== 'formation' && countInfo && countInfo.beatIndex >= 0) {
+    if (!countInfo || countInfo.beatIndex < 0) return;
+    if (isPlaying || editMode !== 'formation') {
       setFormationEditBeatIndex(countInfo.beatIndex);
     }
-  }, [editMode, countInfo?.beatIndex]);
+  }, [editMode, countInfo?.beatIndex, isPlaying]);
 
   const handleStageConfigChange = useCallback((config: Partial<StageConfig>) => {
     setStageConfig(config);
