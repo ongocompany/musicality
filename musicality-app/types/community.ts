@@ -7,10 +7,53 @@
 export interface Profile {
   id: string;
   displayName: string;
+  nickname: string | null;
   avatarUrl: string | null;
+  phone: string | null;
   danceStyle: string;
+  followerCount: number;
+  followingCount: number;
+  lastActiveAt: string | null;
+  nicknameChangedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── Social: Follow ────────────────────────────────────
+export interface UserFollow {
+  id: string;
+  followerId: string;
+  followingId: string;
+  createdAt: string;
+  profile?: Profile;
+}
+
+// ─── Social: Block ─────────────────────────────────────
+export interface UserBlock {
+  id: string;
+  blockerId: string;
+  blockedId: string;
+  createdAt: string;
+  profile?: Profile;
+}
+
+// ─── Social: Private Note ──────────────────────────────
+export interface UserNote {
+  id: string;
+  authorId: string;
+  targetUserId: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Social Context ────────────────────────────────────
+export interface UserSocialContext {
+  isFollowing: boolean;
+  isBlocked: boolean;
+  note: UserNote | null;
+  followerCount: number;
+  followingCount: number;
 }
 
 // ─── Crew ───────────────────────────────────────────────

@@ -22,11 +22,36 @@ export function mapProfile(row: any): Profile {
   return {
     id: row.id,
     displayName: row.display_name ?? '',
+    nickname: row.nickname ?? null,
     avatarUrl: row.avatar_url ?? null,
+    phone: row.phone ?? null,
     danceStyle: row.dance_style ?? 'bachata',
+    followerCount: row.follower_count ?? 0,
+    followingCount: row.following_count ?? 0,
+    lastActiveAt: row.last_active_at ?? null,
+    nicknameChangedAt: row.nickname_changed_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+/** Batch-fetch profiles by user IDs */
+export async function fetchProfilesByIds(userIds: string[]): Promise<Map<string, Profile>> {
+  const map = new Map<string, Profile>();
+  if (userIds.length === 0) return map;
+
+  const unique = [...new Set(userIds)];
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .in('id', unique);
+
+  if (data) {
+    for (const row of data) {
+      map.set(row.id, mapProfile(row));
+    }
+  }
+  return map;
 }
 
 /** Map Supabase snake_case row to camelCase Crew */
@@ -139,18 +164,44 @@ export async function fetchMyProfile(): Promise<Profile | null> {
   return mapProfile(data);
 }
 
-export async function updateProfile(updates: { displayName?: string; avatarUrl?: string; danceStyle?: string }): Promise<void> {
+export async function updateProfile(updates: {
+  displayName?: string;
+  nickname?: string;
+  avatarUrl?: string;
+  phone?: string;
+  danceStyle?: string;
+}): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
   const payload: Record<string, unknown> = {};
   if (updates.displayName !== undefined) payload.display_name = updates.displayName;
+  if (updates.nickname !== undefined) {
+    payload.nickname = updates.nickname;
+    payload.nickname_changed_at = new Date().toISOString();
+  }
   if (updates.avatarUrl !== undefined) payload.avatar_url = updates.avatarUrl;
+  if (updates.phone !== undefined) payload.phone = updates.phone;
   if (updates.danceStyle !== undefined) payload.dance_style = updates.danceStyle;
   payload.updated_at = new Date().toISOString();
 
   const { error } = await supabase.from('profiles').update(payload).eq('id', user.id);
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.message.includes('profiles_nickname_unique')) {
+      throw new Error('This nickname is already taken');
+    }
+    throw new Error(error.message);
+  }
+}
+
+/** Check if a nickname is available */
+export async function checkNicknameAvailable(nickname: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id')
+    .ilike('nickname', nickname)
+    .limit(1);
+  return (data ?? []).length === 0;
 }
 
 // ─── Crews ──────────────────────────────────────────────
