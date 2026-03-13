@@ -133,6 +133,15 @@ function mapThreadPhraseNote(row: any): ThreadPhraseNote {
   };
 }
 
+/** Safely parse media_urls — handles array, JSON string, or null */
+function parseMediaUrls(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+  }
+  return [];
+}
+
 /** Map Supabase row to GeneralPost */
 function mapGeneralPost(row: any): GeneralPost {
   return {
@@ -141,7 +150,7 @@ function mapGeneralPost(row: any): GeneralPost {
     userId: row.user_id,
     content: row.content,
     parentId: row.parent_id ?? null,
-    mediaUrls: row.media_urls ?? [],
+    mediaUrls: parseMediaUrls(row.media_urls),
     likeCount: row.like_count ?? 0,
     replyCount: row.reply_count ?? 0,
     viewCount: row.view_count ?? 0,
