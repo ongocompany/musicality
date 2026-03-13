@@ -5,7 +5,7 @@ import { DanceStyle } from '../utils/beatCounter';
 import { CueType } from '../types/cue';
 import { PhraseDetectionMode, EditionId, PhraseEdition, TrackEditions } from '../types/analysis';
 import { ImportedPhraseNote } from '../types/phraseNote';
-import { FormationData, FormationEditionId, FormationEdition, TrackFormations } from '../types/formation';
+import { FormationData, FormationEditionId, FormationEdition, TrackFormations, StageConfig, DEFAULT_STAGE_CONFIG } from '../types/formation';
 
 interface SettingsState {
   // Dance style (global setting)
@@ -103,6 +103,10 @@ interface SettingsState {
   setDraftFormation: (trackId: string, data: FormationData) => void;
   clearFormationDraft: (trackId: string) => void;
   saveFormationDraftAsEdition: (trackId: string) => FormationEditionId | null;
+
+  // Stage configuration (grid size in meters)
+  stageConfig: StageConfig;
+  setStageConfig: (config: Partial<StageConfig>) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -509,6 +513,13 @@ export const useSettingsStore = create<SettingsState>()(
 
         return slotId;
       },
+
+      // ─── Stage Config ──────────────────────────────────
+      stageConfig: DEFAULT_STAGE_CONFIG,
+      setStageConfig: (config) =>
+        set((state) => ({
+          stageConfig: { ...state.stageConfig, ...config },
+        })),
     }),
     {
       name: 'musicality-settings',
@@ -545,6 +556,10 @@ export const useSettingsStore = create<SettingsState>()(
           // Add trackFormations
           state.trackFormations = state.trackFormations ?? {};
         }
+        // stageConfig — no version bump needed, default applied by store init
+        if (!state.stageConfig) {
+          state.stageConfig = { gridWidth: 8, gridHeight: 4 };
+        }
         return state as SettingsState;
       },
       partialize: (state) => ({
@@ -562,6 +577,7 @@ export const useSettingsStore = create<SettingsState>()(
         cellNotes: state.cellNotes,
         importedNotes: state.importedNotes,
         trackFormations: state.trackFormations,
+        stageConfig: state.stageConfig,
       }),
     },
   ),

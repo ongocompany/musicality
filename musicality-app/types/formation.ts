@@ -9,12 +9,29 @@ export interface DancerDef {
   crewMemberName?: string; // display name (works offline)
 }
 
+// ─── Stage configuration ────────────────────────────
+
+export interface StageConfig {
+  gridWidth: number;       // stage width in meters (default 8)
+  gridHeight: number;      // stage depth in meters (default 4)
+}
+
+export const DEFAULT_STAGE_CONFIG: StageConfig = { gridWidth: 8, gridHeight: 4 };
+
+export const STAGE_PRESETS: { label: string; config: StageConfig }[] = [
+  { label: '6×3m', config: { gridWidth: 6, gridHeight: 3 } },
+  { label: '8×4m', config: { gridWidth: 8, gridHeight: 4 } },
+  { label: '10×5m', config: { gridWidth: 10, gridHeight: 5 } },
+  { label: '12×6m', config: { gridWidth: 12, gridHeight: 6 } },
+];
+
 // ─── A single dancer's position at one beat ─────────
 
 export interface DancerPosition {
   dancerId: string;        // references DancerDef.id
   x: number;               // 0.0 - 1.0 normalized (left to right)
   y: number;               // 0.0 - 1.0 normalized (back to front of stage)
+  offstage?: boolean;      // true = in backstage area (waiting)
 }
 
 // ─── Formation keyframe = state at one beat ─────────
