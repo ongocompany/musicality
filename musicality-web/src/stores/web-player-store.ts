@@ -1,5 +1,17 @@
 import { create } from 'zustand';
 import type { PlayerTrack, TrackAnalysis } from '@/lib/types';
+import {
+  storeFile,
+  storeTrackMeta,
+  deleteTrackCompletely,
+  storeFolders,
+  storeSortPrefs,
+  getAllTrackMetas,
+  getFile,
+  getFolders,
+  getSortPrefs,
+  type StoredTrackMeta,
+} from '@/lib/idb-file-store';
 
 // ─── Types ────────────────────────────────────────────
 
@@ -28,6 +40,7 @@ export interface LocalTrack {
   youtubeVideoId?: string;
   addedAt?: number;         // timestamp ms
   folderId?: string;        // undefined = root (uncategorized)
+  fingerprint?: string;     // SHA-256 hash for cross-device matching
   // Analysis (from server or Supabase)
   analysis?: TrackAnalysis;
   analysisStatus: 'idle' | 'analyzing' | 'done' | 'error';
@@ -79,9 +92,13 @@ interface WebPlayerState {
   setLoopEnd: (pos: number | null) => void;
   toggleLoop: () => void;
   clearLoop: () => void;
+
+  // IndexedDB Hydration
+  _hydrated: boolean;
+  hydrateFromIDB: () => Promise<void>;
 }
 
-export const useWebPlayerStore = create<WebPlayerState>()((set) => ({
+export const useWebPlayerStore = create<WebPlayerState>()((set, get) => ({
   // Library
   tracks: [],
   addTrack: (track) =>
@@ -95,6 +112,8 @@ export const useWebPlayerStore = create<WebPlayerState>()((set) => ({
       if (track?.fileUrl?.startsWith('blob:')) {
         URL.revokeObjectURL(track.fileUrl);
       }
+      // Clean up IndexedDB (fire-and-forget)
+      deleteTrackCompletely(id).catch(() => {});
       return {
         tracks: state.tracks.filter((t) => t.id !== id),
         currentTrack: state.currentTrack?.id === id ? null : state.currentTrack,
@@ -177,4 +196,175 @@ export const useWebPlayerStore = create<WebPlayerState>()((set) => ({
   setLoopEnd: (pos) => set({ loopEnd: pos, loopEnabled: pos !== null }),
   toggleLoop: () => set((state) => ({ loopEnabled: !state.loopEnabled })),
   clearLoop: () => set({ loopEnabled: false, loopStart: null, loopEnd: null }),
+
+  // ─── IndexedDB Hydration ──────────────────────────────
+  _hydrated: false,
+  hydrateFromIDB: async () => {
+    if (get()._hydrated) return;
+    try {
+      // Load track metadata + folders + sort prefs in parallel
+      const [metas, folders, sortPrefs] = await Promise.all([
+        getAllTrackMetas(),
+        getFolders(),
+        getSortPrefs(),
+      ]);
+
+      // Reconstruct LocalTrack[] from stored metadata + file blobs
+      const tracks: LocalTrack[] = [];
+      for (const meta of metas) {
+        // YouTube tracks don't need file blobs
+        if (meta.mediaType === 'youtube') {
+          tracks.push(metaToLocalTrack(meta, null));
+          continue;
+        }
+        // Try to get file blob from IDB
+        const file = await getFile(meta.id);
+        if (file) {
+          const fileUrl = URL.createObjectURL(file);
+          tracks.push(metaToLocalTrack(meta, file, fileUrl));
+        }
+        // If file blob is missing, skip this track
+        // (file was cleared from IDB, user needs to re-add)
+      }
+
+      set({
+        tracks,
+        folders,
+        sortBy: sortPrefs?.sortBy ?? 'addedAt',
+        sortOrder: sortPrefs?.sortOrder ?? 'desc',
+        _hydrated: true,
+      });
+    } catch (err) {
+      console.error('[IDB] Hydration failed:', err);
+      set({ _hydrated: true }); // Mark hydrated anyway to avoid retries
+    }
+  },
 }));
+
+// ─── Helpers ────────────────────────────────────────────
+
+function metaToLocalTrack(
+  meta: StoredTrackMeta,
+  file: File | null,
+  fileUrl?: string,
+): LocalTrack {
+  return {
+    id: meta.id,
+    title: meta.title,
+    mediaType: meta.mediaType,
+    fileUrl: fileUrl ?? meta.youtubeUrl ?? '',
+    file: file ?? undefined,
+    duration: meta.duration,
+    fileSize: meta.fileSize,
+    format: meta.format,
+    youtubeUrl: meta.youtubeUrl,
+    youtubeVideoId: meta.youtubeVideoId,
+    addedAt: meta.addedAt,
+    folderId: meta.folderId,
+    fingerprint: meta.fingerprint,
+    analysisStatus: meta.analysisData ? 'done' : meta.analysisStatus,
+    analysis: meta.analysisData
+      ? {
+          id: `local_${meta.id}`,
+          trackId: meta.id,
+          userId: '',
+          bpm: meta.analysisData.bpm,
+          beats: meta.analysisData.beats,
+          downbeats: meta.analysisData.downbeats,
+          beatsPerBar: meta.analysisData.beatsPerBar,
+          confidence: meta.analysisData.confidence,
+          sections: meta.analysisData.sections as TrackAnalysis['sections'],
+          phraseBoundaries: meta.analysisData.phraseBoundaries,
+          waveformPeaks: meta.analysisData.waveformPeaks,
+          fingerprint: meta.fingerprint ?? null,
+          createdAt: new Date().toISOString(),
+        }
+      : undefined,
+  };
+}
+
+function localTrackToMeta(track: LocalTrack): StoredTrackMeta {
+  return {
+    id: track.id,
+    title: track.title,
+    mediaType: track.mediaType,
+    duration: track.duration,
+    fileSize: track.fileSize,
+    format: track.format,
+    youtubeUrl: track.youtubeUrl,
+    youtubeVideoId: track.youtubeVideoId,
+    addedAt: track.addedAt,
+    folderId: track.folderId,
+    fingerprint: track.fingerprint,
+    analysisStatus: track.analysisStatus,
+    analysisData: track.analysis
+      ? {
+          bpm: track.analysis.bpm,
+          beats: track.analysis.beats,
+          downbeats: track.analysis.downbeats,
+          beatsPerBar: track.analysis.beatsPerBar,
+          confidence: track.analysis.confidence,
+          sections: track.analysis.sections,
+          phraseBoundaries: track.analysis.phraseBoundaries,
+          waveformPeaks: track.analysis.waveformPeaks,
+        }
+      : undefined,
+  };
+}
+
+// ─── Auto-persist subscriber ────────────────────────────
+// Subscribe to state changes and persist to IndexedDB.
+// Uses debounce to avoid excessive writes (especially for position/duration).
+
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let prevTrackIds: string = '';
+let prevFolders: string = '';
+let prevSort: string = '';
+
+useWebPlayerStore.subscribe((state) => {
+  // Skip if not hydrated yet (avoid overwriting IDB with empty state)
+  if (!state._hydrated) return;
+
+  // Debounce: only persist library changes, not playback state
+  const trackIds = state.tracks.map((t) => `${t.id}:${t.analysisStatus}:${t.folderId ?? ''}`).join(',');
+  const foldersKey = JSON.stringify(state.folders);
+  const sortKey = `${state.sortBy}:${state.sortOrder}`;
+
+  const tracksChanged = trackIds !== prevTrackIds;
+  const foldersChanged = foldersKey !== prevFolders;
+  const sortChanged = sortKey !== prevSort;
+
+  if (!tracksChanged && !foldersChanged && !sortChanged) return;
+
+  prevTrackIds = trackIds;
+  prevFolders = foldersKey;
+  prevSort = sortKey;
+
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistToIDB(state).catch((err) =>
+      console.error('[IDB] Persist failed:', err),
+    );
+  }, 500);
+});
+
+async function persistToIDB(state: WebPlayerState) {
+  // Persist tracks (metadata + file blobs)
+  const promises: Promise<void>[] = [];
+
+  for (const track of state.tracks) {
+    promises.push(storeTrackMeta(localTrackToMeta(track)));
+    // Store file blob if it exists and hasn't been stored yet
+    if (track.file) {
+      promises.push(storeFile(track.id, track.file));
+    }
+  }
+
+  // Persist folders
+  promises.push(storeFolders(state.folders));
+
+  // Persist sort preferences
+  promises.push(storeSortPrefs({ sortBy: state.sortBy, sortOrder: state.sortOrder }));
+
+  await Promise.all(promises);
+}

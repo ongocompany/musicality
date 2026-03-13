@@ -9,6 +9,7 @@ import { analyzeTrackWeb } from '@/services/analysis-api';
 import type { DanceStyle } from '@/utils/beat-counter';
 import { computePhraseMap, phrasesFromBeatIndices, extractBoundaries, type PhraseMap } from '@/utils/phrase-detector';
 import { generateSyntheticAnalysis } from '@/utils/beat-generator';
+import { computeQuickHash } from '@/utils/file-hash';
 import { useTrackSync } from '@/hooks/use-track-sync';
 import { PlayerSidebar } from '@/components/player/player-sidebar';
 import { PlayerMain } from '@/components/player/player-main';
@@ -49,6 +50,14 @@ export default function PlayerPage() {
     setSortBy,
     setSortOrder,
   } = useWebPlayerStore();
+
+  const hydrateFromIDB = useWebPlayerStore((s) => s.hydrateFromIDB);
+  const _hydrated = useWebPlayerStore((s) => s._hydrated);
+
+  // Hydrate from IndexedDB on mount
+  useEffect(() => {
+    hydrateFromIDB();
+  }, [hydrateFromIDB]);
 
   const audioPlayer = useWebAudioPlayer();
   const videoPlayer = useWebVideoPlayer();
@@ -261,12 +270,21 @@ export default function PlayerPage() {
 
         addTrack(track);
 
+        // Compute fingerprint in background (non-blocking)
+        computeQuickHash(file)
+          .then((hash) => {
+            updateTrack(id, { fingerprint: hash });
+          })
+          .catch((err) => {
+            console.warn('Fingerprint failed:', err);
+          });
+
         if (!useWebPlayerStore.getState().currentTrack) {
           setCurrentTrack(track);
         }
       }
     },
-    [addTrack, setCurrentTrack],
+    [addTrack, setCurrentTrack, updateTrack],
   );
 
   // ─── YouTube URL handler ────────────────────────────
