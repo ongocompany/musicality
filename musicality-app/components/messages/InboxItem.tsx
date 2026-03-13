@@ -8,9 +8,10 @@ import type { InboxItem as InboxItemType } from '../../types/message';
 interface Props {
   item: InboxItemType;
   onPress: () => void;
+  onAvatarPress?: (userId: string) => void;
 }
 
-export default function InboxItem({ item, onPress }: Props) {
+export default function InboxItem({ item, onPress, onAvatarPress }: Props) {
   const isDM = item.type === 'dm';
 
   // DM: single avatar + name
@@ -28,7 +29,16 @@ export default function InboxItem({ item, onPress }: Props) {
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
       {/* Avatar */}
-      <View style={styles.avatarArea}>
+      <TouchableOpacity
+        style={styles.avatarArea}
+        onPress={() => {
+          if (isDM && item.otherUserId && onAvatarPress) {
+            onAvatarPress(item.otherUserId);
+          }
+        }}
+        activeOpacity={isDM && onAvatarPress ? 0.7 : 1}
+        disabled={!isDM || !onAvatarPress}
+      >
         {isDM ? (
           dmProfile?.avatarUrl ? (
             <Image source={{ uri: dmProfile.avatarUrl }} style={styles.avatar} />
@@ -42,7 +52,7 @@ export default function InboxItem({ item, onPress }: Props) {
             <Ionicons name="people" size={24} color={Colors.textMuted} />
           </View>
         )}
-      </View>
+      </TouchableOpacity>
 
       {/* Content */}
       <View style={styles.content}>

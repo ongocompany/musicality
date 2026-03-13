@@ -231,7 +231,16 @@ export default function CrewDetailScreen() {
               {activeTab === 'members' && (
                 <>
                   {activeCrewMembers.map((member) => (
-                    <View key={member.id} style={styles.memberRow}>
+                    <TouchableOpacity
+                      key={member.id}
+                      style={styles.memberRow}
+                      onPress={() => {
+                        if (member.userId !== user?.id) {
+                          router.push(`/profile/${member.userId}`);
+                        }
+                      }}
+                      activeOpacity={member.userId === user?.id ? 1 : 0.7}
+                    >
                       <View style={styles.avatar}>
                         <Ionicons name="person" size={18} color={Colors.textMuted} />
                       </View>
@@ -245,7 +254,10 @@ export default function CrewDetailScreen() {
                           </View>
                         )}
                       </View>
-                    </View>
+                      {member.userId !== user?.id && (
+                        <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+                      )}
+                    </TouchableOpacity>
                   ))}
                 </>
               )}

@@ -104,8 +104,16 @@ export default function MessagesScreen() {
     );
   }
 
+  const handleAvatarPress = (userId: string) => {
+    router.push(`/profile/${userId}`);
+  };
+
   const renderItem = ({ item }: { item: InboxItem }) => (
-    <InboxItemComponent item={item} onPress={() => handleItemPress(item)} />
+    <InboxItemComponent
+      item={item}
+      onPress={() => handleItemPress(item)}
+      onAvatarPress={handleAvatarPress}
+    />
   );
 
   return (
