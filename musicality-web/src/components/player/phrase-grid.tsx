@@ -246,7 +246,7 @@ export function PhraseGrid({
       {/* Scrollable grid area */}
       <div
         ref={scrollRef}
-        className="overflow-y-auto overflow-x-hidden mx-auto"
+        className="overflow-y-auto overflow-x-hidden mx-auto scrollbar-hide"
         style={{ maxHeight: MAX_VISIBLE_ROWS * rowHeight + 'px', maxWidth: gridContentWidth }}
         onScroll={handleScroll}
       >
