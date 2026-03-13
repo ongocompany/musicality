@@ -37,6 +37,17 @@ export default function PlayerPage() {
     setLoopStart,
     setLoopEnd,
     clearLoop,
+    // Folders
+    folders,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    moveTracksToFolder,
+    // Sorting
+    sortBy,
+    sortOrder,
+    setSortBy,
+    setSortOrder,
   } = useWebPlayerStore();
 
   const audioPlayer = useWebAudioPlayer();
@@ -415,6 +426,15 @@ export default function PlayerPage() {
         onSyncAll={() => trackSync.syncAllToCloud()}
         onLoadFromCloud={() => trackSync.loadFromCloud()}
         syncStatus={trackSync.syncStatus}
+        folders={folders}
+        onCreateFolder={createFolder}
+        onRenameFolder={renameFolder}
+        onDeleteFolder={deleteFolder}
+        onMoveTracksToFolder={moveTracksToFolder}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSetSortBy={setSortBy}
+        onSetSortOrder={setSortOrder}
       />
       <PlayerMain
         currentTrack={currentTrack}

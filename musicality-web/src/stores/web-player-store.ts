@@ -1,11 +1,24 @@
 import { create } from 'zustand';
 import type { PlayerTrack, TrackAnalysis } from '@/lib/types';
 
+// ─── Types ────────────────────────────────────────────
+
+export type MediaType = 'audio' | 'video' | 'youtube';
+export type SortField = 'addedAt' | 'title' | 'bpm' | 'duration';
+export type SortOrder = 'asc' | 'desc';
+
+export interface Folder {
+  id: string;
+  name: string;
+  mediaType: MediaType;
+  createdAt: number; // timestamp ms
+}
+
 // ─── Local track (file loaded in browser, not yet synced) ────
 export interface LocalTrack {
   id: string;
   title: string;
-  mediaType: 'audio' | 'video' | 'youtube';
+  mediaType: MediaType;
   fileUrl: string;          // Object URL from File API
   file?: File;              // Original file reference
   duration: number | null;
@@ -13,6 +26,8 @@ export interface LocalTrack {
   format: string | null;
   youtubeUrl?: string;
   youtubeVideoId?: string;
+  addedAt?: number;         // timestamp ms
+  folderId?: string;        // undefined = root (uncategorized)
   // Analysis (from server or Supabase)
   analysis?: TrackAnalysis;
   analysisStatus: 'idle' | 'analyzing' | 'done' | 'error';
@@ -26,6 +41,19 @@ interface WebPlayerState {
   addTrack: (track: LocalTrack) => void;
   removeTrack: (id: string) => void;
   updateTrack: (id: string, updates: Partial<LocalTrack>) => void;
+
+  // Folders
+  folders: Folder[];
+  createFolder: (name: string, mediaType: MediaType) => string;
+  renameFolder: (id: string, name: string) => void;
+  deleteFolder: (id: string) => void;
+  moveTracksToFolder: (trackIds: string[], folderId: string | undefined) => void;
+
+  // Sorting
+  sortBy: SortField;
+  sortOrder: SortOrder;
+  setSortBy: (field: SortField) => void;
+  setSortOrder: (order: SortOrder) => void;
 
   // Playback
   currentTrack: LocalTrack | null;
@@ -57,7 +85,9 @@ export const useWebPlayerStore = create<WebPlayerState>()((set) => ({
   // Library
   tracks: [],
   addTrack: (track) =>
-    set((state) => ({ tracks: [...state.tracks, track] })),
+    set((state) => ({
+      tracks: [...state.tracks, { ...track, addedAt: track.addedAt ?? Date.now() }],
+    })),
   removeTrack: (id) =>
     set((state) => {
       const track = state.tracks.find((t) => t.id === id);
@@ -80,6 +110,40 @@ export const useWebPlayerStore = create<WebPlayerState>()((set) => ({
           ? { ...state.currentTrack, ...updates }
           : state.currentTrack,
     })),
+
+  // Folders
+  folders: [],
+  createFolder: (name, mediaType) => {
+    const id = `folder_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    set((state) => ({
+      folders: [...state.folders, { id, name, mediaType, createdAt: Date.now() }],
+    }));
+    return id;
+  },
+  renameFolder: (id, name) =>
+    set((state) => ({
+      folders: state.folders.map((f) => (f.id === id ? { ...f, name } : f)),
+    })),
+  deleteFolder: (id) =>
+    set((state) => ({
+      folders: state.folders.filter((f) => f.id !== id),
+      // Move contained tracks to root
+      tracks: state.tracks.map((t) =>
+        t.folderId === id ? { ...t, folderId: undefined } : t,
+      ),
+    })),
+  moveTracksToFolder: (trackIds, folderId) =>
+    set((state) => ({
+      tracks: state.tracks.map((t) =>
+        trackIds.includes(t.id) ? { ...t, folderId } : t,
+      ),
+    })),
+
+  // Sorting
+  sortBy: 'addedAt',
+  sortOrder: 'desc',
+  setSortBy: (field) => set({ sortBy: field }),
+  setSortOrder: (order) => set({ sortOrder: order }),
 
   // Playback
   currentTrack: null,
