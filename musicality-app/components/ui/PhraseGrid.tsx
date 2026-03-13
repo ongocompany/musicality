@@ -24,7 +24,7 @@ interface PhraseGridProps {
   loopStart: number | null;
   loopEnd: number | null;
   rows?: number; // visible rows (default 8)
-  scrollMode?: boolean; // kept for API compat — grid is always scrollable now
+  scrollMode?: boolean; // false = fixed page mode, true = scroll mode
   // Cell notes (per-beat memos)
   cellNotes?: Record<string, string>;  // beatIndex(string) → note
   onSetCellNote?: (beatIndex: number, note: string) => void;
@@ -106,11 +106,44 @@ export function PhraseGrid({
     setContainerWidth(e.nativeEvent.layout.width);
   }, []);
 
-  // ─── Absolute beat indexing (no pagination) ───
+  // ─── Phrase-aware beat layout ───
   const globalBeatIndex = countInfo?.beatIndex ?? -1;
   const totalBeats = beats.length;
-  const totalCells = totalBeats > 0 ? Math.ceil(totalBeats / COLS) * COLS : CELLS_PER_PAGE;
-  const totalDataRows = Math.ceil(totalBeats / COLS);
+
+  // Each phrase starts on a new row (col 0), with padding cells at end of partial rows
+  const { visualCells, beatToVisualCell } = useMemo(() => {
+    const cells: number[] = [];
+    const b2vc = new Map<number, number>();
+
+    if (phraseMap && phraseMap.phrases.length > 0) {
+      for (const phrase of phraseMap.phrases) {
+        const count = Math.min(phrase.endBeatIndex, beats.length) - phrase.startBeatIndex;
+        for (let i = 0; i < count; i++) {
+          const beatIdx = phrase.startBeatIndex + i;
+          b2vc.set(beatIdx, cells.length);
+          cells.push(beatIdx);
+        }
+        // Pad to fill the row so next phrase starts at col 0
+        const remainder = count % COLS;
+        if (remainder > 0) {
+          for (let pad = 0; pad < COLS - remainder; pad++) {
+            cells.push(-1);
+          }
+        }
+      }
+    } else {
+      // Fallback: simple sequential layout
+      for (let i = 0; i < beats.length; i++) {
+        b2vc.set(i, i);
+        cells.push(i);
+      }
+    }
+
+    return { visualCells: cells, beatToVisualCell: b2vc };
+  }, [beats.length, phraseMap]);
+
+  const totalVisualCells = visualCells.length > 0 ? visualCells.length : CELLS_PER_PAGE;
+  const totalDataRows = Math.ceil(totalVisualCells / COLS);
 
   // Cell size (width-based, uniform spacing)
   const cellSize = useMemo(() => {
@@ -123,20 +156,35 @@ export function PhraseGrid({
   const rowHeight = cellSize + CELL_GAP;
   const visibleHeight = rowCount * rowHeight;
 
+  // ─── Reset render window when phrase layout changes (e.g. "Start from here") ───
+  const prevVisualCellsRef = useRef(visualCells);
+  useEffect(() => {
+    if (prevVisualCellsRef.current === visualCells) return;
+    prevVisualCellsRef.current = visualCells;
+
+    // Layout changed — ensure render window covers the relevant area
+    // Use the current scroll position to determine where to re-anchor
+    const maxStartRow = Math.max(0, totalDataRows - rowCount);
+    setRenderStartRow(prev => Math.min(prev, maxStartRow));
+  }, [visualCells, totalDataRows, rowCount]);
+
   // ─── Auto-scroll during playback ───
   useEffect(() => {
     if (globalBeatIndex < 0 || rowHeight <= 0) return;
 
-    const currentRow = Math.floor(globalBeatIndex / COLS);
+    const visualCell = beatToVisualCell.get(globalBeatIndex);
+    if (visualCell == null) return;
+    const currentRow = Math.floor(visualCell / COLS);
     // Always update render window to track current beat
     const targetStartRow = Math.max(0, currentRow - SCROLL_ANCHOR_ROW - RENDER_BUFFER_ROWS);
     setRenderStartRow(prev => prev !== targetStartRow ? targetStartRow : prev);
 
-    // Only auto-scroll the ScrollView when playing and user isn't manually scrolling
-    if (!isPlaying || !scrollViewRef.current || userScrollingRef.current) return;
+    // Auto-scroll the ScrollView when user isn't manually scrolling
+    // (works both during playback AND seek-while-paused)
+    if (!scrollViewRef.current || userScrollingRef.current) return;
     const targetOffset = Math.max(0, (currentRow - SCROLL_ANCHOR_ROW) * rowHeight);
-    scrollViewRef.current.scrollTo({ y: targetOffset, animated: true });
-  }, [globalBeatIndex, isPlaying, rowHeight]);
+    scrollViewRef.current.scrollTo({ y: targetOffset, animated: isPlaying });
+  }, [globalBeatIndex, isPlaying, rowHeight, beatToVisualCell]);
 
   // Re-enable auto-scroll when playback starts
   useEffect(() => {
@@ -166,65 +214,86 @@ export function PhraseGrid({
     }, 3000);
   }, []);
 
-  // ─── Virtual render window ───
-  const renderEndRow = Math.min(totalDataRows, renderStartRow + rowCount + RENDER_BUFFER_ROWS * 2);
-  const renderStartCell = renderStartRow * COLS;
-  const renderEndCell = Math.min(totalCells, renderEndRow * COLS);
-  const topSpacerHeight = renderStartRow * rowHeight;
-  const bottomSpacerHeight = Math.max(0, (totalDataRows - renderEndRow) * rowHeight);
+  // ─── Page mode: fixed page that auto-advances with current beat ───
+  const currentPage = useMemo(() => {
+    if (scrollMode || globalBeatIndex < 0) return 0;
+    const visualCell = beatToVisualCell.get(globalBeatIndex);
+    if (visualCell == null) return 0;
+    const currentRow = Math.floor(visualCell / COLS);
+    return Math.floor(currentRow / rowCount);
+  }, [scrollMode, globalBeatIndex, beatToVisualCell, rowCount]);
 
-  // ─── Cell state (absolute indexing) ───
+  const totalPages = Math.ceil(totalDataRows / rowCount);
+
+  // ─── Virtual render window (scroll mode) / Page window (page mode) ───
+  const renderEndRow = scrollMode
+    ? Math.min(totalDataRows, renderStartRow + rowCount + RENDER_BUFFER_ROWS * 2)
+    : Math.min(totalDataRows, (currentPage + 1) * rowCount);
+  const renderStartCell = scrollMode
+    ? renderStartRow * COLS
+    : currentPage * rowCount * COLS;
+  const renderEndCell = Math.min(totalVisualCells, renderEndRow * COLS);
+  const topSpacerHeight = scrollMode ? renderStartRow * rowHeight : 0;
+  const bottomSpacerHeight = scrollMode ? Math.max(0, (totalDataRows - renderEndRow) * rowHeight) : 0;
+
+  // ─── Cell state (phrase-aware) ───
   const getCellState = useCallback((i: number): CellState => {
-    if (i >= totalBeats) return 'hidden';
+    const globalBeat = i < visualCells.length ? visualCells[i] : -1;
+    if (globalBeat < 0) return 'hidden';
     if (globalBeatIndex < 0) return 'upcoming';
-    if (i === globalBeatIndex) return 'current';
-    if (i < globalBeatIndex) return 'played';
+    if (globalBeat === globalBeatIndex) return 'current';
+    if (globalBeat < globalBeatIndex) return 'played';
     return 'upcoming';
-  }, [globalBeatIndex, totalBeats]);
+  }, [globalBeatIndex, visualCells]);
 
-  // ─── Cell-to-global-beat (identity for absolute indexing) ───
+  // ─── Cell-to-global-beat (phrase-aware layout) ───
   const cellToGlobalBeat = useCallback((cellIndex: number): number => {
-    return cellIndex < totalBeats ? cellIndex : -1;
-  }, [totalBeats]);
+    if (cellIndex < 0 || cellIndex >= visualCells.length) return -1;
+    return visualCells[cellIndex];
+  }, [visualCells]);
 
   // ─── Per-cell phrase color ───
   const getCellPhraseColor = useCallback((cellIndex: number): string => {
-    if (!phraseMap || cellIndex >= totalBeats) return Colors.textMuted;
+    const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
+    if (!phraseMap || globalBeat < 0) return Colors.textMuted;
     for (let p = 0; p < phraseMap.phrases.length; p++) {
       const phrase = phraseMap.phrases[p];
-      if (cellIndex >= phrase.startBeatIndex && cellIndex < phrase.endBeatIndex) {
+      if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
         return getPhraseColor(p);
       }
     }
     return Colors.textMuted;
-  }, [phraseMap, totalBeats]);
+  }, [phraseMap, visualCells]);
 
   // Per-cell row label: first column shows eight-count row number (1,2,3,4) — resets at phrase boundary
   const getCellRowLabel = useCallback((cellIndex: number): string | null => {
     if (cellIndex % COLS !== 0) return null; // only first column
-    if (cellIndex >= totalBeats) return null;
-    if (!phraseMap) return null;
+    const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
+    if (globalBeat < 0 || !phraseMap) return null;
     for (const phrase of phraseMap.phrases) {
-      if (cellIndex >= phrase.startBeatIndex && cellIndex < phrase.endBeatIndex) {
-        const beatInPhrase = cellIndex - phrase.startBeatIndex;
+      if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
+        const beatInPhrase = globalBeat - phrase.startBeatIndex;
         return String(Math.floor(beatInPhrase / COLS) + 1);
       }
     }
     return null;
-  }, [totalBeats, phraseMap]);
+  }, [visualCells, phraseMap]);
 
   // ─── Cell note helpers ───
   const getCellHasNote = useCallback((cellIndex: number): boolean => {
     if (!cellNotes) return false;
-    if (cellIndex >= totalBeats) return false;
-    return !!cellNotes[String(cellIndex)];
-  }, [cellNotes, totalBeats]);
+    const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
+    if (globalBeat < 0) return false;
+    return !!cellNotes[String(globalBeat)];
+  }, [cellNotes, visualCells]);
 
   // ─── Formation keyframe helpers ───
   const getCellHasFormation = useCallback((cellIndex: number): boolean => {
-    if (!formationData || cellIndex >= totalBeats) return false;
-    return hasKeyframeAtBeat(formationData, cellIndex);
-  }, [formationData, totalBeats]);
+    if (!formationData) return false;
+    const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
+    if (globalBeat < 0 || globalBeat >= totalBeats) return false;
+    return hasKeyframeAtBeat(formationData, globalBeat);
+  }, [formationData, totalBeats, visualCells]);
 
   const showTooltip = useCallback((globalBeat: number) => {
     if (!cellNotes) return;
@@ -255,7 +324,7 @@ export function PhraseGrid({
 
     // Edit mode: note → open note editor instead of seeking
     if (editMode === 'note' && onSetCellNote) {
-      setMenuBeatIndex(globalBeat);
+      setMenuCellIndex(globalBeat);
       setMenuVisible(true);
       return;
     }
@@ -385,14 +454,15 @@ export function PhraseGrid({
   // ─── Repeat marker calculation ───
   const getRepeatMarker = useCallback((cellIndex: number): 'A' | 'B' | null => {
     if (!beats.length) return null;
-    if (cellIndex >= totalBeats) return null;
+    const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
+    if (globalBeat < 0) return null;
 
-    const beatTimeMs = beats[cellIndex] * 1000;
+    const beatTimeMs = beats[globalBeat] * 1000;
     // Check within +-20ms tolerance for floating point
     if (loopStart != null && Math.abs(beatTimeMs - loopStart) < 20) return 'A';
     if (loopEnd != null && Math.abs(beatTimeMs - loopEnd) < 20) return 'B';
     return null;
-  }, [beats, totalBeats, loopStart, loopEnd]);
+  }, [beats, visualCells, loopStart, loopEnd]);
 
   // Current phrase info for indicator
   const currentPhraseInfo = useMemo(() => {
@@ -442,58 +512,78 @@ export function PhraseGrid({
         </View>
       )}
 
-      {/* Phrase indicator */}
+      {/* Phrase / Page indicator */}
       {currentPhraseInfo && (
         <View style={styles.pageIndicator}>
           <Text style={styles.pageText}>
-            Phrase {currentPhraseInfo.index + 1} / {currentPhraseInfo.total}
+            {scrollMode
+              ? `Phrase ${currentPhraseInfo.index + 1} / ${currentPhraseInfo.total}`
+              : `Page ${currentPage + 1} / ${totalPages}  ·  Phrase ${currentPhraseInfo.index + 1} / ${currentPhraseInfo.total}`
+            }
           </Text>
         </View>
       )}
 
-      <ScrollView
-        ref={scrollViewRef}
-        style={visibleHeight > 0 ? { maxHeight: visibleHeight } : undefined}
-        showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
-        onScrollBeginDrag={handleScrollBeginDrag}
-        onScrollEndDrag={handleScrollEndDrag}
-        scrollEventThrottle={100}
-        nestedScrollEnabled={true}
-        bounces={false}
-        overScrollMode="never"
-        scrollEnabled={totalDataRows > rowCount}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Top spacer for virtual scroll */}
-        {topSpacerHeight > 0 && <View style={{ height: topSpacerHeight }} />}
-        <View
-          onLayout={onLayout}
-          style={styles.grid}
-        >
-          {containerWidth > 0 && cellSize > 0 && Array.from({ length: renderEndCell - renderStartCell }, (_, idx) => {
-                const i = renderStartCell + idx;
-                return (
-                  <PhraseGridCell
-                    key={i}
-                    cellIndex={i}
-                    state={getCellState(i)}
-                    color={getCellPhraseColor(i)}
-                    size={cellSize}
-                    isFlashing={flashCellIndex === i}
-                    onPress={handleCellTap}
-                    onLongPress={handleCellLongPress}
-                    repeatMarker={getRepeatMarker(i)}
-                    rowLabel={getCellRowLabel(i)}
-                    hasNote={getCellHasNote(i)}
-                    hasFormation={getCellHasFormation(i)}
-                  />
-                );
-          })}
-        </View>
-        {/* Bottom spacer for virtual scroll */}
-        {bottomSpacerHeight > 0 && <View style={{ height: bottomSpacerHeight }} />}
-      </ScrollView>
+      {/* Grid cells — shared between scroll and page modes */}
+      {(() => {
+        const gridContent = (
+          <View
+            onLayout={onLayout}
+            style={styles.grid}
+          >
+            {containerWidth > 0 && cellSize > 0 && Array.from({ length: renderEndCell - renderStartCell }, (_, idx) => {
+                  const i = renderStartCell + idx;
+                  const beatForKey = i < visualCells.length ? visualCells[i] : -1;
+                  return (
+                    <PhraseGridCell
+                      key={`${beatForKey}:${i}`}
+                      cellIndex={i}
+                      state={getCellState(i)}
+                      color={getCellPhraseColor(i)}
+                      size={cellSize}
+                      isFlashing={flashCellIndex === i}
+                      onPress={handleCellTap}
+                      onLongPress={handleCellLongPress}
+                      repeatMarker={getRepeatMarker(i)}
+                      rowLabel={getCellRowLabel(i)}
+                      hasNote={getCellHasNote(i)}
+                      hasFormation={getCellHasFormation(i)}
+                    />
+                  );
+            })}
+          </View>
+        );
+
+        if (scrollMode) {
+          return (
+            <ScrollView
+              ref={scrollViewRef}
+              style={visibleHeight > 0 ? { maxHeight: visibleHeight } : undefined}
+              showsVerticalScrollIndicator={false}
+              onScroll={handleScroll}
+              onScrollBeginDrag={handleScrollBeginDrag}
+              onScrollEndDrag={handleScrollEndDrag}
+              scrollEventThrottle={100}
+              nestedScrollEnabled={true}
+              bounces={false}
+              overScrollMode="never"
+              scrollEnabled={totalDataRows > rowCount}
+              keyboardShouldPersistTaps="handled"
+            >
+              {topSpacerHeight > 0 && <View style={{ height: topSpacerHeight }} />}
+              {gridContent}
+              {bottomSpacerHeight > 0 && <View style={{ height: bottomSpacerHeight }} />}
+            </ScrollView>
+          );
+        }
+
+        // Page mode: fixed view, no scroll
+        return (
+          <View style={visibleHeight > 0 ? { height: visibleHeight, overflow: 'hidden' } : undefined}>
+            {gridContent}
+          </View>
+        );
+      })()}
 
       {/* Context menu modal */}
       <Modal

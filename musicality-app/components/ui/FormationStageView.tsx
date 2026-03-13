@@ -231,23 +231,23 @@ export function FormationStageView({
     }
   }, [formationData.dancers]);
 
-  // Update animated positions when beat changes
+  // Update animated positions when beat/positions change
   useEffect(() => {
     if (!currentPositions) return;
     for (const pos of currentPositions) {
       const anim = animatedPositions.current.get(pos.dancerId);
       if (!anim) continue;
-      if (isPlaying && !isEditing) {
-        // Smooth animation during playback — duration covers most of the beat interval
-        // so movement appears continuous (at 130 BPM, beat ≈ 460ms)
+      if (isPlaying) {
+        // Smooth playback: fractional beat updates every ~50ms,
+        // short timing (60ms) bridges between updates for 60fps visual smoothness
         Animated.timing(anim.x, {
           toValue: pos.x,
-          duration: 350,
+          duration: 60,
           useNativeDriver: false,
         }).start();
         Animated.timing(anim.y, {
           toValue: pos.y,
-          duration: 350,
+          duration: 60,
           useNativeDriver: false,
         }).start();
       } else {
@@ -509,7 +509,7 @@ export function FormationStageView({
               <Ionicons name="add-circle-outline" size={18} color={formationData.dancers.length >= 12 ? Colors.textMuted : Colors.textSecondary} />
             </Pressable>
             <Text style={styles.beatIndicator}>
-              Beat {currentBeatIndex + 1}
+              Beat {Math.round(currentBeatIndex) + 1}
               <Text style={{ color: isKeyframe ? Colors.accent : Colors.textMuted }}>
                 {isKeyframe ? ' ●' : ' ○'}
               </Text>
@@ -749,7 +749,7 @@ export function FormationStageView({
               <Ionicons name="chevron-back" size={16} color={Colors.text} />
             </Pressable>
             <View style={styles.beatLabelCenter}>
-              <Text style={styles.beatText}>{currentBeatIndex + 1}/{totalBeats}</Text>
+              <Text style={styles.beatText}>{Math.round(currentBeatIndex) + 1}/{totalBeats}</Text>
             </View>
             <Pressable onPress={() => handleBeatNav(1)} style={styles.navBtn} hitSlop={8}>
               <Ionicons name="chevron-forward" size={16} color={Colors.text} />
@@ -789,40 +789,6 @@ export function FormationStageView({
             )}
           </ScrollView>
 
-          {/* Keyframe strip */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.stripRow}
-            contentContainerStyle={styles.stripContent}
-          >
-            {Array.from({ length: Math.min(totalBeats, 40) }, (_, i) => {
-              const bi = Math.max(0, currentBeatIndex - 20) + i;
-              if (bi >= totalBeats) return null;
-              const isKf = hasKeyframeAtBeat(formationData, bi);
-              const isCurrent = bi === currentBeatIndex;
-              return (
-                <Pressable
-                  key={bi}
-                  style={[
-                    styles.stripCell,
-                    isCurrent && styles.stripCellActive,
-                    isKf && !isCurrent && styles.stripCellKeyframe,
-                  ]}
-                  onPress={() => onBeatChange?.(bi)}
-                >
-                  <Text
-                    style={[
-                      styles.stripText,
-                      isCurrent && styles.stripTextActive,
-                    ]}
-                  >
-                    {(bi % 8) + 1}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
         </View>
       )}
     </View>
@@ -1038,39 +1004,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
     alignSelf: 'center',
     marginHorizontal: 2,
-  },
-  // Keyframe strip
-  stripRow: {
-    maxHeight: 28,
-  },
-  stripContent: {
-    gap: 2,
-    paddingHorizontal: 4,
-  },
-  stripCell: {
-    width: 22,
-    height: 22,
-    borderRadius: 3,
-    backgroundColor: Colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  stripCellActive: {
-    backgroundColor: Colors.primary,
-  },
-  stripCellKeyframe: {
-    borderWidth: 1.5,
-    borderColor: '#FF6B00',
-    backgroundColor: '#1A1A1A',
-  },
-  stripText: {
-    fontSize: 9,
-    color: Colors.textSecondary,
-    fontVariant: ['tabular-nums'],
-  },
-  stripTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
   },
   // Dancer edit popup
   dancerEditPopup: {

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Modal, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -8,7 +8,7 @@ import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { pickMediaFile, parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
 import { analyzeTrack } from '../../services/analysisApi';
-import { Colors, Spacing, FontSize } from '../../constants/theme';
+import { Colors, Spacing, FontSize, NoteTypeColors } from '../../constants/theme';
 import { Track, MediaType, Folder, SortField } from '../../types/track';
 import { EditionId, TrackEditions } from '../../types/analysis';
 
@@ -82,46 +82,28 @@ function TrackThumbnail({ track }: { track: Track }) {
   );
 }
 
-function EditionIndicators({ editions }: { editions?: TrackEditions }) {
+function EditionIndicators({ editions, hasFormation }: { editions?: TrackEditions; hasFormation?: boolean }) {
   if (!editions) return null;
-  const activeId = editions.activeEditionId;
   const hasServer = !!editions.server;
-  const userIds = editions.userEditions.map(e => e.id);
-  if (!hasServer && userIds.length === 0) return null;
+  if (!hasServer && editions.userEditions.length === 0) return null;
 
   return (
     <View style={styles.editionIndicators}>
-      {hasServer && (
-        <View style={[
-          styles.editionDot, styles.editionDotServer,
-          activeId === 'S' && styles.editionDotActive,
-          activeId !== 'S' && { opacity: 0.4 },
-        ]}>
-          <Text style={styles.editionDotText}>S</Text>
-        </View>
+      <Text style={{ fontSize: 14, color: NoteTypeColors.phraseNote }}>Ⓟ</Text>
+      {hasFormation && (
+        <Text style={{ fontSize: 14, color: NoteTypeColors.choreoNote, marginLeft: 1 }}>Ⓒ</Text>
       )}
-      {(['1', '2', '3'] as EditionId[]).map(id => {
-        if (!userIds.includes(id)) return null;
-        return (
-          <View key={id} style={[
-            styles.editionDot, styles.editionDotUser,
-            activeId === id && styles.editionDotActive,
-            activeId !== id && { opacity: 0.4 },
-          ]}>
-            <Text style={styles.editionDotText}>{id}</Text>
-          </View>
-        );
-      })}
     </View>
   );
 }
 
 function TrackItem({
-  track, editions, isSelected, selectMode, isNowPlaying,
+  track, editions, hasFormation, isSelected, selectMode, isNowPlaying,
   onPress, onLongPress, onAnalyze,
 }: {
   track: Track;
   editions?: TrackEditions;
+  hasFormation?: boolean;
   isSelected: boolean;
   selectMode: boolean;
   isNowPlaying: boolean;
@@ -145,7 +127,7 @@ function TrackItem({
               {track.mediaType === 'youtube' ? 'YouTube' : `${track.format.toUpperCase()} · ${formatFileSize(track.fileSize)}`}
             </Text>
             <AnalysisBadge track={track} />
-            <EditionIndicators editions={editions} />
+            <EditionIndicators editions={editions} hasFormation={hasFormation} />
           </View>
         </View>
         {!selectMode && (
@@ -165,12 +147,13 @@ function TrackItem({
 }
 
 function SwipeableTrackItem({
-  track, editions, isSelected, selectMode, isNowPlaying,
+  track, editions, hasFormation, isSelected, selectMode, isNowPlaying,
   onPress, onLongPress, onAnalyze,
   onSelectEdition, onDeleteEdition, onToggleSelect,
 }: {
   track: Track;
   editions?: TrackEditions;
+  hasFormation?: boolean;
   isSelected: boolean;
   selectMode: boolean;
   isNowPlaying: boolean;
@@ -187,35 +170,31 @@ function SwipeableTrackItem({
   const renderRightActions = useCallback(() => {
     if (!editions || !hasEditions) return null;
     const activeId = editions.activeEditionId;
-    const allEditions: { id: EditionId; isServer: boolean }[] = [];
-    if (editions.server) allEditions.push({ id: 'S', isServer: true });
-    for (const id of ['1', '2', '3'] as EditionId[]) {
-      if (editions.userEditions.some(e => e.id === id)) allEditions.push({ id, isServer: false });
-    }
+    // User editions only (no server 'S')
+    const userIds = (['1', '2', '3'] as EditionId[]).filter(
+      id => editions.userEditions.some(e => e.id === id)
+    );
+    if (userIds.length === 0) return null;
 
     return (
       <View style={styles.swipeActions}>
-        {allEditions.map(({ id, isServer }) => (
+        {userIds.map((id) => (
           <TouchableOpacity
             key={id}
             style={[
               styles.swipeEditionBtn,
-              isServer ? styles.swipeEditionServer : styles.swipeEditionUser,
-              activeId === id && styles.swipeEditionActive,
+              { backgroundColor: 'rgba(187, 134, 252, 0.15)', borderColor: NoteTypeColors.phraseNote },
+              activeId === id && { backgroundColor: 'rgba(187, 134, 252, 0.3)' },
             ]}
             onPress={() => { onSelectEdition(track.id, id); swipeableRef.current?.close(); }}
             onLongPress={() => {
-              if (isServer) {
-                Alert.alert('Server Edition', '서버 분석 에디션은 삭제할 수 없습니다.');
-              } else {
-                Alert.alert(`에디션 ${id} 삭제`, '이 에디션을 삭제하시겠습니까?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Delete', style: 'destructive', onPress: () => { onDeleteEdition(track.id, id); swipeableRef.current?.close(); } },
-                ]);
-              }
+              Alert.alert(`에디션 ${id} 삭제`, '이 에디션을 삭제하시겠습니까?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => { onDeleteEdition(track.id, id); swipeableRef.current?.close(); } },
+              ]);
             }}
           >
-            <Text style={[styles.swipeEditionText, isServer ? styles.swipeEditionTextServer : styles.swipeEditionTextUser]}>{id}</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: NoteTypeColors.phraseNote }}>{id}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -251,6 +230,7 @@ function SwipeableTrackItem({
       <TrackItem
         track={track}
         editions={editions}
+        hasFormation={hasFormation}
         isSelected={isSelected}
         selectMode={selectMode}
         isNowPlaying={isNowPlaying}
@@ -294,6 +274,9 @@ export default function LibraryScreen() {
   const setActiveEdition = useSettingsStore((s) => s.setActiveEdition);
   const deleteUserEdition = useSettingsStore((s) => s.deleteUserEdition);
   const setServerEdition = useSettingsStore((s) => s.setServerEdition);
+  const setServerFormation = useSettingsStore((s) => s.setServerFormation);
+  const trackFormations = useSettingsStore((s) => s.trackFormations);
+  const danceStyle = useSettingsStore((s) => s.danceStyle);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -304,6 +287,9 @@ export default function LibraryScreen() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
   const selectMode = selectedTracks.size > 0;
+  const [analyzeMenuVisible, setAnalyzeMenuVisible] = useState(false);
+  const [analyzeTarget, setAnalyzeTarget] = useState<Track | null>(null);
+  const [choreoDancerCount, setChoreoDancerCount] = useState(4);
 
   // ─── Sort logic ───────────────────────────────────
   const sortTracks = useCallback((list: Track[]) => {
@@ -435,14 +421,21 @@ export default function LibraryScreen() {
     Alert.alert(track.title, undefined, options);
   };
 
+  const handleAnalyzePress = (track: Track) => {
+    if (track.analysisStatus === 'analyzing') return;
+    setAnalyzeTarget(track);
+    setAnalyzeMenuVisible(true);
+  };
+
   const handleReanalyze = (track: Track) => {
     Alert.alert('Re-analyze Track', '기존 분석 데이터가 삭제되고 새로 분석됩니다. 계속하시겠습니까?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Re-analyze', style: 'destructive', onPress: () => handleAnalyze(track) },
+      { text: 'Re-analyze', style: 'destructive', onPress: () => handleAnalyzePress(track) },
     ]);
   };
 
-  const handleAnalyze = async (track: Track) => {
+  const runAnalysis = async (track: Track, withFormation: boolean) => {
+    setAnalyzeMenuVisible(false);
     setTrackAnalysisStatus(track.id, 'analyzing');
     try {
       const result = await analyzeTrack(track.uri, track.title, track.format);
@@ -458,6 +451,13 @@ export default function LibraryScreen() {
           return closest;
         });
         setServerEdition(track.id, boundaryBeatIndices);
+      }
+      if (withFormation && result.beats.length >= 4) {
+        try {
+          const { requestFormationSuggestion } = await import('../../services/formationApi');
+          const formationData = await requestFormationSuggestion(result, choreoDancerCount, danceStyle);
+          setServerFormation(track.id, formationData);
+        } catch { /* formation suggestion is optional */ }
       }
     } catch (e: any) {
       setTrackAnalysisStatus(track.id, 'error');
@@ -664,12 +664,13 @@ export default function LibraryScreen() {
               <SwipeableTrackItem
                 track={item.track}
                 editions={trackEditions[item.track.id]}
+                hasFormation={!!trackFormations[item.track.id]?.server?.data?.keyframes?.length}
                 isSelected={selectedTracks.has(item.track.id)}
                 selectMode={selectMode}
                 isNowPlaying={isPlaying && currentTrack?.id === item.track.id}
                 onPress={() => handlePlay(item.track)}
                 onLongPress={() => handleLongPress(item.track)}
-                onAnalyze={() => handleAnalyze(item.track)}
+                onAnalyze={() => handleAnalyzePress(item.track)}
                 onSelectEdition={setActiveEdition}
                 onDeleteEdition={deleteUserEdition}
                 onToggleSelect={toggleSelect}
@@ -733,6 +734,62 @@ export default function LibraryScreen() {
           </View>
         </KeyboardAvoidingView>
       )}
+
+      {/* Analyze Mode Selection Modal */}
+      <Modal
+        visible={analyzeMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAnalyzeMenuVisible(false)}
+      >
+        <Pressable
+          style={styles.analyzeBackdrop}
+          onPress={() => setAnalyzeMenuVisible(false)}
+        >
+          <Pressable style={styles.analyzeMenuContainer} onPress={() => {}}>
+            <Text style={styles.analyzeMenuTitle}>Analyze</Text>
+            <TouchableOpacity
+              style={styles.analyzeMenuOption}
+              onPress={() => analyzeTarget && runAnalysis(analyzeTarget, false)}
+            >
+              <Ionicons name="musical-notes-outline" size={22} color={Colors.primary} />
+              <View style={styles.analyzeMenuOptionText}>
+                <Text style={styles.analyzeMenuOptionTitle}>PhraseNote</Text>
+                <Text style={styles.analyzeMenuOptionDesc}>Beat analysis + phrase detection</Text>
+              </View>
+            </TouchableOpacity>
+            <View style={styles.analyzeMenuDivider} />
+            <TouchableOpacity
+              style={styles.analyzeMenuOption}
+              onPress={() => analyzeTarget && runAnalysis(analyzeTarget, true)}
+            >
+              <Ionicons name="people-outline" size={22} color="#FF9500" />
+              <View style={styles.analyzeMenuOptionText}>
+                <Text style={styles.analyzeMenuOptionTitle}>Choreography</Text>
+                <Text style={styles.analyzeMenuOptionDesc}>PhraseNote + formation suggestions</Text>
+              </View>
+            </TouchableOpacity>
+            <View style={styles.dancerCountRow}>
+              <Text style={styles.dancerCountLabel}>Dancers</Text>
+              <View style={styles.dancerCountStepper}>
+                <TouchableOpacity
+                  style={styles.dancerCountBtn}
+                  onPress={() => setChoreoDancerCount(Math.max(2, choreoDancerCount - 1))}
+                >
+                  <Ionicons name="remove" size={18} color={Colors.text} />
+                </TouchableOpacity>
+                <Text style={styles.dancerCountValue}>{choreoDancerCount}</Text>
+                <TouchableOpacity
+                  style={styles.dancerCountBtn}
+                  onPress={() => setChoreoDancerCount(Math.min(12, choreoDancerCount + 1))}
+                >
+                  <Ionicons name="add" size={18} color={Colors.text} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1072,4 +1129,55 @@ const styles = StyleSheet.create({
   },
   youtubeAddBtn: { padding: Spacing.xs },
   youtubeCancel: { color: Colors.textSecondary, fontSize: FontSize.sm, textAlign: 'center', marginTop: Spacing.sm },
+
+  // ─── Analyze Menu Modal ─────────────────────────────
+  analyzeBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  analyzeMenuContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    width: 280,
+    gap: Spacing.sm,
+  },
+  analyzeMenuTitle: {
+    color: Colors.text,
+    fontSize: FontSize.lg,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: Spacing.xs,
+  },
+  analyzeMenuOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  analyzeMenuOptionText: { flex: 1 },
+  analyzeMenuOptionTitle: { color: Colors.text, fontSize: FontSize.md, fontWeight: '600' },
+  analyzeMenuOptionDesc: { color: Colors.textSecondary, fontSize: FontSize.xs },
+  analyzeMenuDivider: { height: 1, backgroundColor: Colors.border },
+  dancerCountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  dancerCountLabel: { color: Colors.textSecondary, fontSize: FontSize.sm },
+  dancerCountStepper: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  dancerCountBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.surfaceLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dancerCountValue: { color: Colors.text, fontSize: FontSize.md, fontWeight: '700', minWidth: 24, textAlign: 'center' },
 });

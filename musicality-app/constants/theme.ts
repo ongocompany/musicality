@@ -26,6 +26,12 @@ export const SectionColors: Record<string, string> = {
   outro:   '#78909C',  // blue-grey
 };
 
+// ─── Note type identity colors ──────────────────────
+export const NoteTypeColors = {
+  phraseNote: '#BB86FC',   // purple (matches primary)
+  choreoNote: '#FFD700',   // gold
+};
+
 // ─── Phrase rainbow colors (빨주노초파남보) ────────────
 export const PhraseColors: string[] = [
   '#FF4444',  // 빨 (red)

@@ -68,6 +68,38 @@ export interface TrackFormations {
   activeEditionId: FormationEditionId;
 }
 
+// ─── ChoreoNote file format (.cnote) ─────────────────
+// Shareable choreography formation data, parallel to PhraseNote.
+
+export interface ChoreoNoteFile {
+  version: 1;
+  format: 'cnote';
+  metadata: {
+    author: string;         // creator display name
+    authorId?: string;      // Supabase user_id (when synced)
+    authorAvatar?: string;  // avatar URL (when synced)
+    createdAt: number;      // Date.now()
+    title: string;          // track title
+  };
+  music: {
+    bpm: number;
+    duration: number;       // seconds
+    beatsPerBar: number;
+    danceStyle: string;
+    fingerprint?: string;   // Chromaprint for auto-matching
+  };
+  formation: FormationData;
+  stageConfig: StageConfig;
+}
+
+export interface ImportedChoreoNote {
+  id: string;                     // unique ID (uuid)
+  trackId: string;                // applied track ID
+  choreoNote: ChoreoNoteFile;     // the imported data
+  importedAt: number;             // Date.now()
+  isActive: boolean;
+}
+
 // ─── Pattern library ────────────────────────────────
 
 export type PatternId =

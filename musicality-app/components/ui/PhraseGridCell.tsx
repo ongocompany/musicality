@@ -234,10 +234,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 2,
     left: 2,
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#F59E0B',  // amber-500 (formation keyframe)
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#000000',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.7)',
   },
 });
 

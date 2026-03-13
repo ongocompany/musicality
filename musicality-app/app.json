@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.musicality-app"
+      "bundleIdentifier": "kr.ritmo.musicality",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -33,6 +36,13 @@
       "expo-document-picker",
       "expo-web-browser",
       "expo-localization"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e1d7a456-edab-43d8-adbe-9ce0c1fb04a3"
+      }
+    },
+    "owner": "ongocampany"
   }
 }

@@ -23,7 +23,7 @@ import { FormationData, StageConfig } from '../../types/formation';
 import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, CountInfo } from '../../utils/beatCounter';
 import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, phrasesFromBeatIndices } from '../../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
-import { Colors, Spacing, FontSize, getPhraseColor } from '../../constants/theme';
+import { Colors, Spacing, FontSize, getPhraseColor, NoteTypeColors } from '../../constants/theme';
 
 const RATES = [0.5, 0.75, 1.0, 1.25, 1.5];
 
@@ -120,6 +120,8 @@ export default function PlayerScreen() {
   const trackFormations = useSettingsStore((s) => s.trackFormations);
   const setDraftFormation = useSettingsStore((s) => s.setDraftFormation);
   const draftFormation = useSettingsStore((s) => s.draftFormation);
+  const saveFormationDraftAsEdition = useSettingsStore((s) => s.saveFormationDraftAsEdition);
+  const clearFormationDraft = useSettingsStore((s) => s.clearFormationDraft);
   const stageConfig = useSettingsStore((s) => s.stageConfig);
   const setStageConfig = useSettingsStore((s) => s.setStageConfig);
 
@@ -256,13 +258,12 @@ export default function PlayerScreen() {
   const handleStartPhraseHere = useCallback((globalBeatIndex: number) => {
     if (!currentTrack || !analysis || !phraseMap) return;
     const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
-    const newBoundaries = [...new Set([...currentBoundaries, globalBeatIndex])].sort((a, b) => a - b);
-    setDraftBoundaries(currentTrack.id, newBoundaries);
-    // Seek to the new phrase start so grid refreshes with this as cell 1
-    if (globalBeatIndex < analysis.beats.length) {
-      seekTo(analysis.beats[globalBeatIndex] * 1000);
-    }
-  }, [currentTrack, analysis, phraseMap, setDraftBoundaries, seekTo]);
+    // Filter out boundaries too close (within 4 beats) to avoid tiny phrases
+    const filtered = currentBoundaries.filter(b => Math.abs(b - globalBeatIndex) > 4);
+    filtered.push(globalBeatIndex);
+    filtered.sort((a, b) => a - b);
+    setDraftBoundaries(currentTrack.id, filtered);
+  }, [currentTrack, analysis, phraseMap, setDraftBoundaries]);
 
   // Paused tap: seek to beat and start playback (preview)
   const handleSeekAndPlay = useCallback((beatTimeMs: number) => {
@@ -367,6 +368,30 @@ export default function PlayerScreen() {
       setFormationEditBeatIndex(countInfo.beatIndex);
     }
   }, [editMode, countInfo?.beatIndex, isPlaying]);
+
+  // Fractional beat index for smooth formation animation during playback
+  // position updates ~50ms → fractional beat changes continuously → smooth interpolation
+  const fractionalBeatIndex = useMemo(() => {
+    if (!isPlaying || !effectiveBeats || effectiveBeats.length === 0) {
+      return formationEditBeatIndex;
+    }
+    const posSeconds = position / 1000;
+    if (posSeconds <= effectiveBeats[0]) return 0;
+    const last = effectiveBeats.length - 1;
+    if (posSeconds >= effectiveBeats[last]) return last;
+    // Binary search for current beat
+    let lo = 0, hi = last;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >>> 1;
+      if (effectiveBeats[mid] <= posSeconds) lo = mid;
+      else hi = mid - 1;
+    }
+    if (lo >= last) return last;
+    const span = effectiveBeats[lo + 1] - effectiveBeats[lo];
+    if (span <= 0) return lo;
+    const fraction = (posSeconds - effectiveBeats[lo]) / span;
+    return lo + Math.max(0, Math.min(1, fraction));
+  }, [isPlaying, position, effectiveBeats, formationEditBeatIndex]);
 
   const handleStageConfigChange = useCallback((config: Partial<StageConfig>) => {
     setStageConfig(config);
@@ -677,7 +702,7 @@ export default function PlayerScreen() {
   return (
     <View style={styles.container}>
       {/* ─── Scrollable Content ─── */}
-      <ScrollView style={styles.scrollArea} contentContainerStyle={isVisual ? styles.videoScrollContent : styles.audioScrollContent}>
+      <ScrollView style={styles.scrollArea} contentContainerStyle={isVisual ? styles.videoScrollContent : styles.audioScrollContent} scrollEnabled={editMode !== 'formation'}>
 
         {/* ① Compact Header (unified for all media types) */}
         <View style={styles.compactHeader}>
@@ -713,6 +738,11 @@ export default function PlayerScreen() {
               >
                 <Ionicons name="refresh" size={16} color={Colors.text} />
                 <Text style={styles.analyzeBtnText}>Re-tap</Text>
+              </TouchableOpacity>
+            )}
+            {!isYouTube && currentTrack.analysisStatus === 'done' && (
+              <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyzePress}>
+                <Ionicons name="refresh" size={16} color={Colors.textSecondary} />
               </TouchableOpacity>
             )}
             {!isYouTube && (!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
@@ -892,7 +922,7 @@ export default function PlayerScreen() {
             {editMode === 'formation' && activeFormationData ? (
               <FormationStageView
                 formationData={activeFormationData}
-                currentBeatIndex={formationEditBeatIndex}
+                currentBeatIndex={isPlaying ? fractionalBeatIndex : formationEditBeatIndex}
                 totalBeats={effectiveBeats.length}
                 stageConfig={stageConfig}
                 isPlaying={isPlaying}
@@ -904,7 +934,7 @@ export default function PlayerScreen() {
             ) : activeFormationData && editMode === 'none' ? (
               <FormationStageView
                 formationData={activeFormationData}
-                currentBeatIndex={formationEditBeatIndex}
+                currentBeatIndex={fractionalBeatIndex}
                 totalBeats={effectiveBeats.length}
                 stageConfig={stageConfig}
                 isPlaying={isPlaying}
@@ -956,11 +986,56 @@ export default function PlayerScreen() {
               onEditFormation={handleEditFormation}
               editMode={editMode}
             />
+
+            {/* ChoreoNote Draft Save/Discard (inside countSection) */}
+            {currentTrack && draftFormation[currentTrack.id] && editMode === 'formation' && (
+              <View style={[styles.draftActions, { marginTop: Spacing.sm }]}>
+                <TouchableOpacity
+                  style={[styles.draftSaveButton, { borderColor: 'rgba(255, 215, 0, 0.4)', backgroundColor: 'rgba(255, 215, 0, 0.15)', paddingVertical: 4, paddingHorizontal: 12 }]}
+                  onPress={() => {
+                    const formations = trackFormations[currentTrack.id];
+                    const usedSlots = formations?.userEditions?.length ?? 0;
+                    if (usedSlots >= 3) {
+                      const sorted = [...(formations?.userEditions ?? [])].sort((a, b) => a.createdAt - b.createdAt);
+                      const evictId = sorted[0]?.id ?? '1';
+                      Alert.alert(
+                        '슬롯 부족',
+                        `3개 슬롯이 모두 사용 중입니다.\nEdition ${evictId}을 대체하고 저장할까요?`,
+                        [
+                          { text: '취소', style: 'cancel' },
+                          {
+                            text: '대체하고 저장',
+                            style: 'destructive',
+                            onPress: () => {
+                              const slotId = saveFormationDraftAsEdition(currentTrack.id);
+                              if (slotId) Alert.alert('Saved', `ChoreoNote Edition ${slotId}에 저장되었습니다`);
+                            },
+                          },
+                        ],
+                      );
+                    } else {
+                      const slotId = saveFormationDraftAsEdition(currentTrack.id);
+                      if (slotId) Alert.alert('Saved', `ChoreoNote Edition ${slotId}에 저장되었습니다`);
+                    }
+                  }}
+                >
+                  <Ionicons name="checkmark-circle" size={18} color={NoteTypeColors.choreoNote} />
+                  <Text style={[styles.draftSaveText, { color: NoteTypeColors.choreoNote }]}>Save Ⓒ</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.draftDiscardButton, { paddingVertical: 4, paddingHorizontal: 12 }]}
+                  onPress={() => clearFormationDraft(currentTrack.id)}
+                >
+                  <Ionicons name="close-circle" size={18} color={Colors.error} />
+                  <Text style={styles.draftDiscardText}>Discard</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
 
-        {/* Draft Save/Discard */}
-        {currentTrack && draftBoundaries[currentTrack.id] && (
+        {/* Draft Save/Discard (PhraseNote — hidden in formation mode) */}
+        {currentTrack && draftBoundaries[currentTrack.id] && editMode !== 'formation' && (
           <View style={styles.draftActions}>
             <TouchableOpacity
               style={styles.draftSaveButton}
@@ -1061,42 +1136,47 @@ export default function PlayerScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.editionPickerScroll}
             >
-              {/* Server analysis chip — P (PhraseNote) or P+C (+ Choreography) */}
+              {/* My analysis badges — Ⓟ (PhraseNote, purple) Ⓒ (ChoreoNote, gold) */}
               <TouchableOpacity
-                style={[
-                  styles.editionChip,
-                  activeSource === 'mine' && styles.editionChipActive,
-                ]}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 4 }}
                 onPress={handleSelectMine}
               >
-                <Text style={[
-                  styles.editionChipText,
-                  activeSource === 'mine' && styles.editionChipTextActive,
-                ]}>
-                  {activeFormationData ? 'P+C' : 'P'}
+                <Text style={{ fontSize: 20, color: activeSource === 'mine' ? NoteTypeColors.phraseNote : Colors.textMuted }}>
+                  Ⓟ
                 </Text>
+                {activeFormationData && (
+                  <Text style={{ fontSize: 20, color: activeSource === 'mine' ? NoteTypeColors.choreoNote : Colors.textMuted, marginLeft: 2 }}>
+                    Ⓒ
+                  </Text>
+                )}
               </TouchableOpacity>
 
-              {/* Imported note chips */}
+              {/* Imported note chips — avatar with colored border */}
               {trackImportedNotes.map((note) => {
                 const isActive = activeSource === `imported-${note.id}`;
+                const author = note.phraseNote.metadata.author;
+                const initial = author ? author[0].toUpperCase() : '?';
                 return (
                   <TouchableOpacity
                     key={note.id}
-                    style={[
-                      styles.editionChip,
-                      styles.editionChipImported,
-                      isActive && styles.editionChipActive,
-                    ]}
+                    style={{ alignItems: 'center', marginHorizontal: 4 }}
                     onPress={() => handleSelectImported(note.id)}
                     onLongPress={() => handleDeleteImported(note.id)}
                     delayLongPress={500}
                   >
-                    <Text style={[
-                      styles.editionChipText,
-                      isActive && styles.editionChipTextActive,
-                    ]}>
-                      {note.phraseNote.metadata.author} ♪
+                    <View style={{
+                      width: 28, height: 28, borderRadius: 14,
+                      borderWidth: 2,
+                      borderColor: isActive ? NoteTypeColors.phraseNote : Colors.textMuted,
+                      backgroundColor: Colors.surface,
+                      justifyContent: 'center', alignItems: 'center',
+                    }}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: isActive ? Colors.text : Colors.textSecondary }}>
+                        {initial}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 8, color: isActive ? Colors.text : Colors.textMuted, marginTop: 1 }}>
+                      Ⓟ
                     </Text>
                   </TouchableOpacity>
                 );
