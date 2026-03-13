@@ -1020,20 +1020,20 @@ export default function PlayerScreen() {
         <View style={styles.bottomBarSide}>
           <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
           <TouchableOpacity onPress={handleSkipBack}>
-            <Ionicons name="play-back" size={28} color={Colors.text} />
+            <Ionicons name="play-back" size={22} color={Colors.text} />
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
-          <Ionicons name={isPlaying ? 'pause' : 'play'} size={32} color={Colors.text} />
+          <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={styles.bottomBarSide}>
           <TouchableOpacity onPress={handleSkipForward}>
-            <Ionicons name="play-forward" size={28} color={Colors.text} />
+            <Ionicons name="play-forward" size={22} color={Colors.text} />
           </TouchableOpacity>
           <TouchableOpacity onPress={toggleCue} style={styles.cueToggle}>
             <Ionicons
               name={cueEnabled ? 'volume-high' : 'volume-mute'}
-              size={22}
+              size={20}
               color={cueEnabled ? Colors.accent : Colors.textMuted}
             />
           </TouchableOpacity>
@@ -1292,7 +1292,7 @@ const styles = StyleSheet.create({
   bottomBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
+    paddingVertical: 4,
     paddingHorizontal: Spacing.lg,
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
@@ -1303,12 +1303,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.lg,
+    gap: Spacing.md,
   },
   playButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
