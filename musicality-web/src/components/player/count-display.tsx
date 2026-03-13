@@ -4,10 +4,11 @@ import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import {
   getCountInfo,
+  findCurrentBeatIndex,
   type DanceStyle,
   type Section,
 } from '@/utils/beat-counter';
-import { getPhraseColor } from '@/utils/phrase-detector';
+import { getPhraseColor, findPhraseForBeat, type PhraseMap } from '@/utils/phrase-detector';
 
 interface CountDisplayProps {
   positionMs: number;
@@ -18,6 +19,7 @@ interface CountDisplayProps {
   sections?: Section[];
   bpm?: number;
   phraseIndex?: number;
+  phraseMap?: PhraseMap | null;
   className?: string;
 }
 
@@ -34,12 +36,23 @@ export function CountDisplay({
   sections,
   bpm,
   phraseIndex,
+  phraseMap,
   className,
 }: CountDisplayProps) {
-  const countInfo = useMemo(
-    () => getCountInfo(positionMs, beats, downbeats, offsetBeatIndex, danceStyle, sections),
-    [positionMs, beats, downbeats, offsetBeatIndex, danceStyle, sections],
-  );
+  const countInfo = useMemo(() => {
+    // When phraseMap exists, use the current phrase's startBeatIndex as reference
+    // so the count resets to 1 at each phrase boundary
+    if (phraseMap && beats.length > 0) {
+      const currentIdx = findCurrentBeatIndex(positionMs, beats);
+      if (currentIdx >= 0) {
+        const phrase = findPhraseForBeat(currentIdx, phraseMap);
+        if (phrase) {
+          return getCountInfo(positionMs, beats, downbeats, phrase.startBeatIndex, danceStyle, sections);
+        }
+      }
+    }
+    return getCountInfo(positionMs, beats, downbeats, offsetBeatIndex, danceStyle, sections);
+  }, [positionMs, beats, downbeats, offsetBeatIndex, danceStyle, sections, phraseMap]);
 
   if (!countInfo) {
     return (

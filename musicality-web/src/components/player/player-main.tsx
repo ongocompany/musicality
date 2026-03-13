@@ -193,6 +193,7 @@ export function PlayerMain({
                   sections={analysis!.sections}
                   bpm={analysis!.bpm}
                   phraseIndex={phraseIndex}
+                  phraseMap={phraseMap}
                   className="!py-1"
                 />
               </div>
@@ -217,6 +218,7 @@ export function PlayerMain({
                   sections={analysis!.sections}
                   bpm={analysis!.bpm}
                   phraseIndex={phraseIndex}
+                  phraseMap={phraseMap}
                   className="!py-1"
                 />
               </div>
@@ -235,6 +237,7 @@ export function PlayerMain({
             sections={analysis!.sections}
             bpm={analysis!.bpm}
             phraseIndex={phraseIndex}
+            phraseMap={phraseMap}
           />
         )}
 
