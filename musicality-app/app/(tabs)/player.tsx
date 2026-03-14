@@ -19,7 +19,7 @@ import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
 import { buildPhraseNoteFile, exportPhraseNote, pickPhraseNoteFile, findMatchingTrack, validatePhraseNote } from '../../services/phraseNoteService';
 import { ImportedPhraseNote } from '../../types/phraseNote';
-import { FormationData, StageConfig } from '../../types/formation';
+import { FormationData, StageConfig, createDefaultDancers } from '../../types/formation';
 import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, CountInfo } from '../../utils/beatCounter';
 import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, phrasesFromBeatIndices } from '../../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
@@ -752,7 +752,24 @@ export default function PlayerScreen() {
               </TouchableOpacity>
             )}
             {!isYouTube && currentTrack.analysisStatus === 'done' && !activeFormationData && (
-              <TouchableOpacity style={styles.analyzeBtn} onPress={() => setAnalyzeMenuVisible(true)}>
+              <TouchableOpacity style={styles.analyzeBtn} onPress={() => {
+                // Create empty formation locally — no server needed
+                const dancers = createDefaultDancers(choreoDancerCount);
+                const emptyFormation: FormationData = {
+                  version: 1,
+                  dancers,
+                  keyframes: [{
+                    beatIndex: 0,
+                    positions: dancers.map((d, i) => ({
+                      dancerId: d.id,
+                      x: 0.3 + (i % 2) * 0.4,
+                      y: 0.3 + Math.floor(i / 2) * 0.2,
+                    })),
+                  }],
+                };
+                setDraftFormation(currentTrack.id, emptyFormation);
+                setEditMode('formation');
+              }}>
                 <Ionicons name="people-outline" size={16} color={Colors.text} />
                 <Text style={styles.analyzeBtnText}>Formation</Text>
               </TouchableOpacity>

@@ -4,7 +4,7 @@
  * Supports async analysis: cache hit → instant, cache miss → poll for result.
  */
 
-const API_BASE_URL = 'https://analysis.ritmo.kr';
+const API_BASE_URL = 'https://api.ritmo.kr';
 const ANALYSIS_TIMEOUT_MS = 600_000; // 10 minutes (async polling total)
 const POLL_INTERVAL_MS = 3_000; // Poll every 3 seconds
 
