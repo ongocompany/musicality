@@ -16,9 +16,10 @@ interface PhraseGridCellProps {
   rowLabel?: string | null;    // eight-count row number (1,2,3,4) on first cell of each row
   hasNote?: boolean;           // show teal dot for cell memo
   hasFormation?: boolean;      // show formation indicator (top-left dot)
+  beatCount?: number;          // 1-8 count shown inside the cell
 }
 
-function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel, hasNote, hasFormation }: PhraseGridCellProps) {
+function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel, hasNote, hasFormation, beatCount }: PhraseGridCellProps) {
   const handlePress = useCallback(() => onPress(cellIndex), [onPress, cellIndex]);
   const handleLongPress = useCallback(() => onLongPress(cellIndex), [onLongPress, cellIndex]);
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -159,13 +160,13 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
           delayLongPress={400}
           activeOpacity={0.7}
         >
-          {/* Eight-count row label (first cell only: 1, 2, 3, 4) */}
-          {rowLabel && (
+          {/* Beat count (1-8) — only on current (pulsing) cell */}
+          {beatCount != null && state === 'current' && (
             <Text style={[
-              styles.rowLabel,
-              { fontSize: Math.max(8, Math.round(size * 0.26)) },
+              styles.beatCount,
+              { fontSize: Math.max(12, Math.round(size * 0.6)) },
             ]}>
-              {rowLabel}
+              {beatCount}
             </Text>
           )}
           {/* A/B repeat marker badge */}
@@ -199,10 +200,17 @@ const styles = StyleSheet.create({
   glowLayer: {
     position: 'absolute',
   },
-  rowLabel: {
-    color: 'rgba(255, 255, 255, 0.45)',
+  beatCount: {
+    color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '700',
     textAlign: 'center',
+  },
+  rowLabelOutside: {
+    position: 'absolute',
+    color: 'rgba(255, 255, 255, 0.35)',
+    fontWeight: '600',
+    textAlign: 'right',
+    width: 20,
   },
   markerBadge: {
     position: 'absolute',

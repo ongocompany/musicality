@@ -1003,6 +1003,7 @@ export default function PlayerScreen() {
                 onUpdate={handleFormationUpdate}
                 onBeatChange={handleFormationBeatChange}
                 onStageConfigChange={handleStageConfigChange}
+                onTogglePlay={togglePlay}
               />
             ) : activeFormationData && editMode === 'none' ? (
               <FormationStageView
@@ -1015,6 +1016,7 @@ export default function PlayerScreen() {
                 onUpdate={handleFormationUpdate}
                 onBeatChange={handleFormationBeatChange}
                 onStageConfigChange={handleStageConfigChange}
+                onTogglePlay={togglePlay}
               />
             ) : (
               /* Count number with bounce animation (when no formation or note mode) */
@@ -1035,7 +1037,7 @@ export default function PlayerScreen() {
 
             {/* PhraseGrid — rhythm game style */}
             <PhraseGrid
-              rows={activeFormationData ? 4 : undefined}
+              rows={(editMode === 'formation' || (editMode === 'none' && activeFormationData)) ? 4 : undefined}
               countInfo={countInfo}
               phraseMap={phraseMap ?? null}
               hasAnalysis={!!analysis}
@@ -1532,9 +1534,9 @@ const styles = StyleSheet.create({
   youtubeOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 10 },
 
   // ─── Count Display + PhraseGrid ─────────────────
-  countSection: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  countSection: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: -10 },
   compactCount: {
-    fontSize: 48,
+    fontSize: 160,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
     marginBottom: Spacing.xs,

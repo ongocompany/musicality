@@ -79,5 +79,5 @@ export const FontSize = {
   lg: 16,
   xl: 20,
   xxl: 28,
-  count: 144,
+  count: 200,
 };

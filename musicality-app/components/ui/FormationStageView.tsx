@@ -9,10 +9,13 @@ import {
   Dimensions,
   ScrollView,
   Animated,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { Image } from 'react-native';
 import { useCommunityStore } from '../../stores/communityStore';
+import { usePlayerStore } from '../../stores/playerStore';
 import {
   DancerDef,
   DancerPosition,
@@ -185,6 +188,7 @@ interface FormationStageViewProps {
   onUpdate: (data: FormationData) => void;
   onBeatChange?: (beatIndex: number) => void;
   onStageConfigChange?: (config: Partial<StageConfig>) => void;
+  onTogglePlay?: () => void;
 }
 
 export function FormationStageView({
@@ -197,14 +201,20 @@ export function FormationStageView({
   onUpdate,
   onBeatChange,
   onStageConfigChange,
+  onTogglePlay,
 }: FormationStageViewProps) {
   const [selectedDancerIds, setSelectedDancerIds] = useState<Set<string>>(new Set());
   const [dragDancerId, setDragDancerId] = useState<string | null>(null);
   const [showSizeMenu, setShowSizeMenu] = useState(false);
   const [editingDancerId, setEditingDancerId] = useState<string | null>(null);
   const [is3D, setIs3D] = useState(true);
+  const [isFlipped, setIsFlipped] = useState(false);
   const [editingName, setEditingName] = useState('');
   const [showMemberPicker, setShowMemberPicker] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [, forceRender] = useState(0);
+  // onTogglePlay prop used for fullscreen play/pause
+  const pulseAnim = useRef(new Animated.Value(1)).current;
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Crew members for assignment
@@ -225,6 +235,14 @@ export function FormationStageView({
   const stageHeight = stageWidth * (stageConfig.gridHeight / stageConfig.gridWidth);
   const backstageHeight = stageHeight * (is3D ? BACKSTAGE_RATIO * 2 : BACKSTAGE_RATIO);
   const totalHeight = stageHeight + backstageHeight;
+
+  // Flip: view from performer side — labels swap, dancer XY mirrored, stage shape unchanged
+  // column-reverse moves backstage box to bottom, so dancer offset changes
+  const dotTopOffset = isFlipped ? 0 : backstageHeight;
+  const flipX = (x: number) => isFlipped ? 1 - x : x;
+  const flipY = (y: number) => isFlipped ? 1 - y : y;
+  const animFlip = (v: Animated.Value) =>
+    isFlipped ? Animated.subtract(1, v) : v;
 
   // Current positions (from keyframe or interpolated)
   const currentPositions = useMemo(
@@ -330,10 +348,12 @@ export function FormationStageView({
         Math.abs(gs.dx) > 3 || Math.abs(gs.dy) > 3,
       onPanResponderGrant: (evt) => {
         const { locationX, locationY } = evt.nativeEvent;
-        // Map to stage coords (backstage = negative normY)
-        const stageY = locationY - backstageHeight;
-        const normX = locationX / stageWidth;
-        const normY = stageY / stageHeight;
+        // Map screen coords to data coords (flip back if flipped)
+        const stageY = isFlipped ? locationY : locationY - backstageHeight;
+        const screenNormX = locationX / stageWidth;
+        const screenNormY = stageY / stageHeight;
+        const normX = isFlipped ? 1 - screenNormX : screenNormX;
+        const normY = isFlipped ? 1 - screenNormY : screenNormY;
 
         const dancer = findClosestDancer(normX, normY);
         if (dancer) {
@@ -359,10 +379,12 @@ export function FormationStageView({
         }
         if (!dragDancerId || !currentPositions) return;
         const { locationX, locationY } = evt.nativeEvent;
-        const stageY = locationY - backstageHeight;
-        const normX = Math.max(0.02, Math.min(0.98, locationX / stageWidth));
+        const stageY = isFlipped ? locationY : locationY - backstageHeight;
+        const screenNormX = Math.max(0.02, Math.min(0.98, locationX / stageWidth));
         // Allow negative normY for backstage placement
-        const normY = Math.max(-backstageHeight / stageHeight, Math.min(0.98, stageY / stageHeight));
+        const screenNormY = Math.max(-backstageHeight / stageHeight, Math.min(0.98, stageY / stageHeight));
+        const normX = isFlipped ? 1 - screenNormX : screenNormX;
+        const normY = isFlipped ? 1 - screenNormY : screenNormY;
 
         const newPositions = currentPositions.map((p) =>
           p.dancerId === dragDancerId ? { ...p, x: normX, y: normY } : p,
@@ -395,7 +417,7 @@ export function FormationStageView({
         setDragDancerId(null);
       },
     });
-  }, [isEditing, dragDancerId, currentPositions, currentBeatIndex, formationData, stageWidth, stageHeight, backstageHeight, onUpdate, findClosestDancer]);
+  }, [isEditing, dragDancerId, currentPositions, currentBeatIndex, formationData, stageWidth, stageHeight, backstageHeight, onUpdate, findClosestDancer, isFlipped]);
 
   // ─── Long press handler ─────────────────────────────
   const handleLongPressDancer = useCallback(
@@ -544,9 +566,221 @@ export function FormationStageView({
     [currentBeatIndex, totalBeats, onBeatChange],
   );
 
+  // ─── Fullscreen beat count pulse ─────────────────────
+  const fullscreenBeat = Math.round(currentBeatIndex) % 8 + 1; // 1-8
+  const isAccent = fullscreenBeat === 1 || fullscreenBeat === 5;
+
+  useEffect(() => {
+    if (!isFullscreen || !isPlaying) return;
+    if (isAccent) {
+      pulseAnim.setValue(1.3);
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [fullscreenBeat, isFullscreen, isPlaying]);
+
+  // ─── Fullscreen helpers ────────────────────────────
+  const enterFullscreen = useCallback(async () => {
+    setIsFullscreen(true);
+    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT);
+  }, []);
+  const exitFullscreen = useCallback(async () => {
+    setIsFullscreen(false);
+    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    // Force re-render after orientation reverts so layout refreshes
+    setTimeout(() => forceRender((n) => n + 1), 300);
+  }, []);
+
+  // Cleanup orientation on unmount
+  useEffect(() => {
+    return () => {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    };
+  }, []);
+
+  // ─── Fullscreen dimensions (landscape) ─────────────
+  const screenW = Dimensions.get('screen').width;
+  const screenH = Dimensions.get('screen').height;
+  const fsLandW = Math.max(screenW, screenH);
+  const fsLandH = Math.min(screenW, screenH);
+  const fsStageW = fsLandW - 16;
+  const fsMaxStageH = fsLandH * 0.88;
+  const fsStageH = Math.min(fsStageW * (stageConfig.gridHeight / stageConfig.gridWidth), fsMaxStageH);
+  const fsBackstageH = fsStageH * BACKSTAGE_RATIO * (is3D ? 2 : 1);
+  const fsTotalH = fsStageH + fsBackstageH;
+
   // ─── Render ─────────────────────────────────────────
   return (
     <View style={styles.container}>
+      {/* Fullscreen Modal */}
+      <Modal
+        visible={isFullscreen}
+        animationType="fade"
+        statusBarTranslucent
+        supportedOrientations={['landscape']}
+        onRequestClose={exitFullscreen}
+      >
+        <Pressable style={styles.fullscreenContainer} onPress={onTogglePlay}>
+          {/* Beat count watermark */}
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 5, alignItems: 'center', justifyContent: 'center' }]}>
+            <Animated.Text
+              style={[
+                styles.fullscreenBeatWatermark,
+                {
+                  transform: [{ scale: pulseAnim }],
+                  opacity: isAccent ? 0.3 : 0.15,
+                },
+              ]}
+            >
+              {fullscreenBeat}
+            </Animated.Text>
+          </View>
+
+          {/* Play/Pause indicator — top left */}
+          <View style={styles.fullscreenPlayIndicator} pointerEvents="none">
+            <Ionicons
+              name={isPlaying ? 'pause' : 'play'}
+              size={20}
+              color="rgba(255,255,255,0.4)"
+            />
+          </View>
+
+          {/* Stage */}
+          <View
+            style={[styles.stageOuter, {
+              width: fsStageW,
+              height: fsTotalH,
+              flexDirection: isFlipped ? 'column-reverse' : 'column',
+              marginTop: is3D ? -fsBackstageH * 0.5 : 0,
+              ...(is3D ? {
+                transformOrigin: '50% 100%',
+                transform: [{ perspective: PERSP_PX }, { rotateX: `${TILT_DEG}deg` }],
+              } : {}),
+            }]}
+          >
+            <View style={[styles.backstage, { height: fsBackstageH }]} pointerEvents="none">
+              <Text style={styles.backstageLabel}>BACKSTAGE</Text>
+            </View>
+            <View style={[styles.stage, { width: fsStageW, height: fsStageH }]} pointerEvents="none">
+              {gridLines.hLines.map((p, i) => (
+                <View key={`fh-${i}`} style={[styles.gridLine, { top: `${p * 100}%`, width: '100%', backgroundColor: 'rgba(255,255,255,0.06)' }]} />
+              ))}
+              {gridLines.vLines.map((p, i) => (
+                <View key={`fv-${i}`} style={[styles.gridLineV, { left: `${p * 100}%`, height: '100%', backgroundColor: 'rgba(255,255,255,0.06)' }]} />
+              ))}
+              <View style={[styles.audienceLine, { bottom: 0, width: '100%' }]} />
+            </View>
+
+            {/* Dancers — scaled up for fullscreen */}
+            {(() => {
+              const FS = 2; // fullscreen scale factor
+              const fsDot = DOT_RADIUS * FS;
+              const fsPW = PILLAR_W * FS;
+              const fsPH = PILLAR_H * FS;
+              return sortedPositions?.map((pos) => {
+                const dancer = formationData.dancers.find((d) => d.id === pos.dancerId);
+                if (!dancer) return null;
+                const anim = animatedPositions.current.get(pos.dancerId);
+                const isOffstage = pos.y < 0;
+                const dotLeft = anim
+                  ? Animated.multiply(animFlip(anim.x), fsStageW)
+                  : flipX(pos.x) * fsStageW;
+                const fsDotTopOffset = isFlipped ? 0 : fsBackstageH;
+                const dotTop = anim
+                  ? Animated.add(Animated.multiply(animFlip(anim.y), fsStageH), fsDotTopOffset)
+                  : flipY(pos.y) * fsStageH + fsDotTopOffset;
+                const displayName = dancer.crewMemberName || dancer.label;
+
+                if (is3D) {
+                  return (
+                    <View key={pos.dancerId} pointerEvents="none" style={StyleSheet.absoluteFill}>
+                      <Animated.View style={{
+                        position: 'absolute',
+                        left: Animated.subtract(dotLeft, fsPW * 0.7),
+                        top: Animated.add(dotTop, 2),
+                        width: fsPW * 1.4, height: 6,
+                        borderRadius: fsPW * 0.7,
+                        backgroundColor: 'rgba(0,0,0,0.4)',
+                        opacity: isOffstage ? 0.2 : 0.35,
+                      }} />
+                      <Animated.View style={{
+                        position: 'absolute',
+                        left: Animated.subtract(dotLeft, fsPW / 2),
+                        top: Animated.subtract(dotTop, fsPH),
+                        width: fsPW, height: fsPH,
+                        borderRadius: fsPW / 2,
+                        backgroundColor: dancer.color,
+                        borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.3)',
+                        opacity: isOffstage ? 0.4 : 1,
+                      }} />
+                      <Animated.View style={{
+                        position: 'absolute',
+                        left: Animated.subtract(dotLeft, fsPW * 0.45),
+                        top: Animated.subtract(dotTop, fsPH - 2),
+                        width: fsPW * 0.9, height: fsPW * 0.9,
+                        borderRadius: fsPW * 0.45,
+                        backgroundColor: dancer.color,
+                        opacity: isOffstage ? 0.5 : 1,
+                      }} />
+                      <Animated.Text
+                        style={{
+                          position: 'absolute',
+                          left: Animated.subtract(dotLeft, 36),
+                          top: Animated.add(dotTop, 6),
+                          width: 72, fontSize: 11, color: Colors.textSecondary, textAlign: 'center',
+                        }}
+                        numberOfLines={1}
+                      >
+                        {displayName}
+                      </Animated.Text>
+                    </View>
+                  );
+                }
+                return (
+                  <View key={pos.dancerId} pointerEvents="none" style={StyleSheet.absoluteFill}>
+                    <Animated.View
+                      style={{
+                        position: 'absolute',
+                        left: Animated.subtract(dotLeft, fsDot),
+                        top: Animated.subtract(dotTop, fsDot),
+                        width: fsDot * 2, height: fsDot * 2,
+                        borderRadius: fsDot,
+                        backgroundColor: dancer.color,
+                        borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
+                        opacity: isOffstage ? 0.4 : 1,
+                      }}
+                    />
+                    <Animated.Text
+                      style={{
+                        position: 'absolute',
+                        left: Animated.subtract(dotLeft, 36),
+                        top: Animated.add(dotTop, fsDot + 3),
+                        width: 72, fontSize: 11, color: Colors.textSecondary, textAlign: 'center',
+                      }}
+                      numberOfLines={1}
+                    >
+                      {displayName}
+                    </Animated.Text>
+                  </View>
+                );
+              });
+            })()}
+          </View>
+
+          {/* Close button — top right, above tap overlay */}
+          <Pressable
+            style={[styles.fullscreenCloseBtn, { zIndex: 20 }]}
+            onPress={exitFullscreen}
+            hitSlop={16}
+          >
+            <Ionicons name="close" size={22} color="rgba(255,255,255,0.5)" />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Stage config row */}
       <View style={styles.configRow}>
         <Text style={styles.configLabel}>Stage</Text>
@@ -556,6 +790,13 @@ export function FormationStageView({
           hitSlop={6}
         >
           <Text style={styles.viewToggleText}>{is3D ? '3D' : '2D'}</Text>
+        </Pressable>
+        <Pressable
+          style={styles.viewToggleBtn}
+          onPress={() => setIsFlipped(!isFlipped)}
+          hitSlop={6}
+        >
+          <Ionicons name={isFlipped ? 'eye-outline' : 'eye-off-outline'} size={14} color={Colors.textSecondary} />
         </Pressable>
         <Pressable
           style={styles.sizeBtn}
@@ -584,9 +825,14 @@ export function FormationStageView({
           </View>
         )}
         {!isEditing && (
-          <Text style={styles.playbackHint}>
-            {isPlaying ? '▶ Playing' : '⏸ Paused'}
-          </Text>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+            <Text style={styles.playbackHint}>
+              {isPlaying ? '▶ Playing' : '⏸ Paused'}
+            </Text>
+            <Pressable onPress={enterFullscreen} hitSlop={8}>
+              <Ionicons name="expand-outline" size={18} color={Colors.textSecondary} />
+            </Pressable>
+          </View>
         )}
       </View>
 
@@ -618,6 +864,7 @@ export function FormationStageView({
         style={[styles.stageOuter, {
           width: stageWidth,
           height: totalHeight,
+          flexDirection: isFlipped ? 'column-reverse' : 'column',
           ...(is3D ? {
             transformOrigin: '50% 100%',
             transform: [{ perspective: PERSP_PX }, { rotateX: `${TILT_DEG}deg` }],
@@ -625,7 +872,7 @@ export function FormationStageView({
         }]}
         {...panResponder.panHandlers}
       >
-        {/* Backstage (top) */}
+        {/* Backstage */}
         <View style={[styles.backstage, { height: backstageHeight }]} pointerEvents="none">
           <Text style={styles.backstageLabel}>BACKSTAGE</Text>
         </View>
@@ -671,16 +918,16 @@ export function FormationStageView({
             />
           ))}
 
-          {/* Audience indicator (bottom edge) */}
+          {/* Audience indicator */}
           <View
-            style={[styles.audienceLine, { top: stageHeight - 2, width: stageWidth }]}
+            style={[styles.audienceLine, { top: isFlipped ? 0 : stageHeight - 2, width: stageWidth }]}
             pointerEvents="none"
           />
           <Text
-            style={[styles.audienceLabel, { top: stageHeight - 14 }]}
+            style={[styles.audienceLabel, { top: isFlipped ? 2 : stageHeight - 14 }]}
             pointerEvents="none"
           >
-            AUDIENCE ▼
+            {isFlipped ? '▲ AUDIENCE' : 'AUDIENCE ▼'}
           </Text>
 
         </View>
@@ -701,10 +948,10 @@ export function FormationStageView({
 
           // Pixel coords: y is relative to stageOuter (backstage + stage)
           if (useAnimated) {
-            const dotLeft = Animated.multiply(anim.x, stageWidth);
+            const dotLeft = Animated.multiply(animFlip(anim.x), stageWidth);
             const dotTop = Animated.add(
-              Animated.multiply(anim.y, stageHeight),
-              backstageHeight,
+              Animated.multiply(animFlip(anim.y), stageHeight),
+              dotTopOffset,
             );
 
             if (!is3D) {
@@ -761,8 +1008,8 @@ export function FormationStageView({
           }
 
           // Static positioning (editing or paused)
-          const pixelLeft = pos.x * stageWidth;
-          const pixelTop = pos.y * stageHeight + backstageHeight;
+          const pixelLeft = flipX(pos.x) * stageWidth;
+          const pixelTop = flipY(pos.y) * stageHeight + dotTopOffset;
 
           if (!is3D) {
             // ── 2D top-view: circle dot ──
@@ -1363,5 +1610,38 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 11,
     color: Colors.text,
+  },
+  // Fullscreen mode
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: 16,
+  },
+  fullscreenBeatWatermark: {
+    position: 'absolute',
+    fontSize: 120,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    zIndex: 0,
+  },
+  fullscreenPlayIndicator: {
+    position: 'absolute',
+    top: 20,
+    left: 48,
+    zIndex: 10,
+  },
+  fullscreenCloseBtn: {
+    position: 'absolute',
+    top: 20,
+    right: 48,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
   },
 });

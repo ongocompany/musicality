@@ -42,6 +42,7 @@ const noop = (_cellIndex: number) => {};  // stable ref for placeholder
 
 const COLS = 8;
 const DEFAULT_ROWS = 8;
+const ROW_LABEL_WIDTH = 18;
 const MIN_CELL_SIZE = 20;
 const SCROLL_ANCHOR_ROW = 2; // auto-scroll keeps current beat at 3rd visible row (0-indexed)
 const RENDER_BUFFER_ROWS = 4; // extra rows rendered above/below visible area
@@ -149,7 +150,7 @@ export function PhraseGrid({
   const cellSize = useMemo(() => {
     if (containerWidth <= 0) return 0;
     const margins = COLS * CELL_GAP;
-    const available = containerWidth - margins;
+    const available = containerWidth - ROW_LABEL_WIDTH - margins;
     return Math.max(Math.floor(available / COLS), MIN_CELL_SIZE);
   }, [containerWidth]);
 
@@ -265,19 +266,20 @@ export function PhraseGrid({
     return Colors.textMuted;
   }, [phraseMap, visualCells]);
 
-  // Per-cell row label: first column shows eight-count row number (1,2,3,4) — resets at phrase boundary
+  // Per-cell row label: first column shows song-wide sequential row number
   const getCellRowLabel = useCallback((cellIndex: number): string | null => {
     if (cellIndex % COLS !== 0) return null; // only first column
     const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
-    if (globalBeat < 0 || !phraseMap) return null;
-    for (const phrase of phraseMap.phrases) {
-      if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
-        const beatInPhrase = globalBeat - phrase.startBeatIndex;
-        return String(Math.floor(beatInPhrase / COLS) + 1);
-      }
-    }
-    return null;
-  }, [visualCells, phraseMap]);
+    if (globalBeat < 0) return null;
+    return String(Math.floor(cellIndex / COLS) + 1);
+  }, [visualCells]);
+
+  // Beat count inside each cell (1-8 within the row)
+  const getCellBeatCount = useCallback((cellIndex: number): number | undefined => {
+    const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
+    if (globalBeat < 0) return undefined;
+    return (cellIndex % COLS) + 1;
+  }, [visualCells]);
 
   // ─── Cell note helpers ───
   const getCellHasNote = useCallback((cellIndex: number): boolean => {
@@ -521,31 +523,49 @@ export function PhraseGrid({
 
       {/* Grid cells — shared between scroll and page modes */}
       {(() => {
+        const renderStartRowIdx = Math.floor(renderStartCell / COLS);
+        const renderEndRowIdx = Math.ceil(renderEndCell / COLS);
         const gridContent = (
-          <View
-            onLayout={onLayout}
-            style={styles.grid}
-          >
-            {containerWidth > 0 && cellSize > 0 && Array.from({ length: renderEndCell - renderStartCell }, (_, idx) => {
-                  const i = renderStartCell + idx;
-                  const beatForKey = i < visualCells.length ? visualCells[i] : -1;
+          <View onLayout={onLayout} style={{ flexDirection: 'row' }}>
+            {/* Row labels column */}
+            {containerWidth > 0 && cellSize > 0 && (
+              <View style={{ width: ROW_LABEL_WIDTH, paddingTop: CELL_GAP / 2 }}>
+                {Array.from({ length: renderEndRowIdx - renderStartRowIdx }, (_, ri) => {
+                  const row = renderStartRowIdx + ri;
                   return (
-                    <PhraseGridCell
-                      key={`${beatForKey}:${i}`}
-                      cellIndex={i}
-                      state={getCellState(i)}
-                      color={getCellPhraseColor(i)}
-                      size={cellSize}
-                      isFlashing={flashCellIndex === i}
-                      onPress={handleCellTap}
-                      onLongPress={handleCellLongPress}
-                      repeatMarker={getRepeatMarker(i)}
-                      rowLabel={getCellRowLabel(i)}
-                      hasNote={getCellHasNote(i)}
-                      hasFormation={getCellHasFormation(i)}
-                    />
+                    <View key={`rl-${row}`} style={{ height: cellSize + CELL_GAP, justifyContent: 'center' }}>
+                      <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: Math.max(7, Math.round(cellSize * 0.22)), fontWeight: '600', textAlign: 'right', paddingRight: 3 }}>
+                        {row + 1}
+                      </Text>
+                    </View>
                   );
-            })}
+                })}
+              </View>
+            )}
+            {/* Grid cells */}
+            <View style={[styles.grid, { flex: 1 }]}>
+              {containerWidth > 0 && cellSize > 0 && Array.from({ length: renderEndCell - renderStartCell }, (_, idx) => {
+                    const i = renderStartCell + idx;
+                    const beatForKey = i < visualCells.length ? visualCells[i] : -1;
+                    return (
+                      <PhraseGridCell
+                        key={`${beatForKey}:${i}`}
+                        cellIndex={i}
+                        state={getCellState(i)}
+                        color={getCellPhraseColor(i)}
+                        size={cellSize}
+                        isFlashing={flashCellIndex === i}
+                        onPress={handleCellTap}
+                        onLongPress={handleCellLongPress}
+                        repeatMarker={getRepeatMarker(i)}
+                        rowLabel={null}
+                        hasNote={getCellHasNote(i)}
+                        hasFormation={getCellHasFormation(i)}
+                        beatCount={getCellBeatCount(i)}
+                      />
+                    );
+              })}
+            </View>
           </View>
         );
 
