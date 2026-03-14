@@ -11,6 +11,8 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'react-native';
+import { useCommunityStore } from '../../stores/communityStore';
 import {
   DancerDef,
   DancerPosition,
@@ -202,7 +204,21 @@ export function FormationStageView({
   const [editingDancerId, setEditingDancerId] = useState<string | null>(null);
   const [is3D, setIs3D] = useState(true);
   const [editingName, setEditingName] = useState('');
+  const [showMemberPicker, setShowMemberPicker] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Crew members for assignment
+  const myCrewIds = useCommunityStore((s) => s.myCrewIds);
+  const activeCrewMembers = useCommunityStore((s) => s.activeCrewMembers);
+  const fetchCrewMembers = useCommunityStore((s) => s.fetchCrewMembers);
+  const crewMembersFetched = useRef(false);
+
+  useEffect(() => {
+    if (myCrewIds.length > 0 && !crewMembersFetched.current) {
+      crewMembersFetched.current = true;
+      fetchCrewMembers(myCrewIds[0]);
+    }
+  }, [myCrewIds]);
 
   const screenWidth = Dimensions.get('window').width;
   const stageWidth = screenWidth - 16; // minimal horizontal padding
@@ -399,6 +415,30 @@ export function FormationStageView({
         d.id === editingDancerId ? { ...d, color } : d,
       );
       onUpdate({ ...formationData, dancers: updatedDancers });
+    },
+    [editingDancerId, formationData, onUpdate],
+  );
+
+  const handleAssignMember = useCallback(
+    (userId: string, displayName: string) => {
+      if (!editingDancerId) return;
+      const dancer = formationData.dancers.find((d) => d.id === editingDancerId);
+      if (!dancer) return;
+      // Toggle: if same member already assigned, unassign
+      const isUnassign = dancer.crewMemberId === userId;
+      const updatedDancers = formationData.dancers.map((d) =>
+        d.id === editingDancerId
+          ? {
+              ...d,
+              crewMemberId: isUnassign ? undefined : userId,
+              crewMemberName: isUnassign ? undefined : displayName,
+            }
+          : d,
+      );
+      onUpdate({ ...formationData, dancers: updatedDancers });
+      if (!isUnassign) {
+        setEditingName(displayName);
+      }
     },
     [editingDancerId, formationData, onUpdate],
   );
@@ -826,6 +866,67 @@ export function FormationStageView({
               />
             ))}
           </View>
+          {/* Crew member assignment */}
+          {activeCrewMembers.length > 0 && (
+            <>
+              <Pressable
+                style={styles.assignMemberToggle}
+                onPress={() => setShowMemberPicker(!showMemberPicker)}
+              >
+                <Ionicons name="people" size={14} color={Colors.textSecondary} />
+                <Text style={styles.assignMemberToggleText}>
+                  {editingDancer.crewMemberId
+                    ? `✓ ${editingDancer.crewMemberName}`
+                    : 'Assign Member'}
+                </Text>
+                <Ionicons
+                  name={showMemberPicker ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color={Colors.textMuted}
+                />
+              </Pressable>
+              {showMemberPicker && (
+                <ScrollView style={styles.memberList} nestedScrollEnabled>
+                  <View style={styles.memberGrid}>
+                    {activeCrewMembers.map((member) => {
+                      const isAssigned = editingDancer.crewMemberId === member.userId;
+                      const assignedToOther = !isAssigned && formationData.dancers.some(
+                        (d) => d.id !== editingDancerId && d.crewMemberId === member.userId,
+                      );
+                      const name = member.profile?.displayName || member.profile?.nickname || 'Dancer';
+                      return (
+                        <Pressable
+                          key={member.id}
+                          style={[
+                            styles.memberItem,
+                            isAssigned && styles.memberItemActive,
+                            assignedToOther && { opacity: 0.4 },
+                          ]}
+                          onPress={() => !assignedToOther && handleAssignMember(member.userId, name)}
+                          disabled={assignedToOther}
+                        >
+                          {member.profile?.avatarUrl ? (
+                            <Image
+                              source={{ uri: member.profile.avatarUrl }}
+                              style={styles.memberAvatar}
+                            />
+                          ) : (
+                            <View style={[styles.memberAvatar, { backgroundColor: Colors.surface }]}>
+                              <Ionicons name="person" size={12} color={Colors.textMuted} />
+                            </View>
+                          )}
+                          <Text style={styles.memberName} numberOfLines={1}>{name}</Text>
+                          {isAssigned && (
+                            <Ionicons name="checkmark-circle" size={14} color={Colors.accent} />
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              )}
+            </>
+          )}
         </View>
       )}
 
@@ -1208,5 +1309,59 @@ const styles = StyleSheet.create({
   colorSwatchActive: {
     borderColor: '#FFFFFF',
     borderWidth: 2.5,
+  },
+  // Crew member assignment
+  assignMemberToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+    gap: 6,
+  },
+  assignMemberToggleText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  memberList: {
+    maxHeight: 120,
+  },
+  memberGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 6,
+    paddingBottom: 6,
+    gap: 4,
+  },
+  memberItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    gap: 4,
+    width: '48%' as any,
+  },
+  memberItemActive: {
+    backgroundColor: 'rgba(100, 200, 100, 0.2)',
+    borderWidth: 1,
+    borderColor: Colors.accent,
+  },
+  memberAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  memberName: {
+    flex: 1,
+    fontSize: 11,
+    color: Colors.text,
   },
 });
