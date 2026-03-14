@@ -322,12 +322,7 @@ export function PhraseGrid({
       return;
     }
 
-    // Edit mode: note → open note editor instead of seeking
-    if (editMode === 'note' && onSetCellNote) {
-      setMenuCellIndex(globalBeat);
-      setMenuVisible(true);
-      return;
-    }
+    // Edit mode: note → tap seeks to beat (popup via long-press only)
 
     // Show tooltip if cell has a note
     showTooltip(globalBeat);

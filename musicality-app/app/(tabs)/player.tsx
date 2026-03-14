@@ -34,6 +34,62 @@ function formatTime(ms: number): string {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
+// ─── Marquee scrolling title ─────────────────────────
+function MarqueeTitle({ text, style }: { text: string; style: any }) {
+  const scrollAnim = useRef(new Animated.Value(0)).current;
+  const [containerW, setContainerW] = useState(0);
+  const [textW, setTextW] = useState(0);
+  const animRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  const overflow = textW - containerW;
+
+  useEffect(() => {
+    if (animRef.current) animRef.current.stop();
+    scrollAnim.setValue(0);
+    if (overflow <= 2) return;
+    // Speed: ~30px/sec
+    const duration = (overflow / 30) * 1000;
+    const loop = () => {
+      scrollAnim.setValue(0);
+      animRef.current = Animated.sequence([
+        Animated.delay(1500),
+        Animated.timing(scrollAnim, { toValue: -overflow, duration, useNativeDriver: true }),
+        Animated.delay(2000),
+        Animated.timing(scrollAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]);
+      animRef.current.start(({ finished }) => { if (finished) loop(); });
+    };
+    loop();
+    return () => { if (animRef.current) animRef.current.stop(); };
+  }, [overflow, text]);
+
+  return (
+    <View
+      style={{ flex: 1, overflow: 'hidden', marginRight: Spacing.sm }}
+      onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
+    >
+      {/* Hidden text for full-width measurement (no truncation) */}
+      <Text
+        style={[style, { position: 'absolute', opacity: 0, flex: undefined, width: 9999 }]}
+        numberOfLines={1}
+        onTextLayout={(e) => {
+          const w = e.nativeEvent.lines[0]?.width ?? 0;
+          if (Math.abs(w - textW) > 1) setTextW(w);
+        }}
+      >
+        {text}
+      </Text>
+      {/* Visible scrolling text */}
+      <Animated.Text
+        style={[style, { flex: undefined, marginRight: undefined, transform: [{ translateX: scrollAnim }] }]}
+        numberOfLines={1}
+      >
+        {text}
+      </Animated.Text>
+    </View>
+  );
+}
+
 export default function PlayerScreen() {
   const {
     currentTrack,
@@ -707,7 +763,7 @@ export default function PlayerScreen() {
         {/* ① Compact Header (unified for all media types) */}
         <View style={styles.compactHeader}>
           <Ionicons name={headerIcon} size={18} color={headerIconColor} style={{ marginRight: Spacing.xs }} />
-          <Text style={styles.compactTitle} numberOfLines={1}>{currentTrack.title}</Text>
+          <MarqueeTitle text={currentTrack.title} style={styles.compactTitle} />
           <View style={styles.headerMeta}>
             {analysis && (
               <>

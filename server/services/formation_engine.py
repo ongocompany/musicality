@@ -36,7 +36,7 @@ def suggest_formations(
     Generate initial formation data with dancers and a single starting keyframe.
 
     Args:
-        dancer_count: Number of dancers (2-12)
+        dancer_count: Number of dancers (2-24)
         dance_style: 'bachata', 'salsa-on1', 'salsa-on2'
         beats: Beat timestamps in seconds
         bpm: Beats per minute
@@ -46,7 +46,7 @@ def suggest_formations(
     Returns:
         FormationData dict with dancers and one keyframe at beat 0
     """
-    dancer_count = max(2, min(12, dancer_count))
+    dancer_count = max(2, min(24, dancer_count))
 
     # Build dancer definitions
     leader_colors = ["#4488FF", "#2196F3", "#1565C0", "#0D47A1", "#42A5F5", "#1E88E5"]

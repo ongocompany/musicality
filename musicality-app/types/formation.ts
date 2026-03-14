@@ -45,7 +45,7 @@ export interface FormationKeyframe {
 
 export interface FormationData {
   version: 1;
-  dancers: DancerDef[];    // configurable 2-12 dancers
+  dancers: DancerDef[];    // configurable 2-24 dancers
   keyframes: FormationKeyframe[];
   // Sparse: only beats with formations are stored.
   // Beats between keyframes interpolate linearly.

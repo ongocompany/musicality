@@ -160,6 +160,10 @@ function generatePattern(patternId: PatternId, n: number): DancerPosition[] {
 const DOT_RADIUS = 6;
 const HIT_RADIUS = 24; // touch hit area
 const BACKSTAGE_RATIO = 0.12; // backstage height as fraction of stage
+const PILLAR_W = 12;
+const PILLAR_H = 28;
+const TILT_DEG = 30;
+const PERSP_PX = 800;
 
 const COLOR_PALETTE = [
   '#4488FF', '#2196F3', '#1565C0', '#00BCD4',
@@ -196,13 +200,14 @@ export function FormationStageView({
   const [dragDancerId, setDragDancerId] = useState<string | null>(null);
   const [showSizeMenu, setShowSizeMenu] = useState(false);
   const [editingDancerId, setEditingDancerId] = useState<string | null>(null);
+  const [is3D, setIs3D] = useState(true);
   const [editingName, setEditingName] = useState('');
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const screenWidth = Dimensions.get('window').width;
   const stageWidth = screenWidth - 16; // minimal horizontal padding
   const stageHeight = stageWidth * (stageConfig.gridHeight / stageConfig.gridWidth);
-  const backstageHeight = stageHeight * BACKSTAGE_RATIO;
+  const backstageHeight = stageHeight * (is3D ? BACKSTAGE_RATIO * 2 : BACKSTAGE_RATIO);
   const totalHeight = stageHeight + backstageHeight;
 
   // Current positions (from keyframe or interpolated)
@@ -216,16 +221,24 @@ export function FormationStageView({
     [formationData, currentBeatIndex],
   );
 
+  // Sort dancers by Y for correct depth order (back → front)
+  const sortedPositions = useMemo(() => {
+    if (!currentPositions) return null;
+    return [...currentPositions].sort((a, b) => a.y - b.y);
+  }, [currentPositions]);
+
   // ─── Animated positions for smooth playback ─────────
   const animatedPositions = useRef<Map<string, { x: Animated.Value; y: Animated.Value }>>(new Map());
 
-  // Ensure animated values exist for all dancers
+  // Ensure animated values exist for all dancers (initialize to actual positions)
   useEffect(() => {
+    const initialPositions = getFormationAtBeat(formationData, currentBeatIndex);
     for (const dancer of formationData.dancers) {
       if (!animatedPositions.current.has(dancer.id)) {
+        const pos = initialPositions?.find((p) => p.dancerId === dancer.id);
         animatedPositions.current.set(dancer.id, {
-          x: new Animated.Value(0.5),
-          y: new Animated.Value(0.5),
+          x: new Animated.Value(pos?.x ?? 0.5),
+          y: new Animated.Value(pos?.y ?? 0.5),
         });
       }
     }
@@ -437,10 +450,16 @@ export function FormationStageView({
   }, [formationData, currentBeatIndex, onUpdate]);
 
   // ─── Add / Remove dancers ─────────────────────────
-  const DANCER_COLORS = ['#4FC3F7', '#F48FB1', '#81C784', '#FFB74D', '#CE93D8', '#A1887F', '#4DD0E1', '#FF8A65', '#AED581', '#F06292', '#7986CB', '#DCE775'];
+  const DANCER_COLORS = [
+    '#4FC3F7', '#F48FB1', '#81C784', '#FFB74D', '#CE93D8', '#A1887F',
+    '#4DD0E1', '#FF8A65', '#AED581', '#F06292', '#7986CB', '#DCE775',
+    '#90CAF9', '#EF9A9A', '#A5D6A7', '#FFCC80', '#B39DDB', '#BCAAA4',
+    '#80DEEA', '#FFAB91', '#C5E1A5', '#F48FB1', '#9FA8DA', '#E6EE9C',
+  ];
+  const MAX_DANCERS = 24;
 
   const handleAddDancer = useCallback(() => {
-    if (formationData.dancers.length >= 12) return;
+    if (formationData.dancers.length >= MAX_DANCERS) return;
     const idx = formationData.dancers.length;
     const role = idx % 2 === 0 ? 'leader' as const : 'follower' as const;
     const newDancer: DancerDef = {
@@ -449,14 +468,15 @@ export function FormationStageView({
       role,
       color: DANCER_COLORS[idx % DANCER_COLORS.length],
     };
-    // Place new dancer in backstage (offstage, y < 0 in normalized coords)
-    const backstageX = 0.1 + (idx % 6) * 0.15;
+    // Place new dancer in backstage center, left-to-right order
+    const backstageX = 0.05 + (idx * 0.04);
+    const clampedX = Math.min(backstageX, 0.95);
     const newData: FormationData = {
       ...formationData,
       dancers: [...formationData.dancers, newDancer],
       keyframes: formationData.keyframes.map((kf) => ({
         ...kf,
-        positions: [...kf.positions, { dancerId: newDancer.id, x: backstageX, y: -0.1, offstage: true }],
+        positions: [...kf.positions, { dancerId: newDancer.id, x: clampedX, y: -0.05, offstage: true }],
       })),
     };
     onUpdate(newData);
@@ -491,6 +511,13 @@ export function FormationStageView({
       <View style={styles.configRow}>
         <Text style={styles.configLabel}>Stage</Text>
         <Pressable
+          style={styles.viewToggleBtn}
+          onPress={() => setIs3D(!is3D)}
+          hitSlop={6}
+        >
+          <Text style={styles.viewToggleText}>{is3D ? '3D' : '2D'}</Text>
+        </Pressable>
+        <Pressable
           style={styles.sizeBtn}
           onPress={() => setShowSizeMenu(!showSizeMenu)}
         >
@@ -506,7 +533,7 @@ export function FormationStageView({
             </Pressable>
             <Text style={styles.dancerCountLabel}>{formationData.dancers.length}</Text>
             <Pressable onPress={handleAddDancer} hitSlop={8} style={styles.dancerCountBtn}>
-              <Ionicons name="add-circle-outline" size={18} color={formationData.dancers.length >= 12 ? Colors.textMuted : Colors.textSecondary} />
+              <Ionicons name="add-circle-outline" size={18} color={formationData.dancers.length >= MAX_DANCERS ? Colors.textMuted : Colors.textSecondary} />
             </Pressable>
             <Text style={styles.beatIndicator}>
               Beat {Math.round(currentBeatIndex) + 1}
@@ -546,9 +573,16 @@ export function FormationStageView({
         </View>
       )}
 
-      {/* Stage area — panResponder on outer so backstage dots are draggable */}
+      {/* Stage area — optional 3D perspective tilt */}
       <View
-        style={[styles.stageOuter, { width: stageWidth, height: totalHeight }]}
+        style={[styles.stageOuter, {
+          width: stageWidth,
+          height: totalHeight,
+          ...(is3D ? {
+            transformOrigin: '50% 100%',
+            transform: [{ perspective: PERSP_PX }, { rotateX: `${TILT_DEG}deg` }],
+          } : {}),
+        }]}
         {...panResponder.panHandlers}
       >
         {/* Backstage (top) */}
@@ -611,8 +645,8 @@ export function FormationStageView({
 
         </View>
 
-        {/* Dancers — rendered at stageOuter level so backstage dots are visible */}
-        {currentPositions?.map((pos) => {
+        {/* Dancers — sorted back-to-front for depth */}
+        {(sortedPositions ?? []).map((pos) => {
           const dancer = formationData.dancers.find((d) => d.id === pos.dancerId);
           if (!dancer) return null;
           const isSelected = selectedDancerIds.has(dancer.id);
@@ -632,30 +666,56 @@ export function FormationStageView({
               Animated.multiply(anim.y, stageHeight),
               backstageHeight,
             );
-            return (
-              <View key={dancer.id} pointerEvents="none" style={StyleSheet.absoluteFill}>
-                <Animated.Text
-                  style={[
-                    styles.dancerName,
-                    {
+
+            if (!is3D) {
+              // ── 2D top-view: circle dot ──
+              return (
+                <View key={dancer.id} pointerEvents="none" style={StyleSheet.absoluteFill}>
+                  <Animated.Text
+                    style={[styles.dancerName, {
                       left: Animated.subtract(dotLeft, 24),
                       top: Animated.subtract(dotTop, DOT_RADIUS + 12),
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {shortName}
-                </Animated.Text>
-                <Animated.View
-                  style={[
-                    styles.dancer,
-                    {
+                    }]}
+                    numberOfLines={1}
+                  >{shortName}</Animated.Text>
+                  <Animated.View
+                    style={[styles.dancerDot, {
                       left: Animated.subtract(dotLeft, DOT_RADIUS),
                       top: Animated.subtract(dotTop, DOT_RADIUS),
                       backgroundColor: dancer.color,
-                    },
-                  ]}
-                />
+                    }]}
+                  />
+                </View>
+              );
+            }
+
+            // ── 3D pillar ──
+            return (
+              <View key={dancer.id} pointerEvents="none" style={StyleSheet.absoluteFill}>
+                <Animated.Text
+                  style={[styles.dancerName, {
+                    left: Animated.subtract(dotLeft, 24),
+                    top: Animated.subtract(dotTop, PILLAR_H + 12),
+                  }]}
+                  numberOfLines={1}
+                >{shortName}</Animated.Text>
+                <Animated.View style={[styles.pillarShadow, {
+                  left: Animated.subtract(dotLeft, PILLAR_W * 0.6),
+                  top: Animated.subtract(dotTop, 2),
+                }]} />
+                <Animated.View style={[styles.dancerPillar, {
+                  left: Animated.subtract(dotLeft, PILLAR_W / 2),
+                  top: Animated.subtract(dotTop, PILLAR_H),
+                  backgroundColor: dancer.color,
+                }]}>
+                  <View style={styles.pillarHighlight} />
+                  <View style={styles.pillarShade} />
+                </Animated.View>
+                <Animated.View style={[styles.pillarHead, {
+                  left: Animated.subtract(dotLeft, PILLAR_W * 0.45),
+                  top: Animated.subtract(dotTop, PILLAR_H + 2),
+                  backgroundColor: dancer.color,
+                }]} />
               </View>
             );
           }
@@ -664,37 +724,69 @@ export function FormationStageView({
           const pixelLeft = pos.x * stageWidth;
           const pixelTop = pos.y * stageHeight + backstageHeight;
 
-          return (
-            <View key={dancer.id} pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <Text
-                style={[
-                  styles.dancerName,
-                  {
+          if (!is3D) {
+            // ── 2D top-view: circle dot ──
+            return (
+              <View key={dancer.id} pointerEvents="none" style={StyleSheet.absoluteFill}>
+                <Text
+                  style={[styles.dancerName, {
                     left: pixelLeft - 24,
                     top: pixelTop - DOT_RADIUS - 12,
                     opacity: isOffstage ? 0.5 : 1,
-                  },
-                ]}
-                numberOfLines={1}
-              >
-                {shortName}
-              </Text>
-              <View
-                style={[
-                  styles.dancer,
-                  {
+                  }]}
+                  numberOfLines={1}
+                >{shortName}</Text>
+                <View
+                  style={[styles.dancerDot, {
                     left: pixelLeft - DOT_RADIUS,
                     top: pixelTop - DOT_RADIUS,
                     backgroundColor: dancer.color,
                     opacity: isOffstage ? 0.5 : 1,
-                    borderColor: isSelected
-                      ? '#FFFFFF'
-                      : isDragging
-                      ? '#FFD700'
-                      : 'transparent',
+                    borderColor: isSelected ? '#FFFFFF' : isDragging ? '#FFD700' : 'transparent',
                     transform: [{ scale: isDragging ? 1.5 : 1 }],
-                  },
-                ]}
+                  }]}
+                />
+              </View>
+            );
+          }
+
+          // ── 3D pillar ──
+          return (
+            <View key={dancer.id} pointerEvents="none" style={StyleSheet.absoluteFill}>
+              <Text
+                style={[styles.dancerName, {
+                  left: pixelLeft - 24,
+                  top: pixelTop - PILLAR_H - 14,
+                  opacity: isOffstage ? 0.5 : 1,
+                }]}
+                numberOfLines={1}
+              >{shortName}</Text>
+              <View style={[styles.pillarShadow, {
+                left: pixelLeft - PILLAR_W * 0.7,
+                top: pixelTop - 3,
+                opacity: isOffstage ? 0.2 : 0.4,
+              }]} />
+              <View
+                style={[styles.dancerPillar, {
+                  left: pixelLeft - PILLAR_W / 2,
+                  top: pixelTop - PILLAR_H,
+                  backgroundColor: dancer.color,
+                  opacity: isOffstage ? 0.5 : 1,
+                  borderColor: isSelected ? '#FFFFFF' : isDragging ? '#FFD700' : 'transparent',
+                  transform: [{ scale: isDragging ? 1.3 : 1 }],
+                }]}
+              >
+                <View style={styles.pillarHighlight} />
+                <View style={styles.pillarShade} />
+              </View>
+              <View
+                style={[styles.pillarHead, {
+                  left: pixelLeft - PILLAR_W * 0.45,
+                  top: pixelTop - PILLAR_H - 2,
+                  backgroundColor: dancer.color,
+                  opacity: isOffstage ? 0.5 : 1,
+                  borderColor: isSelected ? '#FFFFFF' : 'rgba(255,255,255,0.25)',
+                }]}
               />
             </View>
           );
@@ -813,6 +905,19 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontWeight: '600',
   },
+  viewToggleBtn: {
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  viewToggleText: {
+    fontSize: FontSize.xs,
+    color: Colors.accent,
+    fontWeight: '700',
+  },
   sizeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -928,14 +1033,57 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 200, 50, 0.35)',
     letterSpacing: 1,
   },
-  // Dancers
-  dancer: {
+  // Dancers — 2D dots
+  dancerDot: {
     position: 'absolute',
     width: DOT_RADIUS * 2,
     height: DOT_RADIUS * 2,
     borderRadius: DOT_RADIUS,
     borderWidth: 1.5,
     borderColor: 'transparent',
+  },
+  // Dancers — 3D pillars
+  dancerPillar: {
+    position: 'absolute',
+    width: PILLAR_W,
+    height: PILLAR_H,
+    borderRadius: PILLAR_W / 2,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.2)',
+    overflow: 'hidden',
+  },
+  pillarHighlight: {
+    position: 'absolute',
+    left: 1,
+    top: 2,
+    width: 3,
+    height: PILLAR_H - 4,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
+  pillarShade: {
+    position: 'absolute',
+    right: 1,
+    top: 2,
+    width: 3,
+    height: PILLAR_H - 4,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  pillarHead: {
+    position: 'absolute',
+    width: PILLAR_W * 0.9,
+    height: PILLAR_W * 0.9,
+    borderRadius: PILLAR_W * 0.45,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  pillarShadow: {
+    position: 'absolute',
+    width: PILLAR_W * 1.4,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   dancerName: {
     position: 'absolute',
