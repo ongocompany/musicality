@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, Platform, StatusBar, Dimensions, useWindowDimensions } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -200,8 +200,15 @@ export default function PlayerScreen() {
   // ─── Fullscreen video mode ───
   const [isFullScreen, setIsFullScreen] = useState(false);
   const { width: winW, height: winH } = useWindowDimensions();
+  const fullscreenVideoRef = useRef<Video>(null);
+  const savedPositionRef = useRef(0);
 
   const enterFullScreen = useCallback(async () => {
+    // Save current position and pause main player
+    savedPositionRef.current = usePlayerStore.getState().position;
+    if (isVideo && videoPlayer.videoRef.current) {
+      await videoPlayer.videoRef.current.pauseAsync().catch(() => {});
+    }
     setIsFullScreen(true);
     const isLandscape = videoAspectRatio >= 1.0;
     await ScreenOrientation.lockAsync(
@@ -212,9 +219,30 @@ export default function PlayerScreen() {
   }, [videoAspectRatio]);
 
   const exitFullScreen = useCallback(async () => {
+    // Sync position back to main player
+    if (isVideo && fullscreenVideoRef.current) {
+      try {
+        const status = await fullscreenVideoRef.current.getStatusAsync();
+        if (status.isLoaded) {
+          savedPositionRef.current = status.positionMillis;
+          await videoPlayer.seekTo(savedPositionRef.current);
+        }
+      } catch {}
+    }
     setIsFullScreen(false);
     await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-  }, []);
+  }, [isVideo, videoPlayer]);
+
+  // When fullscreen video mounts, seek to saved position and play
+  const onFullscreenVideoLoad = useCallback(async (status: AVPlaybackStatus) => {
+    if (!status.isLoaded) return;
+    try {
+      await fullscreenVideoRef.current?.setPositionAsync(savedPositionRef.current);
+      if (isPlaying) {
+        await fullscreenVideoRef.current?.playAsync();
+      }
+    } catch {}
+  }, [isPlaying]);
 
   // Restore portrait on unmount
   useEffect(() => {
@@ -905,15 +933,11 @@ export default function PlayerScreen() {
         {/* ② YouTube Player */}
         {isYouTube && (
           <View style={styles.videoSection}>
-            <View style={[
-              styles.youtubeContainer,
-              isFullScreen && styles.fullscreenContainer,
-            ]}>
+            <View style={styles.youtubeContainer}>
               <View style={ytReflow ? { height: 0, overflow: 'hidden' } : undefined}>
                 <YoutubePlayer
                   ref={youtubePlayer.playerRef}
-                  height={isFullScreen ? Math.min(winW, winH) : 200}
-                  {...(isFullScreen ? { width: Math.max(winW, winH) } : {})}
+                  height={200}
                   videoId={currentTrack.uri}
                   play={isPlaying}
                   onReady={youtubePlayer.onReady}
@@ -1018,12 +1042,7 @@ export default function PlayerScreen() {
         {/* ② Video Player */}
         {isVideo && (
           <View style={styles.videoSection}>
-            <View style={[
-              styles.videoContainer,
-              isFullScreen
-                ? styles.fullscreenContainer
-                : { aspectRatio: videoAspectRatio },
-            ]}>
+            <View style={[styles.videoContainer, { aspectRatio: videoAspectRatio }]}>
               <Video
                 ref={videoPlayer.videoRef}
                 source={{ uri: currentTrack.uri }}
@@ -1551,14 +1570,55 @@ export default function PlayerScreen() {
 
       {/* Formation Stage is now inline — see sections ①②③ above */}
 
-      {/* Fullscreen close button (rendered above the expanded video) */}
+      {/* ─── Fullscreen Video Overlay ─── */}
       {isFullScreen && (
-        <>
+        <View style={styles.fullscreenContainer}>
           <StatusBar hidden />
+          {/* Native Video — separate instance synced by position */}
+          {isVideo && currentTrack && (
+            <Video
+              ref={fullscreenVideoRef}
+              source={{ uri: currentTrack.uri }}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay={false}
+              onLoad={onFullscreenVideoLoad}
+              rate={playbackRate}
+            />
+          )}
+          {/* YouTube — reuse same player via expanding container */}
+          {isYouTube && currentTrack && (
+            <YoutubePlayer
+              ref={youtubePlayer.playerRef}
+              height={winH}
+              width={winW}
+              videoId={currentTrack.uri}
+              play={isPlaying}
+              onReady={youtubePlayer.onReady}
+              onChangeState={onYtStateChange}
+              webViewProps={{
+                allowsInlineMediaPlayback: true,
+                injectedJavaScript: `
+                  (function(){
+                    document.addEventListener('message', function(e) {
+                      window.dispatchEvent(new MessageEvent('message', {data: e.data}));
+                    });
+                  })(); true;
+                `,
+              }}
+            />
+          )}
+          {/* Count overlay */}
+          {currentTrack?.analysisStatus === 'done' && (
+            <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 10 }} pointerEvents="none">
+              <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
+            </View>
+          )}
+          {/* Close button */}
           <TouchableOpacity style={styles.fullscreenCloseBtn} onPress={exitFullScreen}>
             <Ionicons name="contract" size={26} color="#fff" />
           </TouchableOpacity>
-        </>
+        </View>
       )}
     </View>
   );
