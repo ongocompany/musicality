@@ -16,6 +16,7 @@ interface PhraseGridProps {
   isPlaying: boolean;
   onTapBeat: (globalBeatIndex: number) => void;
   onStartPhraseHere: (globalBeatIndex: number) => void;
+  onSplitPhraseHere: (globalBeatIndex: number) => void;
   onSetLoopPoint: (beatTimeMs: number) => void;
   onClearLoop: () => void;
   onSeekAndPlay: (beatTimeMs: number) => void;
@@ -49,7 +50,7 @@ const RENDER_BUFFER_ROWS = 4; // extra rows rendered above/below visible area
 
 export function PhraseGrid({
   countInfo, phraseMap, hasAnalysis, beats, isPlaying,
-  onTapBeat, onStartPhraseHere, onSetLoopPoint, onClearLoop,
+  onTapBeat, onStartPhraseHere, onSplitPhraseHere, onSetLoopPoint, onClearLoop,
   onSeekAndPlay, onSeekOnly, onMergeWithPrevious,
   loopStart, loopEnd, rows, scrollMode,
   cellNotes, onSetCellNote, onClearCellNote,
@@ -274,7 +275,7 @@ export function PhraseGrid({
     return String(Math.floor(cellIndex / COLS) + 1);
   }, [visualCells]);
 
-  // Per-cell phrase label: first column shows beat number within phrase (1, 9, 17, 25...)
+  // Per-cell phrase label: first column shows row number within phrase (1, 2, 3, 4...)
   const getCellPhraseLabel = useCallback((cellIndex: number): string | null => {
     if (cellIndex % COLS !== 0) return null; // only first column
     const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
@@ -282,8 +283,8 @@ export function PhraseGrid({
     for (let p = 0; p < phraseMap.phrases.length; p++) {
       const phrase = phraseMap.phrases[p];
       if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
-        const beatWithinPhrase = globalBeat - phrase.startBeatIndex + 1;
-        return String(beatWithinPhrase);
+        const rowWithinPhrase = Math.floor((globalBeat - phrase.startBeatIndex) / COLS) + 1;
+        return String(rowWithinPhrase);
       }
     }
     return null;
@@ -387,6 +388,12 @@ export function PhraseGrid({
     onStartPhraseHere(menuGlobalBeat);
     setMenuVisible(false);
   }, [menuGlobalBeat, onStartPhraseHere]);
+
+  const handleSplitPhraseHere = useCallback(() => {
+    if (menuGlobalBeat < 0) return;
+    onSplitPhraseHere(menuGlobalBeat);
+    setMenuVisible(false);
+  }, [menuGlobalBeat, onSplitPhraseHere]);
 
   const handleRepeatFromHere = useCallback(() => {
     if (menuGlobalBeat < 0 || menuGlobalBeat >= beats.length) return;
@@ -639,6 +646,13 @@ export function PhraseGrid({
             {!isPlaying && (
               <TouchableOpacity style={styles.menuOption} onPress={handleStartPhraseHere}>
                 <Text style={styles.menuOptionText}>Start new phrase here</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Split phrase here — paused + not first cell of phrase */}
+            {!isPlaying && !isFirstCellOfPhrase && (
+              <TouchableOpacity style={styles.menuOption} onPress={handleSplitPhraseHere}>
+                <Text style={styles.menuOptionText}>Split phrase here</Text>
               </TouchableOpacity>
             )}
 

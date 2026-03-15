@@ -35,7 +35,7 @@ export default function TabLayout() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
-      {!hasSeenOnboarding && (
+      {!hasSeenOnboarding && !user && (
         <OnboardingOverlay onComplete={() => setHasSeenOnboarding(true)} />
       )}
       <Tabs

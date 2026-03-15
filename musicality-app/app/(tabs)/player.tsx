@@ -23,7 +23,7 @@ import { FormationData, StageConfig, createDefaultDancers } from '../../types/fo
 import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, CountInfo } from '../../utils/beatCounter';
 import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, phrasesFromBeatIndices } from '../../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
-import { Colors, Spacing, FontSize, getPhraseColor, NoteTypeColors } from '../../constants/theme';
+import { Colors, Spacing, FontSize, getPhraseColor, blendColors, NoteTypeColors } from '../../constants/theme';
 
 const RATES = [0.5, 0.75, 1.0, 1.25, 1.5];
 
@@ -331,6 +331,18 @@ export default function PlayerScreen() {
   const handleSeekOnly = useCallback((beatTimeMs: number) => {
     seekTo(beatTimeMs);
   }, [seekTo]);
+
+  // Split phrase: add boundary but keep original phrase boundary intact
+  // Unlike "Start new phrase here", this preserves the front part as its own phrase
+  const handleSplitPhraseHere = useCallback((globalBeatIndex: number) => {
+    if (!currentTrack || !analysis || !phraseMap) return;
+    const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+    if (!currentBoundaries.includes(globalBeatIndex)) {
+      currentBoundaries.push(globalBeatIndex);
+    }
+    currentBoundaries.sort((a, b) => a - b);
+    setDraftBoundaries(currentTrack.id, currentBoundaries);
+  }, [currentTrack, analysis, phraseMap, setDraftBoundaries]);
 
   // Merge: remove phrase boundary to merge with previous phrase
   const handleMergeWithPrevious = useCallback((globalBeatIndex: number) => {
@@ -880,6 +892,7 @@ export default function PlayerScreen() {
                   isPlaying={isPlaying}
                   onTapBeat={handleGridTapBeat}
                   onStartPhraseHere={handleStartPhraseHere}
+                  onSplitPhraseHere={handleSplitPhraseHere}
                   onSetLoopPoint={handleSetLoopPoint}
                   onClearLoop={clearLoop}
                   onSeekAndPlay={handleSeekAndPlay}
@@ -967,6 +980,7 @@ export default function PlayerScreen() {
                   isPlaying={isPlaying}
                   onTapBeat={handleGridTapBeat}
                   onStartPhraseHere={handleStartPhraseHere}
+                  onSplitPhraseHere={handleSplitPhraseHere}
                   onSetLoopPoint={handleSetLoopPoint}
                   onClearLoop={clearLoop}
                   onSeekAndPlay={handleSeekAndPlay}
@@ -1025,7 +1039,9 @@ export default function PlayerScreen() {
                   styles.compactCount,
                   {
                     color: countInfo && countInfo.totalPhrases > 0
-                      ? getPhraseColor(countInfo.phraseIndex)
+                      ? (countInfo.isTransitionHint
+                        ? blendColors(getPhraseColor(countInfo.phraseIndex), getPhraseColor(countInfo.phraseIndex + 1), 0.5)
+                        : getPhraseColor(countInfo.phraseIndex))
                       : Colors.textMuted,
                     transform: [{ scale: countBounceAnim }],
                   },
@@ -1045,6 +1061,7 @@ export default function PlayerScreen() {
               isPlaying={isPlaying}
               onTapBeat={handleGridTapBeat}
               onStartPhraseHere={handleStartPhraseHere}
+              onSplitPhraseHere={handleSplitPhraseHere}
               onSetLoopPoint={handleSetLoopPoint}
               onClearLoop={clearLoop}
               onSeekAndPlay={handleSeekAndPlay}
