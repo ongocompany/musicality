@@ -15,8 +15,8 @@ interface PhraseGridProps {
   beats: number[];
   isPlaying: boolean;
   onTapBeat: (globalBeatIndex: number) => void;
-  onStartPhraseHere: (globalBeatIndex: number) => void;
   onSplitPhraseHere: (globalBeatIndex: number) => void;
+  onReArrangePhrase: (globalBeatIndex: number) => void;
   onSetLoopPoint: (beatTimeMs: number) => void;
   onClearLoop: () => void;
   onSeekAndPlay: (beatTimeMs: number) => void;
@@ -50,7 +50,7 @@ const RENDER_BUFFER_ROWS = 4; // extra rows rendered above/below visible area
 
 export function PhraseGrid({
   countInfo, phraseMap, hasAnalysis, beats, isPlaying,
-  onTapBeat, onStartPhraseHere, onSplitPhraseHere, onSetLoopPoint, onClearLoop,
+  onTapBeat, onSplitPhraseHere, onReArrangePhrase, onSetLoopPoint, onClearLoop,
   onSeekAndPlay, onSeekOnly, onMergeWithPrevious,
   loopStart, loopEnd, rows, scrollMode,
   cellNotes, onSetCellNote, onClearCellNote,
@@ -383,17 +383,17 @@ export function PhraseGrid({
     return cellToGlobalBeat(menuCellIndex);
   }, [menuCellIndex, cellToGlobalBeat]);
 
-  const handleStartPhraseHere = useCallback(() => {
-    if (menuGlobalBeat < 0) return;
-    onStartPhraseHere(menuGlobalBeat);
-    setMenuVisible(false);
-  }, [menuGlobalBeat, onStartPhraseHere]);
-
   const handleSplitPhraseHere = useCallback(() => {
     if (menuGlobalBeat < 0) return;
     onSplitPhraseHere(menuGlobalBeat);
     setMenuVisible(false);
   }, [menuGlobalBeat, onSplitPhraseHere]);
+
+  const handleReArrangePhrase = useCallback(() => {
+    if (menuGlobalBeat < 0) return;
+    onReArrangePhrase(menuGlobalBeat);
+    setMenuVisible(false);
+  }, [menuGlobalBeat, onReArrangePhrase]);
 
   const handleRepeatFromHere = useCallback(() => {
     if (menuGlobalBeat < 0 || menuGlobalBeat >= beats.length) return;
@@ -642,10 +642,10 @@ export function PhraseGrid({
               </View>
             )}
 
-            {/* Start new phrase here — only when paused */}
-            {!isPlaying && (
-              <TouchableOpacity style={styles.menuOption} onPress={handleStartPhraseHere}>
-                <Text style={styles.menuOptionText}>Start new phrase here</Text>
+            {/* Re-arrange phrases — paused + not first cell of phrase */}
+            {!isPlaying && !isFirstCellOfPhrase && (
+              <TouchableOpacity style={styles.menuOption} onPress={handleReArrangePhrase}>
+                <Text style={styles.menuOptionText}>Re-arrange phrases</Text>
               </TouchableOpacity>
             )}
 

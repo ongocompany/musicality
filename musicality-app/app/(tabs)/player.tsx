@@ -308,17 +308,32 @@ export default function PlayerScreen() {
     setDownbeatOffset(currentTrack.id, globalBeatIndex);
   }, [currentTrack, setDownbeatOffset]);
 
-  // Phrase boundary: add a new boundary to split the current phrase
-  // e.g. Yellow[0-47](48beats) + Green[48-95](48beats) → tap beat 24 in Yellow
-  //   → Yellow[0-23](24beats) + Orange[24-47](24beats) + Green[48-95](48beats)
-  const handleStartPhraseHere = useCallback((globalBeatIndex: number) => {
+  // Re-arrange phrases: split here and shift all subsequent boundaries by the offset
+  // e.g. [0,32,64,96] re-arrange at beat 40 → offset=8 → [0,32,40,72,104]
+  const handleReArrangePhrase = useCallback((globalBeatIndex: number) => {
     if (!currentTrack || !analysis || !phraseMap) return;
     const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
-    // Filter out boundaries too close (within 4 beats) to avoid tiny phrases
-    const filtered = currentBoundaries.filter(b => Math.abs(b - globalBeatIndex) > 4);
-    filtered.push(globalBeatIndex);
-    filtered.sort((a, b) => a - b);
-    setDraftBoundaries(currentTrack.id, filtered);
+    const phraseIdx = phraseMap.phrases.findIndex(p =>
+      globalBeatIndex >= p.startBeatIndex && globalBeatIndex < p.endBeatIndex
+    );
+    if (phraseIdx < 0) return;
+    const offset = globalBeatIndex - phraseMap.phrases[phraseIdx].startBeatIndex;
+    if (offset === 0) return;
+
+    const newBoundaries: number[] = [];
+    // Keep boundaries up to and including the current phrase start
+    for (let i = 0; i <= phraseIdx; i++) {
+      newBoundaries.push(currentBoundaries[i]);
+    }
+    // Add the split point
+    newBoundaries.push(globalBeatIndex);
+    // Shift all subsequent boundaries by offset
+    const totalBeats = analysis.beats.length;
+    for (let i = phraseIdx + 1; i < currentBoundaries.length; i++) {
+      const shifted = currentBoundaries[i] + offset;
+      if (shifted < totalBeats) newBoundaries.push(shifted);
+    }
+    setDraftBoundaries(currentTrack.id, newBoundaries);
   }, [currentTrack, analysis, phraseMap, setDraftBoundaries]);
 
   // Paused tap: seek to beat and start playback (preview)
@@ -891,7 +906,7 @@ export default function PlayerScreen() {
                   beats={effectiveBeats}
                   isPlaying={isPlaying}
                   onTapBeat={handleGridTapBeat}
-                  onStartPhraseHere={handleStartPhraseHere}
+                  onReArrangePhrase={handleReArrangePhrase}
                   onSplitPhraseHere={handleSplitPhraseHere}
                   onSetLoopPoint={handleSetLoopPoint}
                   onClearLoop={clearLoop}
@@ -979,7 +994,7 @@ export default function PlayerScreen() {
                   beats={effectiveBeats}
                   isPlaying={isPlaying}
                   onTapBeat={handleGridTapBeat}
-                  onStartPhraseHere={handleStartPhraseHere}
+                  onReArrangePhrase={handleReArrangePhrase}
                   onSplitPhraseHere={handleSplitPhraseHere}
                   onSetLoopPoint={handleSetLoopPoint}
                   onClearLoop={clearLoop}
@@ -1060,7 +1075,7 @@ export default function PlayerScreen() {
               beats={effectiveBeats}
               isPlaying={isPlaying}
               onTapBeat={handleGridTapBeat}
-              onStartPhraseHere={handleStartPhraseHere}
+              onReArrangePhrase={handleReArrangePhrase}
               onSplitPhraseHere={handleSplitPhraseHere}
               onSetLoopPoint={handleSetLoopPoint}
               onClearLoop={clearLoop}
