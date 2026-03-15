@@ -905,11 +905,15 @@ export default function PlayerScreen() {
         {/* ② YouTube Player */}
         {isYouTube && (
           <View style={styles.videoSection}>
-            <View style={styles.youtubeContainer}>
+            <View style={[
+              styles.youtubeContainer,
+              isFullScreen && styles.fullscreenContainer,
+            ]}>
               <View style={ytReflow ? { height: 0, overflow: 'hidden' } : undefined}>
                 <YoutubePlayer
                   ref={youtubePlayer.playerRef}
-                  height={200}
+                  height={isFullScreen ? Math.min(winW, winH) : 200}
+                  {...(isFullScreen ? { width: Math.max(winW, winH) } : {})}
                   videoId={currentTrack.uri}
                   play={isPlaying}
                   onReady={youtubePlayer.onReady}
@@ -1014,7 +1018,12 @@ export default function PlayerScreen() {
         {/* ② Video Player */}
         {isVideo && (
           <View style={styles.videoSection}>
-            <View style={[styles.videoContainer, { aspectRatio: videoAspectRatio }]}>
+            <View style={[
+              styles.videoContainer,
+              isFullScreen
+                ? styles.fullscreenContainer
+                : { aspectRatio: videoAspectRatio },
+            ]}>
               <Video
                 ref={videoPlayer.videoRef}
                 source={{ uri: currentTrack.uri }}
@@ -1542,65 +1551,15 @@ export default function PlayerScreen() {
 
       {/* Formation Stage is now inline — see sections ①②③ above */}
 
-      {/* ─── Fullscreen Video Modal ─── */}
-      <Modal
-        visible={isFullScreen}
-        transparent={false}
-        animationType="fade"
-        supportedOrientations={['portrait', 'landscape-left', 'landscape-right']}
-        onRequestClose={exitFullScreen}
-        statusBarTranslucent
-      >
-        <StatusBar hidden={isFullScreen} />
-        <Pressable style={styles.fullscreenContainer} onPress={exitFullScreen}>
-          {/* Native Video */}
-          {isVideo && (
-            <Video
-              ref={videoPlayer.videoRef}
-              source={{ uri: currentTrack!.uri }}
-              style={styles.fullscreenVideo}
-              resizeMode={ResizeMode.CONTAIN}
-              shouldPlay={isPlaying}
-              progressUpdateIntervalMillis={100}
-              onPlaybackStatusUpdate={videoPlayer.onPlaybackStatusUpdate}
-            />
-          )}
-          {/* YouTube */}
-          {isYouTube && (
-            <View style={styles.fullscreenYoutube}>
-              <YoutubePlayer
-                ref={youtubePlayer.playerRef}
-                height={Math.min(winW, winH)}
-                width={Math.max(winW, winH)}
-                videoId={currentTrack!.uri}
-                play={isPlaying}
-                onReady={youtubePlayer.onReady}
-                onChangeState={onYtStateChange}
-                webViewProps={{
-                  allowsInlineMediaPlayback: true,
-                  injectedJavaScript: `
-                    (function(){
-                      document.addEventListener('message', function(e) {
-                        window.dispatchEvent(new MessageEvent('message', {data: e.data}));
-                      });
-                    })(); true;
-                  `,
-                }}
-              />
-            </View>
-          )}
-          {/* Count overlay */}
-          {currentTrack?.analysisStatus === 'done' && (
-            <View style={styles.fullscreenOverlay} pointerEvents="none">
-              <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
-            </View>
-          )}
-          {/* Close button */}
+      {/* Fullscreen close button (rendered above the expanded video) */}
+      {isFullScreen && (
+        <>
+          <StatusBar hidden />
           <TouchableOpacity style={styles.fullscreenCloseBtn} onPress={exitFullScreen}>
             <Ionicons name="contract" size={26} color="#fff" />
           </TouchableOpacity>
-        </Pressable>
-      </Modal>
+        </>
+      )}
     </View>
   );
 }
@@ -1687,14 +1646,16 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   fullscreenContainer: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
     backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  fullscreenVideo: { width: '100%', height: '100%' },
-  fullscreenYoutube: { justifyContent: 'center', alignItems: 'center' },
-  fullscreenOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 10 },
   fullscreenCloseBtn: {
     position: 'absolute',
     top: 50,
@@ -1702,7 +1663,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 20,
     padding: 8,
-    zIndex: 20,
+    zIndex: 200,
   },
 
   // ─── Count Display + PhraseGrid ─────────────────
