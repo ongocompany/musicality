@@ -107,6 +107,10 @@ interface SettingsState {
   // Stage configuration (grid size in meters)
   stageConfig: StageConfig;
   setStageConfig: (config: Partial<StageConfig>) => void;
+
+  // Onboarding tutorial
+  hasSeenOnboarding: boolean;
+  setHasSeenOnboarding: (seen: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -520,6 +524,10 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({
           stageConfig: { ...state.stageConfig, ...config },
         })),
+
+      // ─── Onboarding ──────────────────────────────────
+      hasSeenOnboarding: false,
+      setHasSeenOnboarding: (seen) => set({ hasSeenOnboarding: seen }),
     }),
     {
       name: 'musicality-settings',

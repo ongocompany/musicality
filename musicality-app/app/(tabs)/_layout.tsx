@@ -6,12 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/theme';
 import { useMessageStore } from '../../stores/messageStore';
 import { useAuthStore } from '../../stores/authStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { OnboardingOverlay } from '../../components/ui/OnboardingOverlay';
 
 const UNREAD_POLL = 10_000;
 
 export default function TabLayout() {
   const { user } = useAuthStore();
   const { totalUnreadCount, fetchUnreadCount } = useMessageStore();
+  const { hasSeenOnboarding, setHasSeenOnboarding } = useSettingsStore();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Poll unread count when logged in
@@ -32,6 +35,9 @@ export default function TabLayout() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
+      {!hasSeenOnboarding && (
+        <OnboardingOverlay onComplete={() => setHasSeenOnboarding(true)} />
+      )}
       <Tabs
         screenOptions={{
           headerShown: false,

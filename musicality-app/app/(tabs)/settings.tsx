@@ -95,6 +95,13 @@ export default function SettingsScreen() {
           <Text style={styles.label}>Version</Text>
           <Text style={styles.value}>1.0.0 (M7)</Text>
         </View>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => useSettingsStore.getState().setHasSeenOnboarding(false)}
+        >
+          <Ionicons name="help-circle-outline" size={20} color={Colors.primary} />
+          <Text style={[styles.label, { color: Colors.primary }]}>Tutorial</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Dance Style */}
