@@ -1066,11 +1066,11 @@ export default function PlayerScreen() {
                 >
                   <Ionicons name="locate" size={20} color={tapBpm > 0 ? Colors.tapAccent : Colors.textMuted} />
                   <Text style={[styles.nowIsOneTextInline, tapBpm <= 0 && { color: Colors.textMuted }]}>
-                    지금이 1
+                    {t('player.nowIsOne')}
                   </Text>
                 </TouchableOpacity>
                 <Text style={styles.tapTempoHint}>
-                  TAP으로 BPM을 맞추고, 영상의 1박에 "지금이 1"을 누르세요
+                  {t('player.tapInstruction')}
                 </Text>
               </View>
             )}

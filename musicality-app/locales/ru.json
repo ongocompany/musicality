@@ -128,7 +128,9 @@
     "phraseNote": "Заметка к фразе",
     "export": "Экспорт",
     "import": "Импорт",
-    "fullscreen": "Полный экран"
+    "fullscreen": "Полный экран",
+    "nowIsOne": "Сейчас 1",
+    "tapInstruction": "Настройте BPM с помощью TAP, затем нажмите \"Сейчас 1\" на 1-й доле видео"
   },
   "onboarding": {
     "s1Title": "Musicality",
@@ -180,7 +182,9 @@
     "followers": "Подписчики",
     "following": "Подписки",
     "threads": "Обсуждения",
-    "shareNote": "Поделиться заметкой"
+    "shareNote": "Поделиться заметкой",
+    "noFollowers": "Пока нет подписчиков",
+    "noFollowing": "Пока ни на кого не подписан"
   },
   "messages": {
     "groupChat": "Групповой чат",

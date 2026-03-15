@@ -128,7 +128,9 @@
     "phraseNote": "Phrasennotiz",
     "export": "Exportieren",
     "import": "Importieren",
-    "fullscreen": "Vollbild"
+    "fullscreen": "Vollbild",
+    "nowIsOne": "Jetzt ist 1",
+    "tapInstruction": "BPM mit TAP anpassen, dann \"Jetzt ist 1\" auf Schlag 1 des Videos drücken"
   },
   "onboarding": {
     "s1Title": "Musicality",
@@ -180,7 +182,9 @@
     "followers": "Follower",
     "following": "Gefolgt",
     "threads": "Threads",
-    "shareNote": "Notiz teilen"
+    "shareNote": "Notiz teilen",
+    "noFollowers": "Noch keine Follower",
+    "noFollowing": "Folgt noch niemandem"
   },
   "messages": {
     "groupChat": "Gruppenchat",

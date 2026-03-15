@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 import type { Profile, UserSocialContext } from '../../types/community';
 
@@ -37,6 +38,7 @@ export default function UserProfileCard({
   onFollowingTap,
   followLoading,
 }: Props) {
+  const { t } = useTranslation();
   const followerCount = socialContext?.followerCount ?? profile.followerCount;
   const followingCount = socialContext?.followingCount ?? profile.followingCount;
 
@@ -75,11 +77,11 @@ export default function UserProfileCard({
       <View style={styles.statsRow}>
         <TouchableOpacity style={styles.statItem} onPress={onFollowersTap}>
           <Text style={styles.statNumber}>{followerCount}</Text>
-          <Text style={styles.statLabel}>팔로워</Text>
+          <Text style={styles.statLabel}>{t('community.followers')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.statItem} onPress={onFollowingTap}>
           <Text style={styles.statNumber}>{followingCount}</Text>
-          <Text style={styles.statLabel}>팔로잉</Text>
+          <Text style={styles.statLabel}>{t('community.following')}</Text>
         </TouchableOpacity>
       </View>
 

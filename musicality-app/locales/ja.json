@@ -128,7 +128,9 @@
     "phraseNote": "フレーズノート",
     "export": "エクスポート",
     "import": "インポート",
-    "fullscreen": "全画面"
+    "fullscreen": "全画面",
+    "nowIsOne": "今が1",
+    "tapInstruction": "TAPでBPMを合わせ、映像の1拍目で「今が1」を押してください"
   },
   "onboarding": {
     "s1Title": "Musicality",
@@ -180,7 +182,9 @@
     "followers": "フォロワー",
     "following": "フォロー中",
     "threads": "スレッド",
-    "shareNote": "ノートを共有"
+    "shareNote": "ノートを共有",
+    "noFollowers": "まだフォロワーがいません",
+    "noFollowing": "まだフォローしていません"
   },
   "messages": {
     "groupChat": "グループチャット",

@@ -11,6 +11,7 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
 import { useCommunityStore } from '../../stores/communityStore';
@@ -31,6 +32,7 @@ export default function CommunityScreen() {
     fetchDiscoverCrews,
   } = useCommunityStore();
 
+  const { t } = useTranslation();
   const { myProfile, fetchMyProfile } = useSocialStore();
   const [searchText, setSearchText] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -112,10 +114,10 @@ export default function CommunityScreen() {
         </TouchableOpacity>
         <View style={styles.headerStats}>
           <Text style={styles.headerStatNumber}>{myProfile?.followerCount ?? 0}</Text>
-          <Text style={styles.headerStatLabel}>팔로워</Text>
+          <Text style={styles.headerStatLabel}>{t('community.followers')}</Text>
           <View style={styles.headerStatDot} />
           <Text style={styles.headerStatNumber}>{myProfile?.followingCount ?? 0}</Text>
-          <Text style={styles.headerStatLabel}>팔로잉</Text>
+          <Text style={styles.headerStatLabel}>{t('community.following')}</Text>
         </View>
         <TouchableOpacity
           style={styles.createButton}

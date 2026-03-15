@@ -11,6 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 import { useSocialStore } from '../../stores/socialStore';
@@ -24,6 +25,7 @@ interface Props {
 const PANEL_HEIGHT = 390;
 
 export default function ProfileSlidePanel({ visible, onClose }: Props) {
+  const { t } = useTranslation();
   const router = useRouter();
   const { myProfile } = useSocialStore();
   const { user, signOut } = useAuthStore();
@@ -130,12 +132,12 @@ export default function ProfileSlidePanel({ visible, onClose }: Props) {
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{myProfile?.followerCount ?? 0}</Text>
-            <Text style={styles.statLabel}>팔로워</Text>
+            <Text style={styles.statLabel}>{t('community.followers')}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{myProfile?.followingCount ?? 0}</Text>
-            <Text style={styles.statLabel}>팔로잉</Text>
+            <Text style={styles.statLabel}>{t('community.following')}</Text>
           </View>
         </View>
 

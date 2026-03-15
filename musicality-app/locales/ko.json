@@ -128,7 +128,9 @@
     "phraseNote": "프레이즈 노트",
     "export": "내보내기",
     "import": "가져오기",
-    "fullscreen": "전체 화면"
+    "fullscreen": "전체 화면",
+    "nowIsOne": "지금이 1",
+    "tapInstruction": "TAP으로 BPM을 맞추고, 영상의 1박에 \"지금이 1\"을 누르세요"
   },
   "onboarding": {
     "s1Title": "Musicality",
@@ -180,7 +182,9 @@
     "followers": "팔로워",
     "following": "팔로잉",
     "threads": "스레드",
-    "shareNote": "노트 공유"
+    "shareNote": "노트 공유",
+    "noFollowers": "아직 팔로워가 없습니다",
+    "noFollowing": "아직 팔로잉이 없습니다"
   },
   "messages": {
     "groupChat": "그룹 채팅",

@@ -128,7 +128,9 @@
     "phraseNote": "乐句笔记",
     "export": "导出",
     "import": "导入",
-    "fullscreen": "全屏"
+    "fullscreen": "全屏",
+    "nowIsOne": "现在是1",
+    "tapInstruction": "用TAP匹配BPM，然后在视频的第1拍按下\"现在是1\""
   },
   "onboarding": {
     "s1Title": "Musicality",
@@ -180,7 +182,9 @@
     "followers": "粉丝",
     "following": "关注中",
     "threads": "帖子",
-    "shareNote": "分享笔记"
+    "shareNote": "分享笔记",
+    "noFollowers": "还没有粉丝",
+    "noFollowing": "还没有关注任何人"
   },
   "messages": {
     "groupChat": "群聊",

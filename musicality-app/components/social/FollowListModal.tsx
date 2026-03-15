@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 import { useSocialStore } from '../../stores/socialStore';
 import type { UserFollow } from '../../types/community';
@@ -29,6 +30,7 @@ export default function FollowListModal({
   onClose,
   onUserPress,
 }: Props) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<'followers' | 'following'>(initialTab);
   const { followers, following, followListLoading, fetchFollowers, fetchFollowing } = useSocialStore();
 
@@ -89,7 +91,7 @@ export default function FollowListModal({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>
-              {tab === 'followers' ? '팔로워' : '팔로잉'}
+              {tab === 'followers' ? t('community.followers') : t('community.following')}
             </Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={24} color={Colors.text} />
@@ -103,7 +105,7 @@ export default function FollowListModal({
               onPress={() => handleTabChange('followers')}
             >
               <Text style={[styles.tabText, tab === 'followers' && styles.tabTextActive]}>
-                팔로워
+                {t('community.followers')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -111,7 +113,7 @@ export default function FollowListModal({
               onPress={() => handleTabChange('following')}
             >
               <Text style={[styles.tabText, tab === 'following' && styles.tabTextActive]}>
-                팔로잉
+                {t('community.following')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -127,7 +129,7 @@ export default function FollowListModal({
               contentContainerStyle={styles.listContent}
               ListEmptyComponent={
                 <Text style={styles.emptyText}>
-                  {tab === 'followers' ? '아직 팔로워가 없습니다' : '아직 팔로잉이 없습니다'}
+                  {tab === 'followers' ? t('community.noFollowers') : t('community.noFollowing')}
                 </Text>
               }
             />
