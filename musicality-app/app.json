@@ -20,6 +20,7 @@
       }
     },
     "android": {
+      "package": "com.ongocompany.musicality",
       "adaptiveIcon": {
         "backgroundColor": "#121212",
         "foregroundImage": "./assets/android-icon-foreground.png",

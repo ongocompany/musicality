@@ -572,6 +572,28 @@ export default function LibraryScreen() {
 
   const clearSelection = () => setSelectedTracks(new Set());
 
+  const selectAll = () => {
+    setSelectedTracks(new Set(displayTracks.map(t => t.id)));
+  };
+
+  const handleDeleteSelected = () => {
+    Alert.alert(
+      '트랙 삭제',
+      `${selectedTracks.size}개 트랙을 삭제하시겠습니까?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            for (const id of selectedTracks) removeTrack(id);
+            clearSelection();
+          },
+        },
+      ],
+    );
+  };
+
   const handleMoveToFolder = () => {
     const tabFolders = folders.filter(f => f.mediaType === activeTab);
     const options = tabFolders.map(f => ({
@@ -726,9 +748,17 @@ export default function LibraryScreen() {
       {selectMode && (
         <View style={[styles.selectBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
           <Text style={styles.selectBarText}>✓ {selectedTracks.size}개 선택됨</Text>
+          <TouchableOpacity style={styles.selectBarBtn} onPress={selectAll}>
+            <Ionicons name="checkmark-done" size={18} color={Colors.primary} />
+            <Text style={styles.selectBarBtnText}>전체</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.selectBarBtn} onPress={handleMoveToFolder}>
             <Ionicons name="folder-outline" size={18} color={Colors.primary} />
-            <Text style={styles.selectBarBtnText}>폴더 이동</Text>
+            <Text style={styles.selectBarBtnText}>이동</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.selectBarBtn} onPress={handleDeleteSelected}>
+            <Ionicons name="trash-outline" size={18} color="#FF4444" />
+            <Text style={[styles.selectBarBtnText, { color: '#FF4444' }]}>삭제</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.selectBarBtn} onPress={clearSelection}>
             <Ionicons name="close" size={18} color={Colors.textSecondary} />
