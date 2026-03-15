@@ -219,30 +219,66 @@ export default function PlayerScreen() {
   }, [videoAspectRatio]);
 
   const exitFullScreen = useCallback(async () => {
-    // Sync position back to main player
+    // Capture fullscreen state before closing
+    let wasPlaying = false;
     if (isVideo && fullscreenVideoRef.current) {
       try {
         const status = await fullscreenVideoRef.current.getStatusAsync();
         if (status.isLoaded) {
+          wasPlaying = status.isPlaying;
           savedPositionRef.current = status.positionMillis;
-          await videoPlayer.seekTo(savedPositionRef.current);
+          await fullscreenVideoRef.current.pauseAsync();
         }
       } catch {}
     }
+    // Store play intent and position for main video to restore after remount
+    usePlayerStore.getState().setIsPlaying(wasPlaying);
+    usePlayerStore.getState().setPosition(savedPositionRef.current);
     setIsFullScreen(false);
     await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
   }, [isVideo, videoPlayer]);
 
-  // When fullscreen video mounts, seek to saved position and play
+  // When fullscreen video mounts, seek to saved position
   const onFullscreenVideoLoad = useCallback(async (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
     try {
       await fullscreenVideoRef.current?.setPositionAsync(savedPositionRef.current);
-      if (isPlaying) {
-        await fullscreenVideoRef.current?.playAsync();
+    } catch {}
+  }, []);
+
+  // Fullscreen video status → update store position so counter works
+  const onFullscreenPlaybackStatus = useCallback((status: AVPlaybackStatus) => {
+    if (!status.isLoaded) return;
+    const store = usePlayerStore.getState();
+    if (!store.isSeeking) {
+      store.setPosition(status.positionMillis);
+    }
+    if (status.durationMillis) {
+      store.setDuration(status.durationMillis);
+    }
+    if (status.didJustFinish) {
+      store.setIsPlaying(false);
+    }
+  }, []);
+
+  // When main video remounts after fullscreen exit, restore position & play state
+  const fullscreenJustExitedRef = useRef(false);
+  useEffect(() => {
+    if (!isFullScreen) {
+      fullscreenJustExitedRef.current = true;
+    }
+  }, [isFullScreen]);
+
+  const onMainVideoLoad = useCallback(async (status: AVPlaybackStatus) => {
+    if (!status.isLoaded || !fullscreenJustExitedRef.current) return;
+    fullscreenJustExitedRef.current = false;
+    try {
+      await videoPlayer.videoRef.current?.setPositionAsync(savedPositionRef.current);
+      if (usePlayerStore.getState().isPlaying) {
+        await videoPlayer.videoRef.current?.playAsync();
       }
     } catch {}
-  }, [isPlaying]);
+  }, [videoPlayer]);
 
   // Restore portrait on unmount
   useEffect(() => {
@@ -1039,8 +1075,8 @@ export default function PlayerScreen() {
           </View>
         )}
 
-        {/* ② Video Player */}
-        {isVideo && (
+        {/* ② Video Player — hide when fullscreen to avoid dual-instance conflict */}
+        {isVideo && !isFullScreen && (
           <View style={styles.videoSection}>
             <View style={[styles.videoContainer, { aspectRatio: videoAspectRatio }]}>
               <Video
@@ -1052,6 +1088,7 @@ export default function PlayerScreen() {
                 progressUpdateIntervalMillis={100}
                 onPlaybackStatusUpdate={videoPlayer.onPlaybackStatusUpdate}
                 onReadyForDisplay={videoPlayer.onReadyForDisplay}
+                onLoad={onMainVideoLoad}
               />
               {currentTrack.analysisStatus === 'done' && (
                 <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
@@ -1581,9 +1618,11 @@ export default function PlayerScreen() {
               source={{ uri: currentTrack.uri }}
               style={{ width: '100%', height: '100%' }}
               resizeMode={ResizeMode.CONTAIN}
-              shouldPlay={false}
+              shouldPlay={isPlaying}
               onLoad={onFullscreenVideoLoad}
+              onPlaybackStatusUpdate={onFullscreenPlaybackStatus}
               rate={playbackRate}
+              volume={1.0}
             />
           )}
           {/* YouTube — reuse same player via expanding container */}
