@@ -230,3 +230,85 @@ musicality-app/ (추가/수정)
 - 비트별 클릭음/비프음 재생
 - TTS 음성 카운트
 - 큐 볼륨 조절 + 타입 선택 UI
+
+---
+
+## 2026-03-15 | M4~M7: 그리드 편집 + 영상 + 커뮤니티 + i18n
+
+### M4: 비트 그리드 + 프레이즈 노트
+
+#### 완료 작업
+- Split Phrase: 현재 셀 기준 4박 단위 프레이즈 분할
+- Re-arrange Phrase: 프레이즈 경계 이동 (Start New Phrase 대체)
+- 프레이즈 첫 열 번호 순차 표시 (1,2,3,4... 기존 8배수 → 순번)
+- 그리드 편집 후 리렌더 버그 수정
+- 편집 후 액션 셀로 자동 스크롤
+
+### M5: 영상 모드 + 유튜브 오버레이
+
+#### 완료 작업
+- 전체 화면 비디오 재생 + 카운트 오버레이
+- 듀얼 Video 인스턴스 충돌 해결 (메인 비디오 숨김 방식)
+- 전체 화면 ↔ 일반 모드 전환 시 오디오/포지션/재생상태 완벽 유지
+- YouTube 전체 화면 exit 후 터치 캡처 버그 수정
+
+#### 해결한 이슈
+
+| 이슈 | 원인 | 해결 |
+|------|------|------|
+| 전체 화면 오디오 안 나옴 | 듀얼 Video 인스턴스 동시 로드 | 전체 화면 시 메인 비디오 `!isFullScreen` 조건부 렌더 |
+| 전체 화면 카운터 깜빡임 | 전체 화면 Video에 onPlaybackStatusUpdate 미등록 | onFullscreenPlaybackStatus 콜백 추가 |
+| 전체 화면 종료 후 위치 초기화 | 메인 비디오 재마운트 시 position 0 | savedPositionRef + onMainVideoLoad 복원 |
+| YouTube 전체 화면 exit 후 터치 불가 | WebView 이벤트 캡처 잔류 | 전체 화면 state 리셋 처리 |
+
+### M6: 커뮤니티 + 소셜
+- (이전 세션에서 완료 — Supabase 인증, 프로필, 팔로우, 크루 시스템 등)
+
+### M7: 국제화 (i18n)
+
+#### 완료 작업
+
+##### 인프라
+- `i18n/index.ts`: i18next + react-i18next 설정
+- 10개 언어: KO, EN, JA, ZH-CN, ZH-TW, ES, PT, FR, DE, RU
+- `detectDeviceLanguage()`: expo-localization 기반, zh-CN/zh-TW 자동 구분
+- `stores/settingsStore.ts`: language 필드 영속화 (v5)
+- `app/_layout.tsx`: 첫 실행 자동 감지 → 영속화
+
+##### 변환된 화면 (전체 t() 호출)
+- `app/(auth)/login.tsx` — 언어 선택 그리드 (10개 플래그)
+- `app/(tabs)/_layout.tsx` — 탭 타이틀
+- `app/(tabs)/settings.tsx` — 전체 라벨/헤더/알럿
+- `app/(tabs)/player.tsx` — 분석, 속도, 반복, 메모, 탭 인스트럭션
+- `app/(tabs)/community.tsx` — 팔로워/팔로잉 통계
+- `components/ui/OnboardingOverlay.tsx` — 전 슬라이드
+- `components/social/UserProfileCard.tsx` — 팔로워/팔로잉
+- `components/social/ProfileSlidePanel.tsx` — 팔로워/팔로잉
+- `components/social/FollowListModal.tsx` — 탭/헤더/빈 상태
+
+##### 번역 키
+- 185+ 키 × 10개 언어 = 1,850+ 번역 문자열
+- 추가 키: `player.nowIsOne`, `player.tapInstruction`, `community.noFollowers`, `community.noFollowing`
+
+#### 커밋 이력
+
+| 커밋 | 설명 |
+|------|------|
+| `a68fde6` | Grid UX: replace "Start new phrase" with "Re-arrange phrases" |
+| `11f3823` | Fix: grid re-render after phrase split/re-arrange |
+| `d223ae4` | Fix: scroll to action cell after split/re-arrange/merge |
+| `c29e2ad` | Fix: YouTube fullscreen exit touch capture bug |
+| `b684020` | Feature: fullscreen video playback with count overlay |
+| `25808d3` | Fix: fullscreen uses same video instance instead of duplicate |
+| `7716d6b` | Fix: fullscreen video with separate instance + position sync |
+| `2043534` | Fix: fullscreen video audio, counter, and play/pause sync |
+| `f1ae67a` | M7: i18n support - 10 languages with auto-detection |
+| `9158549` | M7: i18n applied to all remaining screens |
+| `b511bc3` | M7: complete i18n coverage for social components |
+| `1e2ed86` | Add DEVLOG.md with session summary |
+
+### 기술 결정 사항
+- **i18next**: React Native에서 가장 성숙한 i18n 라이브러리, react-i18next 바인딩
+- **expo-localization**: 기기 언어 감지 + zh-CN/zh-TW 구분 (region 기반)
+- **전체 화면 비디오**: Modal 대신 absolute positioning + 메인 비디오 조건부 렌더 (듀얼 인스턴스 충돌 회피)
+- **EQ 기능 취소**: M4(구 계획)의 EQ 프리셋은 구현하지 않기로 결정
