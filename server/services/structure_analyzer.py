@@ -1,25 +1,24 @@
 from __future__ import annotations
 
 """
-Music structure analyzer for Latin dance music (v2.1).
+Music structure analyzer for Latin dance music (v2.2).
 Detects sections: intro, derecho, majao, mambo, bridge, outro.
 
-v2.1 improvements over v2:
-- Beat-synchronous features (all features averaged per beat interval)
-  → cleaner SSM, better boundary detection for syncopated Latin music
-- Tempogram added for rhythm pattern change detection
-- SSM computed on beat-level data (no arbitrary downsampling)
-- Faster processing (fewer data points: ~400 beats vs ~10000 frames)
+v2.2 improvements over v2.1:
+- SSM recurrence score: detects repeating sections (majao/chorus) vs unique (derecho/verse)
+- Brass band energy (1-4kHz): targeted mambo detection via brass instrument frequency range
+- Spectral flatness: distinguishes tonal (vocals/brass) from noise-like (percussion) content
+- Improved classification scoring with better derecho/majao/mambo differentiation
 
-v2 features retained:
+v2.1 features retained:
+- Beat-synchronous features (all features averaged per beat interval)
+- Tempogram for rhythm pattern change detection
 - Multi-feature self-similarity matrix (MFCC + chroma + spectral contrast)
 - Checkerboard kernel convolution for boundary detection
 - Harmonic-percussive source separation (percussion entry = derecho start)
 - Band-specific energy analysis (low/mid/high frequency)
 - Phrase-aligned boundary snapping (4-bar phrases via downbeats)
 - Score-based classification for Latin music sections
-
-MVP focus: find where intro ends and derecho begins.
 """
 
 import numpy as np
@@ -93,6 +92,13 @@ def analyze_structure(
     segments = _compute_segment_features(
         boundaries, duration, features, beat_times
     )
+
+    # 6b. Compute recurrence scores (SSM-based repetition detection)
+    recurrence = _compute_recurrence_scores(
+        features, beat_times, boundaries, duration
+    )
+    for i, seg in enumerate(segments):
+        seg["recurrence"] = recurrence[i] if i < len(recurrence) else 0.0
 
     # 7. Classify segments
     sections = _classify_segments(segments, duration)
@@ -173,6 +179,13 @@ def analyze_structure_with_phrases(
         boundaries, duration, features, beat_times
     )
 
+    # 6b. Compute recurrence scores (SSM-based repetition detection)
+    recurrence = _compute_recurrence_scores(
+        features, beat_times, boundaries, duration
+    )
+    for i, seg in enumerate(segments):
+        seg["recurrence"] = recurrence[i] if i < len(recurrence) else 0.0
+
     # 7. Classify segments
     sections = _classify_segments(segments, duration)
 
@@ -231,16 +244,22 @@ def _compute_features(
         onset_envelope=onset_env, sr=sr, hop_length=hop_length
     )
 
-    # Band-specific energy (low / mid / high)
+    # Band-specific energy (low / mid / high / brass)
     S_power = np.abs(librosa.stft(y, hop_length=hop_length)) ** 2
     freqs = librosa.fft_frequencies(sr=sr)
     low_mask = freqs < 300           # bass + conga fundamentals
     mid_mask = (freqs >= 300) & (freqs < 2000)  # piano, guitar, vocals
     high_mask = freqs >= 2000        # brass, cymbals, hi-hat
+    brass_mask = (freqs >= 1000) & (freqs < 4000)  # brass instrument range (trumpet, trombone)
 
     rms_low = np.sqrt(np.mean(S_power[low_mask, :], axis=0)) if np.any(low_mask) else rms_full
     rms_mid = np.sqrt(np.mean(S_power[mid_mask, :], axis=0)) if np.any(mid_mask) else rms_full
     rms_high = np.sqrt(np.mean(S_power[high_mask, :], axis=0)) if np.any(high_mask) else rms_full
+    rms_brass = np.sqrt(np.mean(S_power[brass_mask, :], axis=0)) if np.any(brass_mask) else rms_full
+
+    # Spectral flatness — tonal (vocals/brass) vs noise-like (percussion)
+    # Low = tonal content, High = noise-like
+    flatness = librosa.feature.spectral_flatness(y=y, hop_length=hop_length)[0]
 
     # ── Beat-synchronous aggregation ──
     # librosa.util.sync averages each feature within beat intervals
@@ -263,8 +282,10 @@ def _compute_features(
     rms_low_sync = _sync_1d(rms_low)
     rms_mid_sync = _sync_1d(rms_mid)
     rms_high_sync = _sync_1d(rms_high)
+    rms_brass_sync = _sync_1d(rms_brass)
     centroid_sync = _sync_1d(centroid)
     onset_sync = _sync_1d(onset_env)
+    flatness_sync = _sync_1d(flatness)
 
     return {
         # Beat-synced 2D features (for SSM)
@@ -279,8 +300,10 @@ def _compute_features(
         "rms_low": rms_low_sync,
         "rms_mid": rms_mid_sync,
         "rms_high": rms_high_sync,
+        "rms_brass": rms_brass_sync,
         "centroid": centroid_sync,
         "onset_env": onset_sync,
+        "flatness": flatness_sync,
     }
 
 
@@ -493,6 +516,78 @@ def _snap_to_phrases(
     return sorted(set(snapped))
 
 
+# ─── SSM Recurrence Score ────────────────────────────────────────────
+
+def _compute_recurrence_scores(
+    features: dict,
+    beat_times: np.ndarray,
+    boundaries: list[float],
+    duration: float,
+) -> list[float]:
+    """
+    Compute per-segment recurrence score from the self-similarity matrix.
+
+    Segments that sound similar to other (non-adjacent) segments get high
+    recurrence scores. In Latin dance music:
+    - Majao (chorus) repeats → high recurrence
+    - Derecho (verse) may repeat but often varies → moderate recurrence
+    - Mambo (instrumental break) is unique → low recurrence
+    - Intro/Outro are unique → low recurrence
+    """
+    def _norm(F: np.ndarray) -> np.ndarray:
+        mu = F.mean(axis=1, keepdims=True)
+        std = F.std(axis=1, keepdims=True)
+        std[std < 1e-8] = 1.0
+        return (F - mu) / std
+
+    # Use chroma (harmony) + MFCC (timbre) for recurrence — most stable for repetition
+    chroma_n = _norm(features["chroma_sync"])
+    mfcc_n = _norm(features["mfcc_sync"])
+    combined = np.vstack([chroma_n * 1.5, mfcc_n])  # weight chroma higher for repetition
+
+    n_beats = combined.shape[1]
+    if n_beats < 16:
+        return [0.0] * (len(boundaries) + 1)
+
+    # Cosine similarity matrix
+    norms = np.linalg.norm(combined, axis=0, keepdims=True)
+    norms[norms < 1e-8] = 1.0
+    combined_unit = combined / norms
+    ssm = combined_unit.T @ combined_unit  # n_beats x n_beats
+
+    # Segment boundaries in beat indices
+    all_bounds = [0.0] + sorted(boundaries) + [duration]
+    seg_beat_ranges = []
+    for i in range(len(all_bounds) - 1):
+        sb = int(np.searchsorted(beat_times, all_bounds[i]))
+        eb = int(np.searchsorted(beat_times, all_bounds[i + 1]))
+        eb = max(sb + 1, min(eb, n_beats))
+        seg_beat_ranges.append((sb, eb))
+
+    n_segs = len(seg_beat_ranges)
+    recurrence_scores = []
+
+    for i in range(n_segs):
+        si_start, si_end = seg_beat_ranges[i]
+        max_sim = 0.0
+
+        for j in range(n_segs):
+            if abs(i - j) <= 1:
+                # Skip self and adjacent segments
+                continue
+            sj_start, sj_end = seg_beat_ranges[j]
+
+            # Average similarity between beats of segment i and segment j
+            block = ssm[si_start:si_end, sj_start:sj_end]
+            if block.size > 0:
+                sim = float(np.mean(block))
+                max_sim = max(max_sim, sim)
+
+        recurrence_scores.append(max_sim)
+
+    return recurrence_scores
+
+
 # ─── Per-Segment Feature Computation ──────────────────────────────────
 
 def _compute_segment_features(
@@ -534,9 +629,11 @@ def _compute_segment_features(
             "rms_low": _safe_mean(features["rms_low"], start_beat, end_beat),
             "rms_mid": _safe_mean(features["rms_mid"], start_beat, end_beat),
             "rms_high": _safe_mean(features["rms_high"], start_beat, end_beat),
-            # Brightness & rhythm
+            "rms_brass": _safe_mean(features["rms_brass"], start_beat, end_beat),
+            # Brightness, rhythm & tonality
             "centroid": _safe_mean(features["centroid"], start_beat, end_beat),
             "onset_density": _safe_mean(features["onset_env"], start_beat, end_beat),
+            "flatness": _safe_mean(features["flatness"], start_beat, end_beat),
         }
 
         # Derived ratios
@@ -547,6 +644,9 @@ def _compute_segment_features(
         total_band = seg["rms_low"] + seg["rms_mid"] + seg["rms_high"]
         seg["low_ratio"] = seg["rms_low"] / total_band if total_band > 1e-8 else 0.33
         seg["high_ratio"] = seg["rms_high"] / total_band if total_band > 1e-8 else 0.33
+
+        # Brass prominence: ratio of brass energy to total energy
+        seg["brass_ratio"] = seg["rms_brass"] / seg["rms"] if seg["rms"] > 1e-8 else 0.0
 
         segments.append(seg)
 
@@ -559,11 +659,11 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
     """
     Classify segments into Latin dance sections using enriched features.
 
-    Key insights for Latin dance music:
+    v2.2 key differentiators:
     - Intro: low percussion, often harmonic-only (guitar/piano solo)
-    - Derecho: balanced energy, moderate percussion (conga enters)
-    - Majao: syncopated feel, high onset density, moderate brightness
-    - Mambo: highest energy, high-frequency content (brass), high percussion
+    - Derecho (verse): moderate energy, LOW recurrence (unique or varied)
+    - Majao (chorus): high energy + HIGH recurrence (repeats across song)
+    - Mambo (instrumental): highest brass energy, LOW recurrence (unique break)
     - Bridge: low energy dip between louder sections
     - Outro: declining energy, often mirrors intro
     """
@@ -574,11 +674,12 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
 
     # Normalize all features to [0, 1] within track
     feature_keys = ["rms", "centroid", "onset_density", "rms_percussive",
-                    "rms_harmonic", "rms_low", "rms_mid", "rms_high"]
+                    "rms_harmonic", "rms_low", "rms_mid", "rms_high",
+                    "rms_brass", "flatness", "recurrence"]
 
     normed = {}
     for key in feature_keys:
-        values = [s[key] for s in segments]
+        values = [s.get(key, 0.0) for s in segments]
         vmin, vmax = min(values), max(values)
         rng = vmax - vmin if vmax - vmin > 1e-8 else 1.0
         normed[key] = [(v - vmin) / rng for v in values]
@@ -596,10 +697,11 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
         # ── Intro score ──
         position_factor = 1.0 - (s["start"] / duration)
         intro_score = (
-            (1.0 - s["rms_percussive_n"]) * 0.35 +
-            (1.0 - s["rms_n"]) * 0.25 +
+            (1.0 - s["rms_percussive_n"]) * 0.3 +
+            (1.0 - s["rms_n"]) * 0.2 +
             s["harmonic_ratio"] * 0.2 +
-            position_factor * 0.2
+            position_factor * 0.15 +
+            (1.0 - s["recurrence_n"]) * 0.15  # intro is unique
         )
         if i > 1:
             intro_score *= 0.3
@@ -608,41 +710,45 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
         # ── Outro score ──
         late_factor = s["start"] / duration
         outro_score = (
-            (1.0 - s["rms_n"]) * 0.3 +
-            late_factor * 0.3 +
+            (1.0 - s["rms_n"]) * 0.25 +
+            late_factor * 0.25 +
             (1.0 - s["rms_percussive_n"]) * 0.2 +
-            s["harmonic_ratio"] * 0.2
+            s["harmonic_ratio"] * 0.15 +
+            (1.0 - s["recurrence_n"]) * 0.15  # outro is unique
         )
         if i < n - 2:
             outro_score *= 0.3
         seg_scores["outro"] = outro_score
 
         # ── Mambo score ──
-        # Mambo = SHORT high-energy peak (brass solo), NOT the main body
+        # Mambo = SHORT high-energy brass peak, unique (low recurrence)
         mambo_score = (
-            s["rms_n"] * 0.25 +
-            s["centroid_n"] * 0.2 +
-            s["rms_high_n"] * 0.2 +
-            s["rms_percussive_n"] * 0.2 +
-            s["onset_density_n"] * 0.15
+            s["rms_brass_n"] * 0.30 +          # brass is THE mambo signature
+            s["rms_high_n"] * 0.15 +
+            s["rms_n"] * 0.15 +
+            s["centroid_n"] * 0.10 +
+            (1.0 - s["recurrence_n"]) * 0.15 +  # mambo is unique, not repeated
+            (1.0 - s["flatness_n"]) * 0.15       # tonal (brass), not noisy
         )
         if i == 0 or i == n - 1:
             mambo_score *= 0.4
-        # Duration penalty: mambo is typically 15-40s, NOT the longest section
+        # Duration penalty: mambo is typically 15-45s
         seg_ratio = s["duration"] / duration
-        if seg_ratio > 0.25:
-            mambo_score *= 0.3  # heavy penalty for long segments
-        elif seg_ratio > 0.15:
-            mambo_score *= 0.7  # moderate penalty
+        if seg_ratio > 0.30:
+            mambo_score *= 0.25
+        elif seg_ratio > 0.20:
+            mambo_score *= 0.6
         seg_scores["mambo"] = mambo_score
 
         # ── Majao score ──
+        # Majao (chorus) = high energy + HIGH recurrence (repeats!)
         majao_score = (
-            s["onset_density_n"] * 0.3 +
-            s["rms_percussive_n"] * 0.25 +
-            s["rms_n"] * 0.2 +
-            (1.0 - s["rms_high_n"]) * 0.15 +
-            s["rms_low_n"] * 0.1
+            s["recurrence_n"] * 0.30 +          # KEY: chorus repeats
+            s["onset_density_n"] * 0.20 +
+            s["rms_percussive_n"] * 0.15 +
+            s["rms_n"] * 0.15 +
+            s["rms_low_n"] * 0.10 +
+            (1.0 - s["rms_brass_n"]) * 0.10     # not brass-heavy (that's mambo)
         )
         if i == 0 or i == n - 1:
             majao_score *= 0.5
@@ -651,10 +757,11 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
         # ── Bridge score ──
         short_factor = max(0, 1.0 - s["duration"] / 20.0)
         bridge_score = (
-            (1.0 - s["rms_n"]) * 0.35 +
-            short_factor * 0.35 +
+            (1.0 - s["rms_n"]) * 0.30 +
+            short_factor * 0.30 +
             (1.0 - s["onset_density_n"]) * 0.15 +
-            s["harmonic_ratio"] * 0.15
+            s["harmonic_ratio"] * 0.15 +
+            (1.0 - s["recurrence_n"]) * 0.10    # bridge is unique
         )
         if i == 0 or i == n - 1:
             bridge_score *= 0.3
@@ -666,13 +773,15 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
         seg_scores["bridge"] = bridge_score
 
         # ── Derecho score ──
+        # Derecho (verse) = moderate energy, LOW recurrence (unique/varied)
         derecho_score = (
-            s["rms_n"] * 0.2 +
-            s["percussion_ratio"] * 0.2 +
-            (1.0 - abs(s["rms_n"] - 0.5)) * 0.2 +
-            s["onset_density_n"] * 0.15 +
-            (s["duration"] / duration) * 0.15 +
-            0.1
+            (1.0 - s["recurrence_n"]) * 0.20 +  # verse varies more than chorus
+            s["rms_n"] * 0.15 +
+            s["percussion_ratio"] * 0.15 +
+            (1.0 - abs(s["rms_n"] - 0.5)) * 0.15 +  # moderate energy
+            s["onset_density_n"] * 0.10 +
+            (s["duration"] / duration) * 0.15 +   # derecho is often the longest
+            0.10                                   # base bias (default label)
         )
         seg_scores["derecho"] = derecho_score
 
@@ -727,6 +836,16 @@ def _classify_segments(segments: list[dict], duration: float) -> list[SectionInf
             if idx == longest_idx:
                 labels[idx] = "derecho"
                 confidences[idx] = 0.5
+
+    # 5b. Mambo must have above-average brass energy — otherwise it's misclassified
+    mambo_indices = [i for i in range(n) if labels[i] == "mambo"]
+    if mambo_indices:
+        avg_brass = np.mean([s.get("brass_ratio", 0) for s in segments])
+        for idx in mambo_indices:
+            if segments[idx].get("brass_ratio", 0) < avg_brass:
+                # Not brass-heavy enough → likely derecho or majao
+                labels[idx] = "derecho"
+                confidences[idx] = 0.4
 
     # 6. Ensure the longest non-intro/outro section is derecho
     #    (bachata main body = derecho, not majao or mambo)

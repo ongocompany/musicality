@@ -13,7 +13,7 @@ from models.schemas import AnalysisResult, SectionInfo
 
 logger = logging.getLogger(__name__)
 
-CURRENT_ANALYZER_VERSION = "v2.1"
+CURRENT_ANALYZER_VERSION = "v2.2"
 HASH_CHUNK_SIZE = 8192  # 8KB chunks for SHA-256 streaming
 FINGERPRINT_SIMILARITY_THRESHOLD = 0.7  # 70% bit-level match = same song
 
