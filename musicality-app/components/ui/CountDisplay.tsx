@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, FontSize, getPhraseColor, blendColors } from '../../constants/theme';
 import { CountInfo } from '../../utils/beatCounter';
 
@@ -9,6 +10,7 @@ interface CountDisplayProps {
 }
 
 export function CountDisplay({ countInfo, hasAnalysis }: CountDisplayProps) {
+  const { t } = useTranslation();
   // Pulse animation for transition hint
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const isHinting = countInfo?.isTransitionHint ?? false;
@@ -32,7 +34,7 @@ export function CountDisplay({ countInfo, hasAnalysis }: CountDisplayProps) {
     return (
       <View style={styles.container}>
         <Text style={[styles.count, styles.countMuted]}>--</Text>
-        <Text style={styles.labelMuted}>Analyze to see counts</Text>
+        <Text style={styles.labelMuted}>{t('player.analyzeToSee')}</Text>
       </View>
     );
   }

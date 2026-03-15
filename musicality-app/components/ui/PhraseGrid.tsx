@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, LayoutChangeEvent, Modal, Pressable, TouchableOpacity, TextInput, Keyboard, ScrollView, NativeSyntheticEvent, NativeScrollEvent, Platform } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { Colors, Spacing, FontSize, getPhraseColor } from '../../constants/theme';
 import { CountInfo } from '../../utils/beatCounter';
@@ -58,6 +59,7 @@ export function PhraseGrid({
   formationData, onEditFormation,
   editMode = 'none',
 }: PhraseGridProps) {
+  const { t } = useTranslation();
   const rowCount = rows ?? DEFAULT_ROWS;
   const CELLS_PER_PAGE = COLS * rowCount; // used only for placeholder
   const [containerWidth, setContainerWidth] = useState(0);
@@ -535,7 +537,7 @@ export function PhraseGrid({
                 />
           ))}
           <View style={styles.placeholderOverlay}>
-            <Text style={styles.placeholderText}>Analyze to see counts</Text>
+            <Text style={styles.placeholderText}>{t('player.analyzeToSee')}</Text>
           </View>
         </View>
       </View>
@@ -548,7 +550,7 @@ export function PhraseGrid({
       {repeatSelectMode && (
         <View style={styles.repeatHint}>
           <Text style={styles.repeatHintText}>
-            Long-press another cell to set repeat end point
+            {t('player.loopSet')}
           </Text>
         </View>
       )}
@@ -667,26 +669,26 @@ export function PhraseGrid({
             {/* Re-arrange phrases — paused + not first cell of phrase */}
             {!isPlaying && !isFirstCellOfPhrase && (
               <TouchableOpacity style={styles.menuOption} onPress={handleReArrangePhrase}>
-                <Text style={styles.menuOptionText}>Re-arrange phrases</Text>
+                <Text style={styles.menuOptionText}>{t('player.reArrangePhrase')}</Text>
               </TouchableOpacity>
             )}
 
             {/* Split phrase here — paused + not first cell of phrase */}
             {!isPlaying && !isFirstCellOfPhrase && (
               <TouchableOpacity style={styles.menuOption} onPress={handleSplitPhraseHere}>
-                <Text style={styles.menuOptionText}>Split phrase here</Text>
+                <Text style={styles.menuOptionText}>{t('player.splitPhrase')}</Text>
               </TouchableOpacity>
             )}
 
             {/* Repeat from here — always available */}
             <TouchableOpacity style={styles.menuOption} onPress={handleRepeatFromHere}>
-              <Text style={styles.menuOptionText}>Repeat from here</Text>
+              <Text style={styles.menuOptionText}>{t('player.loopSet')}</Text>
             </TouchableOpacity>
 
             {/* Merge with previous — paused + first cell of non-first phrase */}
             {!isPlaying && canMerge && (
               <TouchableOpacity style={styles.menuOption} onPress={handleMergeWithPrevious}>
-                <Text style={styles.menuOptionText}>Merge with previous phrase</Text>
+                <Text style={styles.menuOptionText}>{t('player.deletePhrase')}</Text>
               </TouchableOpacity>
             )}
 
@@ -697,7 +699,7 @@ export function PhraseGrid({
                 onPress={handleClearLoop}
               >
                 <Text style={[styles.menuOptionText, styles.menuOptionDangerText]}>
-                  Clear repeat
+                  {t('player.loopClear')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -705,7 +707,7 @@ export function PhraseGrid({
             {/* Edit formation */}
             {onEditFormation && (
               <TouchableOpacity style={styles.menuOption} onPress={handleEditFormation}>
-                <Text style={styles.menuOptionText}>Edit formation</Text>
+                <Text style={styles.menuOptionText}>{t('player.formation')}</Text>
               </TouchableOpacity>
             )}
 
@@ -716,7 +718,7 @@ export function PhraseGrid({
             {onSetCellNote && (
               <TouchableOpacity style={styles.menuOption} onPress={handleAddEditNote}>
                 <Text style={styles.menuOptionText}>
-                  {menuHasNote ? '✏️ Edit memo' : '📝 Add memo'}
+                  {menuHasNote ? `✏️ ${t('player.memo')}` : `📝 ${t('player.memo')}`}
                 </Text>
               </TouchableOpacity>
             )}
@@ -728,7 +730,7 @@ export function PhraseGrid({
                 onPress={handleDeleteNote}
               >
                 <Text style={[styles.menuOptionText, styles.menuOptionDangerText]}>
-                  Delete memo
+                  {t('player.deletePhrase')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -772,9 +774,9 @@ export function PhraseGrid({
             <TextInput
               style={styles.noteInput}
               value={noteModalText}
-              onChangeText={(t) => setNoteModalText(t.slice(0, 30))}
+              onChangeText={(v) => setNoteModalText(v.slice(0, 30))}
               maxLength={30}
-              placeholder="Enter memo (max 30 chars)"
+              placeholder={t('player.enterMemo')}
               placeholderTextColor={Colors.textMuted}
               autoFocus
               returnKeyType="done"
@@ -788,13 +790,13 @@ export function PhraseGrid({
                 style={styles.noteModalCancel}
                 onPress={() => { setNoteModalVisible(false); Keyboard.dismiss(); }}
               >
-                <Text style={styles.noteModalCancelText}>Cancel</Text>
+                <Text style={styles.noteModalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.noteModalSave}
                 onPress={handleSaveNote}
               >
-                <Text style={styles.noteModalSaveText}>Save</Text>
+                <Text style={styles.noteModalSaveText}>{t('common.save')}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>

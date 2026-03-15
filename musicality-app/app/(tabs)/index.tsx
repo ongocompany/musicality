@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Modal, Pressable } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -20,18 +21,11 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const SORT_LABELS: Record<SortField, string> = {
-  importedAt: '최신순',
-  title: '이름순',
-  bpm: 'BPM순',
-  duration: '길이순',
-};
-
 type MediaTab = 'audio' | 'video' | 'youtube';
-const MEDIA_TABS: { key: MediaTab; label: string; icon: string }[] = [
-  { key: 'audio', label: 'Audio', icon: 'musical-notes' },
-  { key: 'video', label: 'Video', icon: 'videocam' },
-  { key: 'youtube', label: 'YouTube', icon: 'logo-youtube' },
+const MEDIA_TABS: { key: MediaTab; icon: string }[] = [
+  { key: 'audio', icon: 'musical-notes' },
+  { key: 'video', icon: 'videocam' },
+  { key: 'youtube', icon: 'logo-youtube' },
 ];
 
 // ─── Sub-components ─────────────────────────────────
@@ -316,6 +310,20 @@ export default function LibraryScreen() {
   const danceStyle = useSettingsStore((s) => s.danceStyle);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+
+  const sortLabels: Record<SortField, string> = {
+    importedAt: t('library.sortLatest'),
+    title: t('library.sortName'),
+    bpm: t('library.sortBpm'),
+    duration: t('library.sortDuration'),
+  };
+
+  const mediaTabs = [
+    { key: 'audio' as MediaTab, label: t('library.audio'), icon: 'musical-notes' },
+    { key: 'video' as MediaTab, label: t('library.video'), icon: 'videocam' },
+    { key: 'youtube' as MediaTab, label: t('library.youtube'), icon: 'logo-youtube' },
+  ];
 
   // Local UI state
   const [activeTab, setActiveTab] = useState<MediaTab>('audio');
@@ -505,7 +513,7 @@ export default function LibraryScreen() {
   // ─── Sort handler ─────────────────────────────────
   const handleSortPress = () => {
     const options = (['importedAt', 'title', 'bpm', 'duration'] as SortField[]).map(field => ({
-      text: `${SORT_LABELS[field]}${sortBy === field ? (sortOrder === 'asc' ? ' ↑' : ' ↓') : ''}`,
+      text: `${sortLabels[field]}${sortBy === field ? (sortOrder === 'asc' ? ' ↑' : ' ↓') : ''}`,
       onPress: () => {
         if (sortBy === field) {
           setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -515,13 +523,13 @@ export default function LibraryScreen() {
         }
       },
     }));
-    options.push({ text: 'Cancel', onPress: () => {} });
-    Alert.alert('정렬 기준', undefined, options);
+    options.push({ text: t('common.cancel'), onPress: () => {} });
+    Alert.alert('Sort', undefined, options);
   };
 
   // ─── Folder handlers ──────────────────────────────
   const handleCreateFolder = () => {
-    Alert.prompt('새 폴더', '폴더 이름을 입력하세요:', (name) => {
+    Alert.prompt(t('library.newFolder'), t('library.folderName'), (name) => {
       if (name && name.trim()) createFolder(name.trim(), activeTab);
     }, 'plain-text');
   };
@@ -529,24 +537,24 @@ export default function LibraryScreen() {
   const handleFolderLongPress = (folder: Folder) => {
     Alert.alert(folder.name, undefined, [
       {
-        text: '이름 변경',
+        text: t('common.edit'),
         onPress: () => {
-          Alert.prompt('폴더 이름 변경', '새 이름:', (name) => {
+          Alert.prompt(t('library.folderName'), t('library.folderName'), (name) => {
             if (name && name.trim()) renameFolder(folder.id, name.trim());
           }, 'plain-text', folder.name);
         },
       },
       {
-        text: '삭제',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: () => {
-          Alert.alert('폴더 삭제', '폴더를 삭제하시겠습니까?\n(트랙은 삭제되지 않고 루트로 이동됩니다)', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: '삭제', style: 'destructive', onPress: () => deleteFolder(folder.id) },
+          Alert.alert(t('library.folder'), undefined, [
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('common.delete'), style: 'destructive', onPress: () => deleteFolder(folder.id) },
           ]);
         },
       },
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('common.cancel'), style: 'cancel' },
     ]);
   };
 
@@ -578,12 +586,12 @@ export default function LibraryScreen() {
 
   const handleDeleteSelected = () => {
     Alert.alert(
-      '트랙 삭제',
-      `${selectedTracks.size}개 트랙을 삭제하시겠습니까?`,
+      t('library.deleteTrack'),
+      t('library.deleteTrackConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => {
             for (const id of selectedTracks) removeTrack(id);
@@ -604,14 +612,14 @@ export default function LibraryScreen() {
       },
     }));
     options.unshift({
-      text: '📂 루트 (미분류)',
+      text: `📂 ${t('library.allTracks')}`,
       onPress: () => {
         moveTracksToFolder(Array.from(selectedTracks), undefined);
         clearSelection();
       },
     });
-    options.push({ text: 'Cancel', onPress: () => {} });
-    Alert.alert('폴더 이동', `${selectedTracks.size}개 트랙을 이동할 폴더를 선택하세요`, options);
+    options.push({ text: t('common.cancel'), onPress: () => {} });
+    Alert.alert(t('library.folder'), undefined, options);
   };
 
   // Reset selection + exit folder on tab change
@@ -630,7 +638,7 @@ export default function LibraryScreen() {
     <View style={styles.container}>
       {/* ① Media Type Tabs */}
       <View style={styles.tabBar}>
-        {MEDIA_TABS.map(tab => {
+        {mediaTabs.map(tab => {
           const isActive = activeTab === tab.key;
           const count = tabTrackCount[tab.key];
           return (
@@ -665,7 +673,7 @@ export default function LibraryScreen() {
         <View style={styles.folderBackBar}>
           <TouchableOpacity style={styles.folderBackBtn} onPress={exitFolder}>
             <Ionicons name="arrow-back" size={20} color={Colors.primary} />
-            <Text style={styles.folderBackText}>전체 목록</Text>
+            <Text style={styles.folderBackText}>{t('library.allTracks')}</Text>
           </TouchableOpacity>
           <Text style={styles.folderCurrentName} numberOfLines={1}>
             📁 {folders.find(f => f.id === currentFolderId)?.name ?? ''}
@@ -679,12 +687,12 @@ export default function LibraryScreen() {
           <TouchableOpacity style={styles.sortButton} onPress={handleSortPress}>
             <Ionicons name="swap-vertical" size={16} color={Colors.textSecondary} />
             <Text style={styles.sortLabel}>
-              {SORT_LABELS[sortBy]} {sortOrder === 'asc' ? '↑' : '↓'}
+              {sortLabels[sortBy]} {sortOrder === 'asc' ? '↑' : '↓'}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.newFolderBtn} onPress={handleCreateFolder}>
             <Ionicons name="folder-outline" size={16} color={Colors.textSecondary} />
-            <Text style={styles.newFolderLabel}>새 폴더</Text>
+            <Text style={styles.newFolderLabel}>{t('library.newFolder')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -698,10 +706,10 @@ export default function LibraryScreen() {
             color={Colors.textMuted}
           />
           <Text style={styles.emptyTitle}>
-            {currentFolderId ? '폴더가 비어있습니다' : activeTab === 'youtube' ? 'No YouTube tracks' : activeTab === 'video' ? 'No video files' : 'No audio files'}
+            {t('library.noTracks')}
           </Text>
           <Text style={styles.emptySubtitle}>
-            {currentFolderId ? '트랙을 이 폴더로 이동해보세요' : activeTab === 'youtube' ? 'Add YouTube URLs to start' : 'Import files to start practicing'}
+            {t('library.noTracksHint')}
           </Text>
         </View>
       ) : (
@@ -747,22 +755,22 @@ export default function LibraryScreen() {
       {/* ④ Select Mode Action Bar */}
       {selectMode && (
         <View style={[styles.selectBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-          <Text style={styles.selectBarText}>✓ {selectedTracks.size}개 선택됨</Text>
+          <Text style={styles.selectBarText}>✓ {selectedTracks.size}</Text>
           <TouchableOpacity style={styles.selectBarBtn} onPress={selectAll}>
             <Ionicons name="checkmark-done" size={18} color={Colors.primary} />
-            <Text style={styles.selectBarBtnText}>전체</Text>
+            <Text style={styles.selectBarBtnText}>{t('library.allTracks')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.selectBarBtn} onPress={handleMoveToFolder}>
             <Ionicons name="folder-outline" size={18} color={Colors.primary} />
-            <Text style={styles.selectBarBtnText}>이동</Text>
+            <Text style={styles.selectBarBtnText}>{t('library.folder')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.selectBarBtn} onPress={handleDeleteSelected}>
             <Ionicons name="trash-outline" size={18} color="#FF4444" />
-            <Text style={[styles.selectBarBtnText, { color: '#FF4444' }]}>삭제</Text>
+            <Text style={[styles.selectBarBtnText, { color: '#FF4444' }]}>{t('common.delete')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.selectBarBtn} onPress={clearSelection}>
             <Ionicons name="close" size={18} color={Colors.textSecondary} />
-            <Text style={[styles.selectBarBtnText, { color: Colors.textSecondary }]}>해제</Text>
+            <Text style={[styles.selectBarBtnText, { color: Colors.textSecondary }]}>{t('common.close')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -800,7 +808,7 @@ export default function LibraryScreen() {
               </TouchableOpacity>
             </View>
             <TouchableOpacity onPress={() => { setShowYouTubeInput(false); setYoutubeUrl(''); }}>
-              <Text style={styles.youtubeCancel}>Cancel</Text>
+              <Text style={styles.youtubeCancel}>{t('common.cancel')}</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>

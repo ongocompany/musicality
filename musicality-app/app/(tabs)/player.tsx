@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, Platform, StatusBar, Dimensions, useWindowDimensions } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
@@ -92,6 +93,7 @@ function MarqueeTitle({ text, style }: { text: string; style: any }) {
 }
 
 export default function PlayerScreen() {
+  const { t } = useTranslation();
   const {
     currentTrack,
     isPlaying,
@@ -674,9 +676,9 @@ export default function PlayerScreen() {
 
   const handleDeleteImported = useCallback((noteId: string) => {
     Alert.alert('Delete imported note?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive',
+        text: t('common.delete'), style: 'destructive',
         onPress: () => {
           removeImportedNote(noteId);
         },
@@ -731,9 +733,9 @@ export default function PlayerScreen() {
       setActiveImportedNote(matchedTrackId, null);
       addImportedNote(imported);
 
-      Alert.alert('Imported!', `${pnote.metadata.author}'s PhraseNote has been loaded.`);
+      Alert.alert(t('player.import'), `${pnote.metadata.author}'s PhraseNote has been loaded.`);
     } catch (err: any) {
-      Alert.alert('Import Failed', err.message || 'Could not read PhraseNote file.');
+      Alert.alert(t('player.analysisFailed'), err.message || 'Could not read PhraseNote file.');
     }
   }, [tracks, currentTrack, addImportedNote, setActiveImportedNote]);
 
@@ -792,7 +794,7 @@ export default function PlayerScreen() {
     if (!currentTrack) return;
     if (isYouTube) {
       if (tapBpm <= 0) {
-        Alert.alert('BPM 필요', '먼저 TAP 버튼으로 BPM을 설정하세요.');
+        Alert.alert('BPM 필요', '먼저 TAP 버튼으로 BPM을 설정하세요.'); // no matching key
         return;
       }
       const synth = generateSyntheticAnalysis(tapBpm, duration, position);
@@ -827,7 +829,7 @@ export default function PlayerScreen() {
         const formationData = await requestFormationSuggestion(analysis, choreoDancerCount, danceStyle);
         setServerFormation(currentTrack.id, formationData);
       } catch (fe: any) {
-        Alert.alert('Formation Error', fe.message || 'Could not generate formation suggestions.');
+        Alert.alert(t('player.formation'), fe.message || 'Could not generate formation suggestions.');
       }
       return;
     }
@@ -856,12 +858,12 @@ export default function PlayerScreen() {
           const formationData = await requestFormationSuggestion(result, choreoDancerCount, danceStyle);
           setServerFormation(currentTrack.id, formationData);
         } catch (fe: any) {
-          Alert.alert('Formation Error', fe.message || 'Could not generate formation suggestions.');
+          Alert.alert(t('player.formation'), fe.message || 'Could not generate formation suggestions.');
         }
       }
     } catch (e: any) {
       setTrackAnalysisStatus(currentTrack.id, 'error');
-      Alert.alert('Analysis Failed', e.message || 'Could not connect to analysis server.');
+      Alert.alert(t('player.analysisFailed'), e.message || 'Could not connect to analysis server.');
     }
   };
 
@@ -871,8 +873,8 @@ export default function PlayerScreen() {
       <View style={styles.container}>
         <View style={styles.empty}>
           <Ionicons name="disc-outline" size={64} color={Colors.textMuted} />
-          <Text style={styles.emptyTitle}>No track selected</Text>
-          <Text style={styles.emptySubtitle}>Choose a track from the Library</Text>
+          <Text style={styles.emptyTitle}>{t('player.noTrackSelected')}</Text>
+          <Text style={styles.emptySubtitle}>{t('player.noTrackHint')}</Text>
         </View>
       </View>
     );
@@ -931,7 +933,7 @@ export default function PlayerScreen() {
             {!isYouTube && (!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
               <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyzePress}>
                 <Ionicons name="analytics-outline" size={16} color={Colors.text} />
-                <Text style={styles.analyzeBtnText}>Analyze</Text>
+                <Text style={styles.analyzeBtnText}>{t('player.analyze')}</Text>
               </TouchableOpacity>
             )}
             {!isYouTube && currentTrack.analysisStatus === 'done' && !activeFormationData && (
@@ -954,7 +956,7 @@ export default function PlayerScreen() {
                 setEditMode('formation');
               }}>
                 <Ionicons name="people-outline" size={16} color={Colors.text} />
-                <Text style={styles.analyzeBtnText}>Formation</Text>
+                <Text style={styles.analyzeBtnText}>{t('player.formation')}</Text>
               </TouchableOpacity>
             )}
             {currentTrack.analysisStatus === 'analyzing' && (
@@ -1225,32 +1227,32 @@ export default function PlayerScreen() {
                         '슬롯 부족',
                         `3개 슬롯이 모두 사용 중입니다.\nEdition ${evictId}을 대체하고 저장할까요?`,
                         [
-                          { text: '취소', style: 'cancel' },
+                          { text: t('common.cancel'), style: 'cancel' },
                           {
                             text: '대체하고 저장',
                             style: 'destructive',
                             onPress: () => {
                               const slotId = saveFormationDraftAsEdition(currentTrack.id);
-                              if (slotId) Alert.alert('Saved', `ChoreoNote Edition ${slotId}에 저장되었습니다`);
+                              if (slotId) Alert.alert(t('player.saveEdition'), `ChoreoNote Edition ${slotId}에 저장되었습니다`);
                             },
                           },
                         ],
                       );
                     } else {
                       const slotId = saveFormationDraftAsEdition(currentTrack.id);
-                      if (slotId) Alert.alert('Saved', `ChoreoNote Edition ${slotId}에 저장되었습니다`);
+                      if (slotId) Alert.alert(t('player.saveEdition'), `ChoreoNote Edition ${slotId}에 저장되었습니다`);
                     }
                   }}
                 >
                   <Ionicons name="checkmark-circle" size={18} color={NoteTypeColors.choreoNote} />
-                  <Text style={[styles.draftSaveText, { color: NoteTypeColors.choreoNote }]}>Save Ⓒ</Text>
+                  <Text style={[styles.draftSaveText, { color: NoteTypeColors.choreoNote }]}>{t('common.save')} Ⓒ</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.draftDiscardButton, { paddingVertical: 4, paddingHorizontal: 12 }]}
                   onPress={() => clearFormationDraft(currentTrack.id)}
                 >
                   <Ionicons name="close-circle" size={18} color={Colors.error} />
-                  <Text style={styles.draftDiscardText}>Discard</Text>
+                  <Text style={styles.draftDiscardText}>{t('common.reset')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1274,14 +1276,14 @@ export default function PlayerScreen() {
                     '슬롯 부족',
                     `3개 슬롯이 모두 사용 중입니다.\nEdition ${evictId}을 대체하고 저장할까요?`,
                     [
-                      { text: '취소', style: 'cancel' },
+                      { text: t('common.cancel'), style: 'cancel' },
                       {
                         text: '대체하고 저장',
                         style: 'destructive',
                         onPress: () => {
                           const slotId = saveDraftAsEdition(currentTrack.id);
                           if (slotId) {
-                            Alert.alert('Saved', `Edition ${slotId}에 저장되었습니다`);
+                            Alert.alert(t('player.saveEdition'), `Edition ${slotId}에 저장되었습니다`);
                           }
                         },
                       },
@@ -1290,20 +1292,20 @@ export default function PlayerScreen() {
                 } else {
                   const slotId = saveDraftAsEdition(currentTrack.id);
                   if (slotId) {
-                    Alert.alert('Saved', `Edition ${slotId}에 저장되었습니다`);
+                    Alert.alert(t('player.saveEdition'), `Edition ${slotId}에 저장되었습니다`);
                   }
                 }
               }}
             >
               <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-              <Text style={styles.draftSaveText}>Save</Text>
+              <Text style={styles.draftSaveText}>{t('common.save')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.draftDiscardButton}
               onPress={() => clearDraft(currentTrack.id)}
             >
               <Ionicons name="close-circle" size={20} color={Colors.error} />
-              <Text style={styles.draftDiscardText}>Discard</Text>
+              <Text style={styles.draftDiscardText}>{t('common.reset')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1451,7 +1453,7 @@ export default function PlayerScreen() {
             </View>
             {loopEnabled && (
               <Text style={styles.loopStatus}>
-                Looping: {formatTime(loopStart ?? 0)} - {formatTime(loopEnd ?? 0)}
+                {t('player.loop')}: {formatTime(loopStart ?? 0)} - {formatTime(loopEnd ?? 0)}
               </Text>
             )}
           </View>
@@ -1519,7 +1521,7 @@ export default function PlayerScreen() {
           onPress={() => { setShareModalVisible(false); Keyboard.dismiss(); }}
         >
           <Pressable style={styles.shareModalContainer} onPress={() => {}}>
-            <Text style={styles.shareModalTitle}>Share PhraseNote</Text>
+            <Text style={styles.shareModalTitle}>{t('player.export')}</Text>
             <Text style={styles.shareModalSubtitle}>Enter your name (displayed to recipients)</Text>
             <TextInput
               style={styles.shareModalInput}
@@ -1537,11 +1539,11 @@ export default function PlayerScreen() {
                 style={styles.shareModalCancel}
                 onPress={() => { setShareModalVisible(false); Keyboard.dismiss(); }}
               >
-                <Text style={styles.shareModalCancelText}>Cancel</Text>
+                <Text style={styles.shareModalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.shareModalShare} onPress={handleShareConfirm}>
                 <Ionicons name="share-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
-                <Text style={styles.shareModalShareText}>Share</Text>
+                <Text style={styles.shareModalShareText}>{t('player.export')}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -1560,7 +1562,7 @@ export default function PlayerScreen() {
           onPress={() => setAnalyzeMenuVisible(false)}
         >
           <Pressable style={styles.analyzeMenuContainer} onPress={() => {}}>
-            <Text style={styles.analyzeMenuTitle}>Analyze</Text>
+            <Text style={styles.analyzeMenuTitle}>{t('player.analyze')}</Text>
             <TouchableOpacity
               style={styles.analyzeMenuOption}
               onPress={() => runAnalysis(false)}
