@@ -30,20 +30,30 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
   // Punch + glow animation when becoming 'current'
   useEffect(() => {
     if (state === 'current' && prevStateRef.current !== 'current') {
-      // Scale punch: 1.35 → 1.05 spring bounce
-      scaleAnim.setValue(1.35);
-      Animated.spring(scaleAnim, {
-        toValue: 1.05,
-        friction: 4,
-        tension: 280,
-        useNativeDriver: true,
-      }).start();
+      if (Platform.OS === 'android') {
+        // Android: lightweight timing instead of spring (reduces JS thread load)
+        scaleAnim.setValue(1.2);
+        Animated.timing(scaleAnim, {
+          toValue: 1.05,
+          duration: 150,
+          useNativeDriver: true,
+        }).start();
+      } else {
+        // iOS: full spring bounce
+        scaleAnim.setValue(1.35);
+        Animated.spring(scaleAnim, {
+          toValue: 1.05,
+          friction: 4,
+          tension: 280,
+          useNativeDriver: true,
+        }).start();
+      }
 
       // Glow pulse: 1 → 0.2
       glowAnim.setValue(1);
       Animated.timing(glowAnim, {
         toValue: 0.2,
-        duration: 500,
+        duration: Platform.OS === 'android' ? 300 : 500,
         useNativeDriver: true,
       }).start();
     } else if (state !== 'current' && prevStateRef.current === 'current') {
@@ -75,8 +85,27 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
       alignItems: 'center',
       justifyContent: 'center',
     }}>
-      {/* Glow layers — cross-platform (no native shadow needed) */}
-      {isCurrent && (
+      {/* Glow layers — simplified on Android for performance */}
+      {isCurrent && Platform.OS === 'android' && (
+        <Animated.View
+          style={[
+            styles.glowLayer,
+            {
+              width: size + 6,
+              height: size + 6,
+              borderRadius: 6,
+              borderWidth: 1.5,
+              borderColor: color,
+              backgroundColor: color,
+              opacity: glowAnim.interpolate({
+                inputRange: [0, 0.2, 1],
+                outputRange: [0.05, 0.2, 0.4],
+              }),
+            },
+          ]}
+        />
+      )}
+      {isCurrent && Platform.OS !== 'android' && (
         <>
           {/* Outermost soft glow */}
           <Animated.View

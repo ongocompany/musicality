@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, LayoutChangeEvent, Modal, Pressable, TouchableOpacity, TextInput, Keyboard, ScrollView, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { View, Text, StyleSheet, LayoutChangeEvent, Modal, Pressable, TouchableOpacity, TextInput, Keyboard, ScrollView, NativeSyntheticEvent, NativeScrollEvent, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors, Spacing, FontSize, getPhraseColor } from '../../constants/theme';
 import { CountInfo } from '../../utils/beatCounter';
@@ -594,7 +594,7 @@ export function PhraseGrid({
               onScroll={handleScroll}
               onScrollBeginDrag={handleScrollBeginDrag}
               onScrollEndDrag={handleScrollEndDrag}
-              scrollEventThrottle={100}
+              scrollEventThrottle={Platform.OS === 'android' ? 250 : 100}
               nestedScrollEnabled={true}
               bounces={false}
               overScrollMode="never"

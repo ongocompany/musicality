@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, Platform } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
@@ -1477,22 +1477,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+    overflow: 'hidden',
   },
   compactTitle: {
     color: Colors.text,
     fontSize: FontSize.md,
     fontWeight: '600',
     flex: 1,
+    minWidth: 60,
     marginRight: Spacing.sm,
   },
   headerMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+    flexShrink: 0,
   },
   scrollModeBtn: {
     padding: 4,
-    marginRight: 4,
   },
   bpmBadge: {
     backgroundColor: Colors.primary,
