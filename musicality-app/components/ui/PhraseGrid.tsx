@@ -88,6 +88,9 @@ export function PhraseGrid({
   // Virtual windowed rendering — only render visible rows + buffer
   const [renderStartRow, setRenderStartRow] = useState(0);
 
+  // Track the beat where the last phrase action was performed (for scroll anchor)
+  const actionBeatRef = useRef<number>(-1);
+
   // Cleanup timeouts
   useEffect(() => {
     return () => {
@@ -164,9 +167,11 @@ export function PhraseGrid({
     if (prevVisualCellsRef.current === visualCells) return;
     prevVisualCellsRef.current = visualCells;
 
-    // Re-anchor render window to current beat position after layout change
-    if (globalBeatIndex >= 0) {
-      const visualCell = beatToVisualCell.get(globalBeatIndex);
+    // Re-anchor to the action beat (where user split/re-arranged), or fall back to current beat
+    const anchorBeat = actionBeatRef.current >= 0 ? actionBeatRef.current : globalBeatIndex;
+    actionBeatRef.current = -1; // consume
+    if (anchorBeat >= 0) {
+      const visualCell = beatToVisualCell.get(anchorBeat);
       if (visualCell != null) {
         const currentRow = Math.floor(visualCell / COLS);
         const targetStartRow = Math.max(0, currentRow - SCROLL_ANCHOR_ROW - RENDER_BUFFER_ROWS);
@@ -399,12 +404,14 @@ export function PhraseGrid({
 
   const handleSplitPhraseHere = useCallback(() => {
     if (menuGlobalBeat < 0) return;
+    actionBeatRef.current = menuGlobalBeat;
     onSplitPhraseHere(menuGlobalBeat);
     setMenuVisible(false);
   }, [menuGlobalBeat, onSplitPhraseHere]);
 
   const handleReArrangePhrase = useCallback(() => {
     if (menuGlobalBeat < 0) return;
+    actionBeatRef.current = menuGlobalBeat;
     onReArrangePhrase(menuGlobalBeat);
     setMenuVisible(false);
   }, [menuGlobalBeat, onReArrangePhrase]);
@@ -425,6 +432,7 @@ export function PhraseGrid({
   // ─── Merge with previous phrase ───
   const handleMergeWithPrevious = useCallback(() => {
     if (menuGlobalBeat < 0) return;
+    actionBeatRef.current = menuGlobalBeat;
     onMergeWithPrevious(menuGlobalBeat);
     setMenuVisible(false);
   }, [menuGlobalBeat, onMergeWithPrevious]);
