@@ -1,8 +1,9 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, Platform, StatusBar, Dimensions, useWindowDimensions } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { useRouter } from 'expo-router';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
@@ -194,6 +195,32 @@ export default function PlayerScreen() {
       setYtReflow(true);
       setTimeout(() => setYtReflow(false), 50);
     }
+  }, []);
+
+  // ─── Fullscreen video mode ───
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const { width: winW, height: winH } = useWindowDimensions();
+
+  const enterFullScreen = useCallback(async () => {
+    setIsFullScreen(true);
+    const isLandscape = videoAspectRatio >= 1.0;
+    await ScreenOrientation.lockAsync(
+      isLandscape
+        ? ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT
+        : ScreenOrientation.OrientationLock.PORTRAIT_UP
+    );
+  }, [videoAspectRatio]);
+
+  const exitFullScreen = useCallback(async () => {
+    setIsFullScreen(false);
+    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+  }, []);
+
+  // Restore portrait on unmount
+  useEffect(() => {
+    return () => {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    };
   }, []);
 
   const analysis = currentTrack?.analysis;
@@ -905,6 +932,12 @@ export default function PlayerScreen() {
                   <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
                 </View>
               )}
+              {/* Fullscreen button — only when not in edit mode */}
+              {editMode === 'none' && (
+                <TouchableOpacity style={styles.fullscreenBtn} onPress={enterFullScreen}>
+                  <Ionicons name="expand" size={22} color="#fff" />
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Analysis done → PhraseGrid */}
@@ -994,6 +1027,12 @@ export default function PlayerScreen() {
               />
               {currentTrack.analysisStatus === 'done' && (
                 <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
+              )}
+              {/* Fullscreen button — only when not in edit mode */}
+              {editMode === 'none' && (
+                <TouchableOpacity style={styles.fullscreenBtn} onPress={enterFullScreen}>
+                  <Ionicons name="expand" size={22} color="#fff" />
+                </TouchableOpacity>
               )}
             </View>
             {currentTrack.analysisStatus === 'done' && (
@@ -1502,6 +1541,66 @@ export default function PlayerScreen() {
       </Modal>
 
       {/* Formation Stage is now inline — see sections ①②③ above */}
+
+      {/* ─── Fullscreen Video Modal ─── */}
+      <Modal
+        visible={isFullScreen}
+        transparent={false}
+        animationType="fade"
+        supportedOrientations={['portrait', 'landscape-left', 'landscape-right']}
+        onRequestClose={exitFullScreen}
+        statusBarTranslucent
+      >
+        <StatusBar hidden={isFullScreen} />
+        <Pressable style={styles.fullscreenContainer} onPress={exitFullScreen}>
+          {/* Native Video */}
+          {isVideo && (
+            <Video
+              ref={videoPlayer.videoRef}
+              source={{ uri: currentTrack!.uri }}
+              style={styles.fullscreenVideo}
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay={isPlaying}
+              progressUpdateIntervalMillis={100}
+              onPlaybackStatusUpdate={videoPlayer.onPlaybackStatusUpdate}
+            />
+          )}
+          {/* YouTube */}
+          {isYouTube && (
+            <View style={styles.fullscreenYoutube}>
+              <YoutubePlayer
+                ref={youtubePlayer.playerRef}
+                height={Math.min(winW, winH)}
+                width={Math.max(winW, winH)}
+                videoId={currentTrack!.uri}
+                play={isPlaying}
+                onReady={youtubePlayer.onReady}
+                onChangeState={onYtStateChange}
+                webViewProps={{
+                  allowsInlineMediaPlayback: true,
+                  injectedJavaScript: `
+                    (function(){
+                      document.addEventListener('message', function(e) {
+                        window.dispatchEvent(new MessageEvent('message', {data: e.data}));
+                      });
+                    })(); true;
+                  `,
+                }}
+              />
+            </View>
+          )}
+          {/* Count overlay */}
+          {currentTrack?.analysisStatus === 'done' && (
+            <View style={styles.fullscreenOverlay} pointerEvents="none">
+              <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
+            </View>
+          )}
+          {/* Close button */}
+          <TouchableOpacity style={styles.fullscreenCloseBtn} onPress={exitFullScreen}>
+            <Ionicons name="contract" size={26} color="#fff" />
+          </TouchableOpacity>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1578,6 +1677,33 @@ const styles = StyleSheet.create({
   },
   youtubeContainer: { width: '100%', backgroundColor: '#000' },
   youtubeOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 10 },
+  fullscreenBtn: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 6,
+    padding: 6,
+    zIndex: 20,
+  },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenVideo: { width: '100%', height: '100%' },
+  fullscreenYoutube: { justifyContent: 'center', alignItems: 'center' },
+  fullscreenOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 10 },
+  fullscreenCloseBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 8,
+    zIndex: 20,
+  },
 
   // ─── Count Display + PhraseGrid ─────────────────
   countSection: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: -10 },
