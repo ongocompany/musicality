@@ -1334,7 +1334,7 @@ export default function PlayerScreen() {
           <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={styles.bottomBarSide}>
-          <TouchableOpacity onPress={handleSkipForward}>
+          <TouchableOpacity onPress={handleSkipForward} onLongPress={() => seekTo(0)} delayLongPress={400}>
             <Ionicons name="play-forward" size={22} color={Colors.text} />
           </TouchableOpacity>
           <TouchableOpacity onPress={toggleCue} style={styles.cueToggle}>
