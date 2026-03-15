@@ -51,7 +51,7 @@ export default function LoginScreen() {
             <View style={styles.logoContainer}>
               <Ionicons name="musical-notes" size={48} color={Colors.primary} />
             </View>
-            <Text style={styles.title}>Musicality</Text>
+            <Text style={styles.title}>Ritmo</Text>
             <Text style={[styles.subtitle, { marginTop: Spacing.lg }]}>
               {t('auth.selectLanguage')}
             </Text>
@@ -95,7 +95,7 @@ export default function LoginScreen() {
         <View style={styles.logoContainer}>
           <Ionicons name="musical-notes" size={48} color={Colors.primary} />
         </View>
-        <Text style={styles.title}>Musicality</Text>
+        <Text style={styles.title}>Ritmo</Text>
         <Text style={styles.subtitle}>{t('auth.subtitle')}</Text>
       </View>
 

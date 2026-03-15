@@ -133,7 +133,7 @@
     "tapInstruction": "用TAP匹配BPM，然后在视频的第1拍按下\"现在是1\""
   },
   "onboarding": {
-    "s1Title": "Musicality",
+    "s1Title": "Ritmo",
     "s1b1": "拉丁舞节拍练习播放器",
     "s1b2": "Bachata / Salsa On1 / Salsa On2",
     "s1b3": "AI 自动节拍计数 & 乐句检测",

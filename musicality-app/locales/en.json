@@ -133,7 +133,7 @@
     "tapInstruction": "Match BPM with TAP, then press \"Now is 1\" on beat 1 of the video"
   },
   "onboarding": {
-    "s1Title": "Musicality",
+    "s1Title": "Ritmo",
     "s1b1": "Latin Dance Count Practice Player",
     "s1b2": "Bachata / Salsa On1 / Salsa On2",
     "s1b3": "AI Auto-Count & Phrase Detection",
