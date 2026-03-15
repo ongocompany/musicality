@@ -187,6 +187,15 @@ export default function PlayerScreen() {
     youtubePlayer.onStateChange(state);
   }, []);
 
+  // Force WebView reflow after fullscreen exit to fix touch capture bug
+  const [ytReflow, setYtReflow] = useState(false);
+  const onYtFullScreenChange = useCallback((isFullScreen: boolean) => {
+    if (!isFullScreen) {
+      setYtReflow(true);
+      setTimeout(() => setYtReflow(false), 50);
+    }
+  }, []);
+
   const analysis = currentTrack?.analysis;
   const offsetBeatIndex = currentTrack ? (downbeatOffsets[currentTrack.id] ?? null) : null;
 
@@ -870,24 +879,27 @@ export default function PlayerScreen() {
         {isYouTube && (
           <View style={styles.videoSection}>
             <View style={styles.youtubeContainer}>
-              <YoutubePlayer
-                ref={youtubePlayer.playerRef}
-                height={200}
-                videoId={currentTrack.uri}
-                play={isPlaying}
-                onReady={youtubePlayer.onReady}
-                onChangeState={onYtStateChange}
-                webViewProps={{
-                  allowsInlineMediaPlayback: true,
-                  injectedJavaScript: `
-                    (function(){
-                      document.addEventListener('message', function(e) {
-                        window.dispatchEvent(new MessageEvent('message', {data: e.data}));
-                      });
-                    })(); true;
-                  `,
-                }}
-              />
+              <View style={ytReflow ? { height: 0, overflow: 'hidden' } : undefined}>
+                <YoutubePlayer
+                  ref={youtubePlayer.playerRef}
+                  height={200}
+                  videoId={currentTrack.uri}
+                  play={isPlaying}
+                  onReady={youtubePlayer.onReady}
+                  onChangeState={onYtStateChange}
+                  onFullScreenChange={onYtFullScreenChange}
+                  webViewProps={{
+                    allowsInlineMediaPlayback: true,
+                    injectedJavaScript: `
+                      (function(){
+                        document.addEventListener('message', function(e) {
+                          window.dispatchEvent(new MessageEvent('message', {data: e.data}));
+                        });
+                      })(); true;
+                    `,
+                  }}
+                />
+              </View>
               {analysis && (
                 <View style={styles.youtubeOverlay} pointerEvents="none">
                   <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
