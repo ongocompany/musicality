@@ -158,17 +158,31 @@ export function PhraseGrid({
   const rowHeight = cellSize + CELL_GAP;
   const visibleHeight = rowCount * rowHeight;
 
-  // ─── Reset render window when phrase layout changes (e.g. "Start from here") ───
+  // ─── Reset render window when phrase layout changes (e.g. split/re-arrange) ───
   const prevVisualCellsRef = useRef(visualCells);
   useEffect(() => {
     if (prevVisualCellsRef.current === visualCells) return;
     prevVisualCellsRef.current = visualCells;
 
-    // Layout changed — ensure render window covers the relevant area
-    // Use the current scroll position to determine where to re-anchor
+    // Re-anchor render window to current beat position after layout change
+    if (globalBeatIndex >= 0) {
+      const visualCell = beatToVisualCell.get(globalBeatIndex);
+      if (visualCell != null) {
+        const currentRow = Math.floor(visualCell / COLS);
+        const targetStartRow = Math.max(0, currentRow - SCROLL_ANCHOR_ROW - RENDER_BUFFER_ROWS);
+        setRenderStartRow(targetStartRow);
+        // Also reset scroll position to match new layout
+        if (scrollViewRef.current && rowHeight > 0) {
+          const targetOffset = Math.max(0, (currentRow - SCROLL_ANCHOR_ROW) * rowHeight);
+          scrollViewRef.current.scrollTo({ y: targetOffset, animated: false });
+        }
+        return;
+      }
+    }
+    // Fallback: clamp render window
     const maxStartRow = Math.max(0, totalDataRows - rowCount);
     setRenderStartRow(prev => Math.min(prev, maxStartRow));
-  }, [visualCells, totalDataRows, rowCount]);
+  }, [visualCells, totalDataRows, rowCount, globalBeatIndex, beatToVisualCell, rowHeight]);
 
   // ─── Auto-scroll during playback ───
   useEffect(() => {
