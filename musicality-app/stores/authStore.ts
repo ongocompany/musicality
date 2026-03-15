@@ -18,7 +18,6 @@ interface AuthState {
   initialize: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
-  signInWithKakao: () => Promise<void>;
   signOut: () => Promise<void>;
   enterGuestMode: () => void;
 }
@@ -121,49 +120,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
       console.error('Apple sign-in error:', error);
-      throw error;
-    } finally {
-      set({ loading: false });
-    }
-  },
-
-  signInWithKakao: async () => {
-    try {
-      set({ loading: true });
-      const isExpoGo = Constants.appOwnership === 'expo';
-      const redirectUrl = isExpoGo
-        ? makeRedirectUri()
-        : makeRedirectUri({ scheme: 'musicality' });
-      console.log('[Auth] Kakao redirect URL:', redirectUrl);
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'kakao',
-        options: {
-          redirectTo: redirectUrl,
-          skipBrowserRedirect: true,
-        },
-      });
-
-      if (error) throw error;
-      if (data.url) {
-        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-
-        if (result.type === 'success') {
-          const url = new URL(result.url);
-          const params = new URLSearchParams(url.hash.substring(1));
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-
-          if (accessToken && refreshToken) {
-            await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Kakao sign-in error:', error);
       throw error;
     } finally {
       set({ loading: false });

@@ -274,6 +274,24 @@ export function PhraseGrid({
     return String(Math.floor(cellIndex / COLS) + 1);
   }, [visualCells]);
 
+  // Per-cell phrase label: first column shows phrase number (e.g. "P1", "P2")
+  const getCellPhraseLabel = useCallback((cellIndex: number): string | null => {
+    if (cellIndex % COLS !== 0) return null; // only first column
+    const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
+    if (!phraseMap || globalBeat < 0) return null;
+    for (let p = 0; p < phraseMap.phrases.length; p++) {
+      const phrase = phraseMap.phrases[p];
+      if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
+        // Only show on the first row of each phrase
+        if (globalBeat === phrase.startBeatIndex) {
+          return String(p + 1);
+        }
+        return null;
+      }
+    }
+    return null;
+  }, [phraseMap, visualCells]);
+
   // Beat count inside each cell (1-8 within the row)
   const getCellBeatCount = useCallback((cellIndex: number): number | undefined => {
     const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
@@ -562,6 +580,7 @@ export function PhraseGrid({
                         hasNote={getCellHasNote(i)}
                         hasFormation={getCellHasFormation(i)}
                         beatCount={getCellBeatCount(i)}
+                        phraseLabel={getCellPhraseLabel(i)}
                       />
                     );
               })}

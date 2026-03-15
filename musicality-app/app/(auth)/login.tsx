@@ -11,7 +11,7 @@ const __DEV_MODE__ = __DEV__; // true in Expo Go dev
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { signInWithGoogle, signInWithApple, signInWithKakao, enterGuestMode } = useAuthStore();
+  const { signInWithGoogle, signInWithApple, enterGuestMode } = useAuthStore();
   const [signingIn, setSigningIn] = useState<string | null>(null);
   const contentMaxWidth = Math.min(width - Spacing.xl * 2, 400);
 
@@ -74,22 +74,6 @@ export default function LoginScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Kakao */}
-        <TouchableOpacity
-          style={[styles.socialButton, styles.kakaoButton]}
-          onPress={() => handleSignIn('kakao', signInWithKakao)}
-          disabled={signingIn !== null}
-          activeOpacity={0.8}
-        >
-          {signingIn === 'kakao' ? (
-            <ActivityIndicator size="small" color="#3C1E1E" />
-          ) : (
-            <>
-              <Ionicons name="chatbubble" size={18} color="#3C1E1E" />
-              <Text style={[styles.socialButtonText, { color: '#3C1E1E' }]}>카카오로 계속하기</Text>
-            </>
-          )}
-        </TouchableOpacity>
       </View>
 
       {/* Guest Mode */}
@@ -198,9 +182,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     borderWidth: 1,
     borderColor: '#333',
-  },
-  kakaoButton: {
-    backgroundColor: '#FEE500',
   },
   socialButtonText: {
     fontSize: FontSize.lg,

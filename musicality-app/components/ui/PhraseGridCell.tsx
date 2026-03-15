@@ -17,9 +17,10 @@ interface PhraseGridCellProps {
   hasNote?: boolean;           // show teal dot for cell memo
   hasFormation?: boolean;      // show formation indicator (top-left dot)
   beatCount?: number;          // 1-8 count shown inside the cell
+  phraseLabel?: string | null; // phrase number shown in first column cell
 }
 
-function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel, hasNote, hasFormation, beatCount }: PhraseGridCellProps) {
+function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel, hasNote, hasFormation, beatCount, phraseLabel }: PhraseGridCellProps) {
   const handlePress = useCallback(() => onPress(cellIndex), [onPress, cellIndex]);
   const handleLongPress = useCallback(() => onLongPress(cellIndex), [onLongPress, cellIndex]);
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -56,13 +57,14 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
     return <View style={{ width: size, height: size, margin: GAP / 2 }} />;
   }
 
+  const isPlayed = state === 'played';
   const backgroundColor = isFlashing
     ? '#FFFFFF'
-    : state === 'played'
+    : isPlayed
       ? Colors.surfaceLight
       : color;
 
-  const opacity = state === 'played' ? 0.5 : 1;
+  const opacity = isPlayed ? 0.5 : 1;
   const isCurrent = state === 'current';
 
   return (
@@ -151,8 +153,8 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
               height: size - (isCurrent ? 4 : 0),
               backgroundColor,
               opacity,
-              borderWidth: isCurrent ? 2 : 0,
-              borderColor: isCurrent ? '#FFFFFF' : 'transparent',
+              borderWidth: isCurrent ? 2 : isPlayed ? 1.5 : 0,
+              borderColor: isCurrent ? '#FFFFFF' : isPlayed ? color : 'transparent',
             },
           ]}
           onPress={handlePress}
@@ -167,6 +169,15 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
               { fontSize: Math.max(12, Math.round(size * 0.6)) },
             ]}>
               {beatCount}
+            </Text>
+          )}
+          {/* Phrase number label — first cell of each phrase */}
+          {phraseLabel != null && state !== 'current' && (
+            <Text style={[
+              styles.phraseLabel,
+              { fontSize: Math.max(8, Math.round(size * 0.35)) },
+            ]}>
+              {phraseLabel}
             </Text>
           )}
           {/* A/B repeat marker badge */}
@@ -203,6 +214,11 @@ const styles = StyleSheet.create({
   beatCount: {
     color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '700',
+    textAlign: 'center',
+  },
+  phraseLabel: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '800',
     textAlign: 'center',
   },
   rowLabelOutside: {
