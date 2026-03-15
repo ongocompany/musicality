@@ -3,6 +3,7 @@ import { View, Text, AppState } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/theme';
 import { useMessageStore } from '../../stores/messageStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -12,6 +13,7 @@ import { OnboardingOverlay } from '../../components/ui/OnboardingOverlay';
 const UNREAD_POLL = 10_000;
 
 export default function TabLayout() {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   const { totalUnreadCount, fetchUnreadCount } = useMessageStore();
   const { hasSeenOnboarding, setHasSeenOnboarding } = useSettingsStore();
@@ -49,28 +51,28 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Library',
+            title: t('tabs.library'),
             tabBarIcon: ({ color, size }) => <Ionicons name="library" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="player"
           options={{
-            title: 'Player',
+            title: t('tabs.player'),
             tabBarIcon: ({ color, size }) => <Ionicons name="play-circle" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="community"
           options={{
-            title: 'Community',
+            title: t('tabs.community'),
             tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="messages"
           options={{
-            title: 'Messages',
+            title: t('tabs.messages'),
             tabBarIcon: ({ color, size }) => (
               <View>
                 <Ionicons name="chatbubbles" size={size} color={color} />
@@ -103,7 +105,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="settings"
           options={{
-            title: 'Settings',
+            title: t('tabs.settings'),
             tabBarIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color} />,
           }}
         />

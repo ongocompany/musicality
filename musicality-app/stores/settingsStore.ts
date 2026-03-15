@@ -8,6 +8,10 @@ import { ImportedPhraseNote } from '../types/phraseNote';
 import { FormationData, FormationEditionId, FormationEdition, TrackFormations, StageConfig, DEFAULT_STAGE_CONFIG } from '../types/formation';
 
 interface SettingsState {
+  // Language (i18n)
+  language: string;
+  setLanguage: (lang: string) => void;
+
   // Dance style (global setting)
   danceStyle: DanceStyle;
   setDanceStyle: (style: DanceStyle) => void;
@@ -116,6 +120,16 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
+      language: '',  // empty = not yet chosen, will detect on first launch
+      setLanguage: (lang) => {
+        set({ language: lang });
+        // Sync i18next language
+        try {
+          const i18next = require('../i18n').default;
+          i18next.changeLanguage(lang);
+        } catch {}
+      },
+
       danceStyle: 'bachata',
       setDanceStyle: (style) => set({ danceStyle: style }),
 
@@ -531,7 +545,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'musicality-settings',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persistedState: any, version: number) => {
         let state = { ...persistedState };
@@ -564,6 +578,10 @@ export const useSettingsStore = create<SettingsState>()(
           // Add trackFormations
           state.trackFormations = state.trackFormations ?? {};
         }
+        if (version < 5) {
+          // Add language preference
+          state.language = state.language ?? '';
+        }
         // stageConfig — no version bump needed, default applied by store init
         if (!state.stageConfig) {
           state.stageConfig = { gridWidth: 8, gridHeight: 4 };
@@ -571,6 +589,7 @@ export const useSettingsStore = create<SettingsState>()(
         return state as SettingsState;
       },
       partialize: (state) => ({
+        language: state.language,
         danceStyle: state.danceStyle,
         gridScrollMode: state.gridScrollMode,
         lookAheadMs: state.lookAheadMs,

@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 import { checkServerHealth } from '../../services/analysisApi';
 import { API_BASE_URL } from '../../constants/config';
@@ -9,21 +10,25 @@ import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { DanceStyle } from '../../utils/beatCounter';
-import { CueType, CUE_TYPE_LABELS } from '../../types/cue';
+import { CueType } from '../../types/cue';
 import { PhraseDetectionMode } from '../../types/analysis';
+import { LANGUAGES, LanguageCode } from '../../i18n';
 
 const LOOK_AHEAD_STEP = 25; // ms per tap
 
 export default function SettingsScreen() {
+  const { t, i18n } = useTranslation();
   const {
     danceStyle, setDanceStyle, lookAheadMs, setLookAheadMs,
     cueType, setCueType, cueVolume, setCueVolume,
     phraseDetectionMode, setPhraseDetectionMode,
     defaultBeatsPerPhrase, setDefaultBeatsPerPhrase,
+    language, setLanguage,
   } = useSettingsStore();
   const { user, guestMode, signOut } = useAuthStore();
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
+  const [showLangPicker, setShowLangPicker] = useState(false);
 
   const checkServer = useCallback(async () => {
     setChecking(true);
@@ -36,46 +41,60 @@ export default function SettingsScreen() {
     checkServer();
   }, [checkServer]);
 
+  const handleLanguageChange = (code: LanguageCode) => {
+    setLanguage(code);
+    i18n.changeLanguage(code);
+    setShowLangPicker(false);
+  };
+
+  const cueLabels: Record<CueType, string> = {
+    'off': t('settings.cueOff'),
+    'click': t('settings.cueClick'),
+    'beep': t('settings.cueBeep'),
+    'voice-ko': t('settings.cueVoiceKo'),
+    'voice-en': t('settings.cueVoiceEn'),
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Account */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
+        <Text style={styles.sectionTitle}>{t('settings.account')}</Text>
         {user ? (
           <>
             <View style={styles.row}>
               <Ionicons name="mail-outline" size={20} color={Colors.textSecondary} />
-              <Text style={styles.label}>{user.email || '이메일 없음'}</Text>
+              <Text style={styles.label}>{user.email || t('settings.noEmail')}</Text>
             </View>
             <TouchableOpacity
               style={styles.row}
               onPress={() => {
-                Alert.alert('로그아웃', '정말 로그아웃하시겠습니까?', [
-                  { text: '취소', style: 'cancel' },
-                  { text: '로그아웃', style: 'destructive', onPress: signOut },
+                Alert.alert(t('settings.logout'), t('settings.logoutConfirm'), [
+                  { text: t('common.cancel'), style: 'cancel' },
+                  { text: t('settings.logout'), style: 'destructive', onPress: signOut },
                 ]);
               }}
             >
               <Ionicons name="log-out-outline" size={20} color={Colors.error} />
-              <Text style={[styles.label, { color: Colors.error }]}>로그아웃</Text>
+              <Text style={[styles.label, { color: Colors.error }]}>{t('settings.logout')}</Text>
             </TouchableOpacity>
           </>
         ) : (
           <View style={styles.row}>
             <Ionicons name="person-outline" size={20} color={Colors.textSecondary} />
-            <Text style={styles.label}>비회원 모드</Text>
-            <Text style={styles.value}>로그인하면 클라우드 동기화 가능</Text>
+            <Text style={styles.label}>{t('settings.guestMode')}</Text>
+            <Text style={styles.value}>{t('settings.guestHint')}</Text>
           </View>
         )}
       </View>
 
       {/* Server Status */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Analysis Server</Text>
+        <Text style={styles.sectionTitle}>{t('settings.analysisServer')}</Text>
         <View style={styles.row}>
           <View style={[styles.statusDot, serverOnline === true && styles.statusOnline, serverOnline === false && styles.statusOffline]} />
           <Text style={styles.label}>
-            {serverOnline === null ? 'Checking...' : serverOnline ? 'Connected' : 'Disconnected'}
+            {serverOnline === null ? t('settings.checking') : serverOnline ? t('settings.connected') : t('settings.disconnected')}
           </Text>
           <TouchableOpacity onPress={checkServer} disabled={checking}>
             <Ionicons name="refresh" size={20} color={checking ? Colors.textMuted : Colors.primary} />
@@ -89,10 +108,10 @@ export default function SettingsScreen() {
 
       {/* App Info */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>App</Text>
+        <Text style={styles.sectionTitle}>{t('settings.app')}</Text>
         <View style={styles.row}>
           <Ionicons name="information-circle-outline" size={20} color={Colors.textSecondary} />
-          <Text style={styles.label}>Version</Text>
+          <Text style={styles.label}>{t('settings.version')}</Text>
           <Text style={styles.value}>1.0.0 (M7)</Text>
         </View>
         <TouchableOpacity
@@ -100,13 +119,46 @@ export default function SettingsScreen() {
           onPress={() => useSettingsStore.getState().setHasSeenOnboarding(false)}
         >
           <Ionicons name="help-circle-outline" size={20} color={Colors.primary} />
-          <Text style={[styles.label, { color: Colors.primary }]}>Tutorial</Text>
+          <Text style={[styles.label, { color: Colors.primary }]}>{t('settings.tutorial')}</Text>
         </TouchableOpacity>
+
+        {/* Language */}
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => setShowLangPicker(!showLangPicker)}
+        >
+          <Ionicons name="globe-outline" size={20} color={Colors.primary} />
+          <Text style={[styles.label, { color: Colors.primary }]}>{t('settings.language')}</Text>
+          <Text style={styles.value}>
+            {LANGUAGES.find(l => l.code === i18n.language)?.flag}{' '}
+            {LANGUAGES.find(l => l.code === i18n.language)?.label}
+          </Text>
+        </TouchableOpacity>
+        {showLangPicker && (
+          <View style={styles.langGrid}>
+            {LANGUAGES.map((lang) => (
+              <TouchableOpacity
+                key={lang.code}
+                style={[
+                  styles.langOption,
+                  i18n.language === lang.code && styles.langOptionActive,
+                ]}
+                onPress={() => handleLanguageChange(lang.code)}
+              >
+                <Text style={styles.langFlag}>{lang.flag}</Text>
+                <Text style={[
+                  styles.langLabel,
+                  i18n.language === lang.code && styles.langLabelActive,
+                ]}>{lang.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       {/* Dance Style */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Dance Style</Text>
+        <Text style={styles.sectionTitle}>{t('settings.danceStyle')}</Text>
         {([
           { key: 'bachata' as DanceStyle, label: 'Bachata', desc: '1-2-3-TAP-5-6-7-TAP' },
           { key: 'salsa-on1' as DanceStyle, label: 'Salsa On1', desc: '1-2-3-pause-5-6-7-pause' },
@@ -132,11 +184,11 @@ export default function SettingsScreen() {
 
       {/* Phrase Detection */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Phrase Detection</Text>
+        <Text style={styles.sectionTitle}>{t('settings.phraseDetection')}</Text>
         {([
-          { key: 'rule-based' as PhraseDetectionMode, label: 'Rule-based', desc: '고정 길이 자동 분할' },
-          { key: 'user-marked' as PhraseDetectionMode, label: 'User Mark', desc: '직접 프레이즈 경계 표시' },
-          { key: 'server' as PhraseDetectionMode, label: 'Server Analysis', desc: '서버 구조 분석 사용' },
+          { key: 'rule-based' as PhraseDetectionMode, label: t('settings.ruleBased'), desc: t('settings.ruleBasedDesc') },
+          { key: 'user-marked' as PhraseDetectionMode, label: t('settings.userMark'), desc: t('settings.userMarkDesc') },
+          { key: 'server' as PhraseDetectionMode, label: t('settings.serverAnalysis'), desc: t('settings.serverAnalysisDesc') },
         ]).map((item) => (
           <TouchableOpacity
             key={item.key}
@@ -157,7 +209,7 @@ export default function SettingsScreen() {
         {/* Beats per phrase (for rule-based mode) */}
         <View style={styles.row}>
           <Ionicons name="resize-outline" size={20} color={Colors.textSecondary} />
-          <Text style={styles.label}>Phrase Length</Text>
+          <Text style={styles.label}>{t('settings.phraseLength')}</Text>
           <View style={styles.lookAheadControls}>
             <TouchableOpacity
               style={styles.lookAheadBtn}
@@ -175,16 +227,16 @@ export default function SettingsScreen() {
           </View>
         </View>
         <Text style={styles.lookAheadHint}>
-          프레이즈 = {defaultBeatsPerPhrase}박 ({defaultBeatsPerPhrase / 8}×에잇카운트)
+          {t('settings.phraseLengthHint', { beats: defaultBeatsPerPhrase, count: defaultBeatsPerPhrase / 8 })}
         </Text>
       </View>
 
       {/* Count Timing */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Count Timing</Text>
+        <Text style={styles.sectionTitle}>{t('settings.countTiming')}</Text>
         <View style={styles.row}>
           <Ionicons name="timer-outline" size={20} color={Colors.textSecondary} />
-          <Text style={styles.label}>Look-ahead</Text>
+          <Text style={styles.label}>{t('settings.lookAhead')}</Text>
           <View style={styles.lookAheadControls}>
             <TouchableOpacity
               style={styles.lookAheadBtn}
@@ -202,25 +254,25 @@ export default function SettingsScreen() {
           </View>
         </View>
         <Text style={styles.lookAheadHint}>
-          카운트가 느리면 ↑, 빠르면 ↓ (0~300ms)
+          {t('settings.lookAheadHint')}
         </Text>
       </View>
 
       {/* Data Reset */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Data</Text>
+        <Text style={styles.sectionTitle}>{t('settings.data')}</Text>
         <TouchableOpacity
           style={styles.row}
           onPress={() => {
             const trackCount = usePlayerStore.getState().tracks.length;
             const folderCount = usePlayerStore.getState().folders.length;
             Alert.alert(
-              '라이브러리 초기화',
-              `트랙 ${trackCount}개, 폴더 ${folderCount}개가 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.`,
+              t('settings.resetLibrary'),
+              t('settings.resetLibraryConfirm', { trackCount, folderCount }),
               [
-                { text: '취소', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                  text: '초기화',
+                  text: t('common.reset'),
                   style: 'destructive',
                   onPress: async () => {
                     await AsyncStorage.removeItem('musicality-tracks');
@@ -232,7 +284,7 @@ export default function SettingsScreen() {
                       position: 0,
                       duration: 0,
                     });
-                    Alert.alert('완료', '라이브러리가 초기화되었습니다.');
+                    Alert.alert(t('common.done'), t('settings.resetLibraryDone'));
                   },
                 },
               ],
@@ -240,15 +292,15 @@ export default function SettingsScreen() {
           }}
         >
           <Ionicons name="trash-outline" size={20} color={Colors.error} />
-          <Text style={[styles.label, { color: Colors.error }]}>라이브러리 초기화</Text>
-          <Text style={styles.value}>트랙 + 폴더 삭제</Text>
+          <Text style={[styles.label, { color: Colors.error }]}>{t('settings.resetLibrary')}</Text>
+          <Text style={styles.value}>{t('settings.resetLibraryDesc')}</Text>
         </TouchableOpacity>
       </View>
 
       {/* Cue Sounds */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Cue Sounds</Text>
-        {(Object.keys(CUE_TYPE_LABELS) as CueType[]).map((type) => (
+        <Text style={styles.sectionTitle}>{t('settings.cueSounds')}</Text>
+        {(Object.keys(cueLabels) as CueType[]).map((type) => (
           <TouchableOpacity
             key={type}
             style={[styles.row, cueType === type && styles.rowActive]}
@@ -260,7 +312,7 @@ export default function SettingsScreen() {
               color={cueType === type ? Colors.primary : Colors.textSecondary}
             />
             <Text style={[styles.label, cueType === type && styles.labelActive]}>
-              {CUE_TYPE_LABELS[type]}
+              {cueLabels[type]}
             </Text>
           </TouchableOpacity>
         ))}
@@ -269,7 +321,7 @@ export default function SettingsScreen() {
           <>
             <View style={styles.row}>
               <Ionicons name="volume-medium-outline" size={20} color={Colors.textSecondary} />
-              <Text style={styles.label}>Volume</Text>
+              <Text style={styles.label}>{t('settings.volume')}</Text>
               <View style={styles.lookAheadControls}>
                 <TouchableOpacity
                   style={styles.lookAheadBtn}
@@ -350,5 +402,39 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     marginTop: Spacing.xs,
     paddingLeft: Spacing.xl + Spacing.md,
+  },
+  // Language picker inline
+  langGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingVertical: Spacing.md,
+  },
+  langOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  langOptionActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surfaceLight,
+  },
+  langFlag: {
+    fontSize: 18,
+  },
+  langLabel: {
+    color: Colors.text,
+    fontSize: FontSize.sm,
+    fontWeight: '500',
+  },
+  langLabelActive: {
+    color: Colors.primary,
+    fontWeight: '700',
   },
 });

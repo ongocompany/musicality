@@ -4,7 +4,9 @@ import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAuthStore } from '../stores/authStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { Colors } from '../constants/theme';
+import i18next, { detectDeviceLanguage } from '../i18n';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading, guestMode, initialize } = useAuthStore();
@@ -13,6 +15,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     initialize();
+    // Sync i18n language from persisted settings
+    const lang = useSettingsStore.getState().language;
+    if (lang) {
+      i18next.changeLanguage(lang);
+    } else {
+      // First launch: detect device language and persist
+      const detected = detectDeviceLanguage();
+      i18next.changeLanguage(detected);
+      useSettingsStore.getState().setLanguage(detected);
+    }
   }, []);
 
   useEffect(() => {

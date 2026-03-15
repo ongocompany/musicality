@@ -5,80 +5,52 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 
 interface OnboardingSlide {
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
-  title: string;
-  bullets: string[];
+  titleKey: string;
+  bulletKeys: string[];
 }
 
 const SLIDES: OnboardingSlide[] = [
   {
     icon: 'musical-notes',
     iconColor: Colors.primary,
-    title: 'Musicality',
-    bullets: [
-      'Latin Dance Count Practice Player',
-      'Bachata / Salsa On1 / Salsa On2',
-      'AI Auto-count & Phrase Detection',
-    ],
+    titleKey: 'onboarding.s1Title',
+    bulletKeys: ['onboarding.s1b1', 'onboarding.s1b2', 'onboarding.s1b3'],
   },
   {
     icon: 'library',
     iconColor: '#60A5FA',
-    title: 'Library',
-    bullets: [
-      'Add music from your device or YouTube URL',
-      'Tap a track to open in Player',
-      'Swipe left to delete a track',
-    ],
+    titleKey: 'onboarding.s2Title',
+    bulletKeys: ['onboarding.s2b1', 'onboarding.s2b2', 'onboarding.s2b3'],
   },
   {
     icon: 'grid',
     iconColor: '#34D399',
-    title: 'Beat Grid',
-    bullets: [
-      'Each cell = 1 beat, 8 beats per row',
-      'Colors show different phrases (verse/chorus/bridge)',
-      'Tap a cell to seek to that beat',
-      'Long-press a cell for more options (repeat, memo, etc.)',
-    ],
+    titleKey: 'onboarding.s3Title',
+    bulletKeys: ['onboarding.s3b1', 'onboarding.s3b2', 'onboarding.s3b3', 'onboarding.s3b4'],
   },
   {
     icon: 'play-circle',
     iconColor: '#F472B6',
-    title: 'Player Controls',
-    bullets: [
-      'Play/Pause in the center',
-      'Skip back/forward between phrases',
-      'Long-press back button to go to start',
-      'Speed control (0.5x ~ 1.5x)',
-      'Cue sound toggle (click/cowbell)',
-    ],
+    titleKey: 'onboarding.s4Title',
+    bulletKeys: ['onboarding.s4b1', 'onboarding.s4b2', 'onboarding.s4b3', 'onboarding.s4b4', 'onboarding.s4b5'],
   },
   {
     icon: 'analytics',
     iconColor: '#FBBF24',
-    title: 'Waveform Timeline',
-    bullets: [
-      'Touch & drag to seek anywhere',
-      'Colors match phrase sections',
-      'White line = current position',
-      'A-B loop region shown in yellow',
-    ],
+    titleKey: 'onboarding.s5Title',
+    bulletKeys: ['onboarding.s5b1', 'onboarding.s5b2', 'onboarding.s5b3', 'onboarding.s5b4'],
   },
   {
     icon: 'people',
     iconColor: '#A78BFA',
-    title: 'Formation & Community',
-    bullets: [
-      'Create dance formations on the stage view',
-      'Set keyframes at specific beats',
-      'Share phrase notes with your crew',
-      'Join or create dance crews',
-    ],
+    titleKey: 'onboarding.s6Title',
+    bulletKeys: ['onboarding.s6b1', 'onboarding.s6b2', 'onboarding.s6b3', 'onboarding.s6b4'],
   },
 ];
 
@@ -87,6 +59,7 @@ interface OnboardingOverlayProps {
 }
 
 export function OnboardingOverlay({ onComplete }: OnboardingOverlayProps) {
+  const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [currentPage, setCurrentPage] = useState(0);
@@ -108,7 +81,7 @@ export function OnboardingOverlay({ onComplete }: OnboardingOverlayProps) {
     <View style={[styles.overlay, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Skip button */}
       <TouchableOpacity style={styles.skipButton} onPress={onComplete}>
-        <Text style={styles.skipText}>Skip</Text>
+        <Text style={styles.skipText}>{t('common.skip')}</Text>
       </TouchableOpacity>
 
       {/* Slides */}
@@ -125,12 +98,12 @@ export function OnboardingOverlay({ onComplete }: OnboardingOverlayProps) {
             <View style={styles.iconContainer}>
               <Ionicons name={slide.icon} size={64} color={slide.iconColor} />
             </View>
-            <Text style={styles.slideTitle}>{slide.title}</Text>
+            <Text style={styles.slideTitle}>{t(slide.titleKey)}</Text>
             <View style={styles.bulletList}>
-              {slide.bullets.map((bullet, bi) => (
+              {slide.bulletKeys.map((key, bi) => (
                 <View key={bi} style={styles.bulletRow}>
                   <Text style={styles.bulletDot}>•</Text>
-                  <Text style={styles.bulletText}>{bullet}</Text>
+                  <Text style={styles.bulletText}>{t(key)}</Text>
                 </View>
               ))}
             </View>
@@ -165,7 +138,7 @@ export function OnboardingOverlay({ onComplete }: OnboardingOverlayProps) {
           }}
         >
           <Text style={[styles.nextText, isLastPage && styles.startText]}>
-            {isLastPage ? 'Start!' : 'Next'}
+            {isLastPage ? t('common.start') : t('common.next')}
           </Text>
           {!isLastPage && (
             <Ionicons name="chevron-forward" size={18} color={Colors.primary} />

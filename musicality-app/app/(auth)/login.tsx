@@ -2,29 +2,86 @@ import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Platform, ScrollView, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { supabase } from '../../lib/supabase';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
+import { LANGUAGES, LanguageCode } from '../../i18n';
 
 const __DEV_MODE__ = __DEV__; // true in Expo Go dev
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { t, i18n } = useTranslation();
   const { signInWithGoogle, signInWithApple, enterGuestMode } = useAuthStore();
+  const { language, setLanguage } = useSettingsStore();
   const [signingIn, setSigningIn] = useState<string | null>(null);
+  const [showLangPicker, setShowLangPicker] = useState(!language); // show if no language set
   const contentMaxWidth = Math.min(width - Spacing.xl * 2, 400);
+
+  const handleSelectLanguage = (code: LanguageCode) => {
+    setLanguage(code);
+    i18n.changeLanguage(code);
+    setShowLangPicker(false);
+  };
 
   const handleSignIn = async (provider: string, signInFn: () => Promise<void>) => {
     try {
       setSigningIn(provider);
       await signInFn();
     } catch (error: any) {
-      Alert.alert('로그인 실패', error.message || '다시 시도해주세요.');
+      Alert.alert(t('auth.loginFailed'), error.message || t('auth.tryAgain'));
     } finally {
       setSigningIn(null);
     }
   };
+
+  // Language selection screen
+  if (showLangPicker) {
+    return (
+      <ScrollView
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20 }]}
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.inner, { maxWidth: contentMaxWidth }]}>
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <Ionicons name="musical-notes" size={48} color={Colors.primary} />
+            </View>
+            <Text style={styles.title}>Musicality</Text>
+            <Text style={[styles.subtitle, { marginTop: Spacing.lg }]}>
+              {t('auth.selectLanguage')}
+            </Text>
+          </View>
+
+          <View style={styles.langGrid}>
+            {LANGUAGES.map((lang) => (
+              <TouchableOpacity
+                key={lang.code}
+                style={[
+                  styles.langButton,
+                  i18n.language === lang.code && styles.langButtonActive,
+                ]}
+                onPress={() => handleSelectLanguage(lang.code)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.langFlag}>{lang.flag}</Text>
+                <Text style={[
+                  styles.langLabel,
+                  i18n.language === lang.code && styles.langLabelActive,
+                ]}>
+                  {lang.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView
@@ -39,7 +96,7 @@ export default function LoginScreen() {
           <Ionicons name="musical-notes" size={48} color={Colors.primary} />
         </View>
         <Text style={styles.title}>Musicality</Text>
-        <Text style={styles.subtitle}>Latin Dance Count Practice</Text>
+        <Text style={styles.subtitle}>{t('auth.subtitle')}</Text>
       </View>
 
       {/* Social Login Buttons */}
@@ -56,21 +113,21 @@ export default function LoginScreen() {
           ) : (
             <>
               <Ionicons name="logo-google" size={20} color="#FFF" />
-              <Text style={styles.socialButtonText}>Google로 계속하기</Text>
+              <Text style={styles.socialButtonText}>{t('auth.continueWithGoogle')}</Text>
             </>
           )}
         </TouchableOpacity>
 
-        {/* Apple (iOS only) — 개발자 계정 등록 대기 중 */}
+        {/* Apple (iOS only) */}
         {Platform.OS === 'ios' && (
           <TouchableOpacity
             style={[styles.socialButton, styles.appleButton, { opacity: 0.5 }]}
-            onPress={() => Alert.alert('준비 중', 'Apple 로그인은 곧 지원될 예정입니다.')}
+            onPress={() => Alert.alert(t('common.comingSoon'), t('auth.appleComing'))}
             activeOpacity={0.8}
           >
             <Ionicons name="logo-apple" size={22} color="#FFF" />
-            <Text style={styles.socialButtonText}>Apple로 계속하기</Text>
-            <Text style={styles.comingSoonBadge}>준비중</Text>
+            <Text style={styles.socialButtonText}>{t('auth.continueWithApple')}</Text>
+            <Text style={styles.comingSoonBadge}>{t('common.comingSoon')}</Text>
           </TouchableOpacity>
         )}
 
@@ -82,7 +139,7 @@ export default function LoginScreen() {
         onPress={enterGuestMode}
         activeOpacity={0.6}
       >
-        <Text style={styles.guestButtonText}>비회원으로 계속하기</Text>
+        <Text style={styles.guestButtonText}>{t('auth.continueAsGuest')}</Text>
       </TouchableOpacity>
 
       {/* Dev Login — only in development */}
@@ -111,16 +168,24 @@ export default function LoginScreen() {
           ) : (
             <>
               <Ionicons name="code-slash" size={18} color="#FFF" />
-              <Text style={styles.socialButtonText}>Dev Login (테스트)</Text>
+              <Text style={styles.socialButtonText}>{t('auth.devLogin')}</Text>
             </>
           )}
         </TouchableOpacity>
       )}
 
-      {/* Footer */}
-      <Text style={styles.footer}>
-        로그인하면 클라우드 동기화 등{'\n'}추가 기능을 이용할 수 있습니다.
-      </Text>
+      {/* Language switcher + Footer */}
+      <TouchableOpacity
+        style={styles.langSwitcher}
+        onPress={() => setShowLangPicker(true)}
+      >
+        <Ionicons name="globe-outline" size={16} color={Colors.textMuted} />
+        <Text style={styles.langSwitcherText}>
+          {LANGUAGES.find(l => l.code === i18n.language)?.label ?? 'English'}
+        </Text>
+      </TouchableOpacity>
+
+      <Text style={styles.footer}>{t('auth.footer')}</Text>
       </View>
     </ScrollView>
   );
@@ -213,11 +278,59 @@ const styles = StyleSheet.create({
     borderColor: '#FF6B35',
     borderStyle: 'dashed',
   },
+  langSwitcher: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+  langSwitcherText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    textDecorationLine: 'underline',
+  },
   footer: {
     textAlign: 'center',
     fontSize: FontSize.sm,
     color: Colors.textMuted,
-    marginTop: Spacing.xl,
+    marginTop: Spacing.md,
     lineHeight: 18,
+  },
+  // Language picker
+  langGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'center',
+  },
+  langButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    minWidth: '45%',
+  },
+  langButtonActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surfaceLight,
+  },
+  langFlag: {
+    fontSize: 22,
+  },
+  langLabel: {
+    color: Colors.text,
+    fontSize: FontSize.md,
+    fontWeight: '500',
+  },
+  langLabelActive: {
+    color: Colors.primary,
+    fontWeight: '700',
   },
 });
