@@ -274,7 +274,7 @@ export function PhraseGrid({
     return String(Math.floor(cellIndex / COLS) + 1);
   }, [visualCells]);
 
-  // Per-cell phrase label: first column shows phrase number (e.g. "P1", "P2")
+  // Per-cell phrase label: first column shows beat number within phrase (1, 9, 17, 25...)
   const getCellPhraseLabel = useCallback((cellIndex: number): string | null => {
     if (cellIndex % COLS !== 0) return null; // only first column
     const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
@@ -282,11 +282,8 @@ export function PhraseGrid({
     for (let p = 0; p < phraseMap.phrases.length; p++) {
       const phrase = phraseMap.phrases[p];
       if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
-        // Only show on the first row of each phrase
-        if (globalBeat === phrase.startBeatIndex) {
-          return String(p + 1);
-        }
-        return null;
+        const beatWithinPhrase = globalBeat - phrase.startBeatIndex + 1;
+        return String(beatWithinPhrase);
       }
     }
     return null;

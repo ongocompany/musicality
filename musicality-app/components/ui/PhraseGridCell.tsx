@@ -171,11 +171,16 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
               {beatCount}
             </Text>
           )}
-          {/* Phrase number label — first cell of each phrase */}
+          {/* Phrase beat number label — first column of each row */}
           {phraseLabel != null && state !== 'current' && (
             <Text style={[
               styles.phraseLabel,
-              { fontSize: Math.max(8, Math.round(size * 0.35)) },
+              {
+                fontSize: Math.max(8, Math.round(size * 0.35)),
+                textShadowColor: 'rgba(0, 0, 0, 0.6)',
+                textShadowOffset: { width: 0, height: 0 },
+                textShadowRadius: 2,
+              },
             ]}>
               {phraseLabel}
             </Text>
