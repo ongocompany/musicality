@@ -1326,7 +1326,7 @@ export default function PlayerScreen() {
             </TouchableOpacity>
           )}
           <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
-          <TouchableOpacity onPress={handleSkipBack}>
+          <TouchableOpacity onPress={handleSkipBack} onLongPress={() => seekTo(0)} delayLongPress={400}>
             <Ionicons name="play-back" size={22} color={Colors.text} />
           </TouchableOpacity>
         </View>
@@ -1334,7 +1334,7 @@ export default function PlayerScreen() {
           <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={styles.bottomBarSide}>
-          <TouchableOpacity onPress={handleSkipForward} onLongPress={() => seekTo(0)} delayLongPress={400}>
+          <TouchableOpacity onPress={handleSkipForward}>
             <Ionicons name="play-forward" size={22} color={Colors.text} />
           </TouchableOpacity>
           <TouchableOpacity onPress={toggleCue} style={styles.cueToggle}>
