@@ -1165,7 +1165,7 @@ export default function PlayerScreen() {
           {phraseMap && phraseMap.phrases.length > 0 && analysis && (
             <SectionTimeline
               phrases={phraseMap.phrases}
-              duration={analysis.duration}
+              duration={duration > 0 ? duration / 1000 : analysis.duration}
               currentTimeMs={position}
               waveformPeaks={analysis.waveformPeaks}
               onSeek={seekTo}
