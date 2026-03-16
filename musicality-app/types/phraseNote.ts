@@ -5,7 +5,7 @@
 
 export interface PhraseNoteFile {
   version: 1;
-  format: 'pnote';
+  format: 'pnote' | 'cnote';  // pnote = PhraseNote, cnote = ChoreoNote
   metadata: {
     author: string;         // creator name
     createdAt: number;      // Date.now()
@@ -29,6 +29,7 @@ export interface PhraseNoteFile {
     beatsPerPhrase: number;
   };
   cellNotes: Record<string, string>;  // beatIndex(string) → memo text
+  formation?: import('./formation').FormationData;  // ChoreoNote formation data
 }
 
 export interface ImportedPhraseNote {
@@ -37,4 +38,5 @@ export interface ImportedPhraseNote {
   phraseNote: PhraseNoteFile;   // the imported data
   importedAt: number;           // Date.now()
   isActive: boolean;            // currently active for this track
+  authorAvatarUrl?: string;     // profile avatar URL
 }

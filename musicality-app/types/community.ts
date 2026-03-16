@@ -125,6 +125,7 @@ export interface SongThread {
   lastActivityAt: string;
   createdBy: string;
   createdAt: string;
+  latestNoteFormat?: 'pnote' | 'cnote' | null;
 }
 
 export interface CreateThreadInput {

@@ -13,7 +13,11 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../stores/authStore';
 import { useCommunityStore } from '../../stores/communityStore';
-import { Colors, Spacing, FontSize } from '../../constants/theme';
+import { usePlayerStore } from '../../stores/playerStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { ImportedPhraseNote, PhraseNoteFile } from '../../types/phraseNote';
+import { findMatchingTrack, validatePhraseNote } from '../../services/phraseNoteService';
+import { Colors, Spacing, FontSize, NoteTypeColors } from '../../constants/theme';
 
 export default function SongThreadScreen() {
   const router = useRouter();
@@ -30,7 +34,63 @@ export default function SongThreadScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [description, setDescription] = useState('');
 
+  const tracks = usePlayerStore((s) => s.tracks);
+  const addImportedNote = useSettingsStore((s) => s.addImportedNote);
+  const setActiveImportedNote = useSettingsStore((s) => s.setActiveImportedNote);
+
   const thread = activeSongThreads.find((t) => t.id === id);
+
+  const handleImportNote = useCallback((phraseNoteData: any, authorName?: string, avatarUrl?: string | null) => {
+    try {
+      const pnote = phraseNoteData as PhraseNoteFile;
+      // Use post author name if metadata author is missing
+      if (authorName && (!pnote.metadata.author || pnote.metadata.author === 'Unknown')) {
+        pnote.metadata.author = authorName;
+      }
+      const validationError = validatePhraseNote(pnote);
+      if (validationError) {
+        Alert.alert('Error', validationError);
+        return;
+      }
+
+      // Try matching by fingerprint first, then by title
+      let matchedTrackId: string | null = null;
+      if (pnote.analysis.fingerprint) {
+        matchedTrackId = findMatchingTrack(tracks, pnote);
+      }
+      if (!matchedTrackId && thread) {
+        // Fallback: match by thread title (song title)
+        const titleMatch = tracks.find(t =>
+          t.title.toLowerCase().includes(thread.title.toLowerCase()) ||
+          thread.title.toLowerCase().includes(t.title.toLowerCase())
+        );
+        if (titleMatch) matchedTrackId = titleMatch.id;
+      }
+
+      if (!matchedTrackId) {
+        Alert.alert('No Match', 'Add this song to your library first, then try again.');
+        return;
+      }
+
+      const noteId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const imported: ImportedPhraseNote = {
+        id: noteId,
+        trackId: matchedTrackId,
+        phraseNote: pnote,
+        importedAt: Date.now(),
+        isActive: true,
+        authorAvatarUrl: avatarUrl ?? undefined,
+      };
+
+      setActiveImportedNote(matchedTrackId, null);
+      addImportedNote(imported);
+
+      const noteLabel = pnote.format === 'cnote' ? 'ChoreoNote' : 'PhraseNote';
+      Alert.alert('Imported!', `${pnote.metadata.author}'s ${noteLabel} has been loaded.`);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to import note');
+    }
+  }, [tracks, thread, addImportedNote, setActiveImportedNote]);
   const notes = id ? activeThreadNotes[id] ?? [] : [];
 
   useEffect(() => {
@@ -117,14 +177,11 @@ export default function SongThreadScreen() {
                     <Text style={styles.noteDescription}>{note.description}</Text>
                   ) : null}
                   <View style={styles.notePreview}>
-                    <Ionicons name="musical-note" size={16} color={Colors.primary} />
-                    <Text style={styles.notePreviewText}>PhraseNote attached</Text>
+                    <Ionicons name={note.phraseNoteData?.format === 'cnote' ? 'people' : 'musical-note'} size={16} color={note.phraseNoteData?.format === 'cnote' ? NoteTypeColors.choreoNote : NoteTypeColors.phraseNote} />
+                    <Text style={[styles.notePreviewText, { color: note.phraseNoteData?.format === 'cnote' ? NoteTypeColors.choreoNote : NoteTypeColors.phraseNote }]}>{note.phraseNoteData?.format === 'cnote' ? 'ChoreoNote' : 'PhraseNote'} attached</Text>
                     <TouchableOpacity
                       style={styles.importBtn}
-                      onPress={() => {
-                        // TODO: Import PhraseNote to player
-                        Alert.alert('Import', 'PhraseNote import coming in Phase 3');
-                      }}
+                      onPress={() => handleImportNote(note.phraseNoteData, note.profile?.displayName, note.profile?.avatarUrl)}
                     >
                       <Ionicons name="download-outline" size={16} color={Colors.primary} />
                       <Text style={styles.importBtnText}>Import</Text>

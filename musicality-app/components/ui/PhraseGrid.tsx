@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { View, Text, StyleSheet, LayoutChangeEvent, Modal, Pressable, TouchableOpacity, TextInput, Keyboard, ScrollView, NativeSyntheticEvent, NativeScrollEvent, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { Colors, Spacing, FontSize, getPhraseColor } from '../../constants/theme';
+import { Colors, Spacing, FontSize, getPhraseColor, NoteTypeColors } from '../../constants/theme';
 import { CountInfo } from '../../utils/beatCounter';
 import { PhraseMap } from '../../types/analysis';
 import { PhraseGridCell, CELL_GAP, CellState } from './PhraseGridCell';
@@ -36,6 +36,8 @@ interface PhraseGridProps {
   // Formation mode
   formationData?: FormationData | null;
   onEditFormation?: (beatIndex: number) => void;
+  onCopyPrevKeyframe?: (beatIndex: number) => void;
+  onDissolveKeyframe?: (beatIndex: number) => void;
   // Edit mode — changes cell tap behavior
   editMode?: 'none' | 'note' | 'formation';
 }
@@ -56,7 +58,7 @@ export function PhraseGrid({
   loopStart, loopEnd, rows, scrollMode,
   cellNotes, onSetCellNote, onClearCellNote,
   currentBeatNote,
-  formationData, onEditFormation,
+  formationData, onEditFormation, onCopyPrevKeyframe, onDissolveKeyframe,
   editMode = 'none',
 }: PhraseGridProps) {
   const { t } = useTranslation();
@@ -668,70 +670,86 @@ export function PhraseGrid({
         onRequestClose={() => setMenuVisible(false)}
       >
         <Pressable style={styles.menuBackdrop} onPress={() => setMenuVisible(false)}>
-          <View style={styles.menuContainer}>
+          <View style={[styles.menuContainer, editMode === 'formation' ? { borderColor: NoteTypeColors.choreoNote, borderWidth: 1.5 } : editMode === 'note' ? { borderColor: NoteTypeColors.phraseNote, borderWidth: 1.5 } : {}]}>
             <Text style={styles.menuTitle}>Beat {menuGlobalBeat + 1}</Text>
-            {/* Show existing note content in context menu */}
-            {menuHasNote && cellNotes && menuGlobalBeat >= 0 && (
+            {/* Show existing note content in context menu (non-formation only) */}
+            {editMode !== 'formation' && menuHasNote && cellNotes && menuGlobalBeat >= 0 && (
               <View style={styles.menuNotePreview}>
                 <Text style={styles.menuNotePreviewText}>
-                  📝 {cellNotes[String(menuGlobalBeat)]}
+                  {cellNotes[String(menuGlobalBeat)]}
                 </Text>
               </View>
             )}
 
-            {/* Re-arrange phrases — paused + not first cell of phrase */}
-            {!isPlaying && !isFirstCellOfPhrase && (
-              <TouchableOpacity style={styles.menuOption} onPress={handleReArrangePhrase}>
-                <Text style={styles.menuOptionText}>{t('player.reArrangePhrase')}</Text>
+            {/* Formation mode: keyframe tools */}
+            {editMode === 'formation' && onCopyPrevKeyframe && (
+              <TouchableOpacity style={styles.menuOption} onPress={() => {
+                onCopyPrevKeyframe(menuGlobalBeat);
+                setMenuVisible(false);
+              }}>
+                <Text style={styles.menuOptionText}>키프레임 복사</Text>
+              </TouchableOpacity>
+            )}
+            {editMode === 'formation' && onDissolveKeyframe && (
+              <TouchableOpacity style={styles.menuOption} onPress={() => {
+                onDissolveKeyframe(menuGlobalBeat);
+                setMenuVisible(false);
+              }}>
+                <Text style={styles.menuOptionText}>변환점 지정</Text>
               </TouchableOpacity>
             )}
 
-            {/* Split phrase here — paused + not first cell of phrase */}
-            {!isPlaying && !isFirstCellOfPhrase && (
-              <TouchableOpacity style={styles.menuOption} onPress={handleSplitPhraseHere}>
-                <Text style={styles.menuOptionText}>{t('player.splitPhrase')}</Text>
-              </TouchableOpacity>
-            )}
+            {/* Non-formation mode: phrase editing options */}
+            {editMode !== 'formation' && (
+              <>
+                {/* Re-arrange phrases — paused + not first cell of phrase */}
+                {!isPlaying && !isFirstCellOfPhrase && (
+                  <TouchableOpacity style={styles.menuOption} onPress={handleReArrangePhrase}>
+                    <Text style={styles.menuOptionText}>{t('player.reArrangePhrase')}</Text>
+                  </TouchableOpacity>
+                )}
 
-            {/* Repeat from here — always available */}
-            <TouchableOpacity style={styles.menuOption} onPress={handleRepeatFromHere}>
-              <Text style={styles.menuOptionText}>{t('player.loopSet')}</Text>
-            </TouchableOpacity>
+                {/* Split phrase here — paused + not first cell of phrase */}
+                {!isPlaying && !isFirstCellOfPhrase && (
+                  <TouchableOpacity style={styles.menuOption} onPress={handleSplitPhraseHere}>
+                    <Text style={styles.menuOptionText}>{t('player.splitPhrase')}</Text>
+                  </TouchableOpacity>
+                )}
 
-            {/* Merge with previous — paused + first cell of non-first phrase */}
-            {!isPlaying && canMerge && (
-              <TouchableOpacity style={styles.menuOption} onPress={handleMergeWithPrevious}>
-                <Text style={styles.menuOptionText}>{t('player.deletePhrase')}</Text>
-              </TouchableOpacity>
-            )}
+                {/* Repeat from here — always available */}
+                <TouchableOpacity style={styles.menuOption} onPress={handleRepeatFromHere}>
+                  <Text style={styles.menuOptionText}>{t('player.loopSet')}</Text>
+                </TouchableOpacity>
 
-            {/* Clear repeat — when loop is set */}
-            {(loopStart != null || loopEnd != null) && (
-              <TouchableOpacity
-                style={[styles.menuOption, styles.menuOptionDanger]}
-                onPress={handleClearLoop}
-              >
-                <Text style={[styles.menuOptionText, styles.menuOptionDangerText]}>
-                  {t('player.loopClear')}
-                </Text>
-              </TouchableOpacity>
-            )}
+                {/* Merge with previous — paused + first cell of non-first phrase */}
+                {!isPlaying && canMerge && (
+                  <TouchableOpacity style={styles.menuOption} onPress={handleMergeWithPrevious}>
+                    <Text style={styles.menuOptionText}>{t('player.deletePhrase')}</Text>
+                  </TouchableOpacity>
+                )}
 
-            {/* Edit formation */}
-            {onEditFormation && (
-              <TouchableOpacity style={styles.menuOption} onPress={handleEditFormation}>
-                <Text style={styles.menuOptionText}>{t('player.formation')}</Text>
-              </TouchableOpacity>
+                {/* Clear repeat — when loop is set */}
+                {(loopStart != null || loopEnd != null) && (
+                  <TouchableOpacity
+                    style={[styles.menuOption, styles.menuOptionDanger]}
+                    onPress={handleClearLoop}
+                  >
+                    <Text style={[styles.menuOptionText, styles.menuOptionDangerText]}>
+                      {t('player.loopClear')}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
 
             {/* Separator */}
-            {(onSetCellNote || onEditFormation) && <View style={styles.menuSeparator} />}
+            {onSetCellNote && <View style={styles.menuSeparator} />}
 
             {/* Add/Edit note */}
             {onSetCellNote && (
               <TouchableOpacity style={styles.menuOption} onPress={handleAddEditNote}>
                 <Text style={styles.menuOptionText}>
-                  {menuHasNote ? `✏️ ${t('player.memo')}` : `📝 ${t('player.memo')}`}
+                  {t('player.memo')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -755,7 +773,7 @@ export function PhraseGrid({
       {tooltipText && (
         <View style={styles.tooltipContainer}>
           <View style={styles.tooltip}>
-            <Text style={styles.tooltipText}>📝 {tooltipText}</Text>
+            <Text style={styles.tooltipText}>{tooltipText}</Text>
           </View>
         </View>
       )}
@@ -764,7 +782,7 @@ export function PhraseGrid({
       {!tooltipText && currentBeatNote && (
         <View style={styles.noteBanner}>
           <Text style={styles.noteBannerText} numberOfLines={1}>
-            📝 {currentBeatNote}
+            {currentBeatNote}
           </Text>
         </View>
       )}

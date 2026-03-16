@@ -108,6 +108,7 @@ export type PatternId =
   | 'line'
   | 'circle'
   | 'v-shape'
+  | 'v-shape-inv'
   | 'diamond'
   | 'staggered'
   | 'scatter'

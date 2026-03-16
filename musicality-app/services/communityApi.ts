@@ -408,12 +408,21 @@ export async function rejectJoinRequest(requestId: string): Promise<void> {
 export async function fetchSongThreads(crewId: string): Promise<SongThread[]> {
   const { data, error } = await supabase
     .from('song_threads')
-    .select('*')
+    .select('*, thread_phrase_notes(phrase_note_data)')
     .eq('crew_id', crewId)
     .order('last_activity_at', { ascending: false });
 
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapSongThread);
+  return (data ?? []).map((row) => {
+    const thread = mapSongThread(row);
+    // Extract latest note format from joined notes
+    const notes = row.thread_phrase_notes as any[] | undefined;
+    if (notes && notes.length > 0) {
+      const latest = notes[notes.length - 1];
+      thread.latestNoteFormat = latest?.phrase_note_data?.format ?? 'pnote';
+    }
+    return thread;
+  });
 }
 
 export async function createSongThread(crewId: string, input: CreateThreadInput): Promise<SongThread> {

@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { useCommunityStore } from '../../stores/communityStore';
 import { useCalendarStore } from '../../stores/calendarStore';
-import { Colors, Spacing, FontSize } from '../../constants/theme';
+import { Colors, Spacing, FontSize, NoteTypeColors } from '../../constants/theme';
 import EventCard from '../../components/calendar/EventCard';
 import EventFormModal from '../../components/calendar/EventFormModal';
 import PostComposer from '../../components/board/PostComposer';
@@ -234,7 +234,7 @@ export default function CrewDetailScreen() {
                         onPress={() => router.push({ pathname: '/community/song-thread', params: { id: thread.id, crewId: id! } })}
                         activeOpacity={0.7}
                       >
-                        <Ionicons name="musical-note" size={20} color={Colors.primary} />
+                        <Ionicons name={thread.latestNoteFormat === 'cnote' ? 'people' : 'musical-note'} size={20} color={thread.latestNoteFormat === 'cnote' ? NoteTypeColors.choreoNote : NoteTypeColors.phraseNote} />
                         <View style={styles.threadInfo}>
                           <Text style={styles.threadTitle} numberOfLines={1}>{thread.title}</Text>
                           <Text style={styles.threadMeta}>

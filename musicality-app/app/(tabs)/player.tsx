@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, StatusBar, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, StatusBar, useWindowDimensions, Image } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,7 +22,7 @@ import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
 import { buildPhraseNoteFile, exportPhraseNote, pickPhraseNoteFile, findMatchingTrack, validatePhraseNote } from '../../services/phraseNoteService';
 import { ImportedPhraseNote } from '../../types/phraseNote';
-import { FormationData, StageConfig, createDefaultDancers } from '../../types/formation';
+import { FormationData, StageConfig, createDefaultDancers, STAGE_PRESETS } from '../../types/formation';
 import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, CountInfo } from '../../utils/beatCounter';
 import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, phrasesFromBeatIndices } from '../../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../../utils/beatGenerator';
@@ -578,10 +578,57 @@ export default function PlayerScreen() {
     }
   }, [effectiveBeats, seekTo]);
 
+  // Formation undo stack
+  const formationUndoRef = useRef<Record<string, FormationData[]>>({});
+
   const handleFormationUpdate = useCallback((data: FormationData) => {
     if (!currentTrack) return;
+    // Push current state to undo stack before updating
+    const current = draftFormation[currentTrack.id];
+    if (current) {
+      if (!formationUndoRef.current[currentTrack.id]) formationUndoRef.current[currentTrack.id] = [];
+      const stack = formationUndoRef.current[currentTrack.id];
+      stack.push(current);
+      if (stack.length > 30) stack.shift(); // limit stack size
+    }
     setDraftFormation(currentTrack.id, data);
+  }, [currentTrack, setDraftFormation, draftFormation]);
+
+  const handleFormationUndo = useCallback(() => {
+    if (!currentTrack) return;
+    const stack = formationUndoRef.current[currentTrack.id];
+    if (!stack || stack.length === 0) return;
+    const prev = stack.pop()!;
+    setDraftFormation(currentTrack.id, prev);
   }, [currentTrack, setDraftFormation]);
+
+  const canUndoFormation = currentTrack ? (formationUndoRef.current[currentTrack.id]?.length ?? 0) > 0 : false;
+
+  const handleCopyPrevKeyframe = useCallback((beatIndex: number) => {
+    if (!activeFormationData) return;
+    const { copyKeyframe } = require('../../utils/formationInterpolator');
+    // Find closest previous keyframe
+    const prev = activeFormationData.keyframes
+      .filter((kf: any) => kf.beatIndex < beatIndex)
+      .sort((a: any, b: any) => b.beatIndex - a.beatIndex)[0];
+    if (prev) {
+      handleFormationUpdate(copyKeyframe(activeFormationData, prev.beatIndex, beatIndex));
+    }
+  }, [activeFormationData, handleFormationUpdate]);
+
+  const handleDissolveKeyframe = useCallback((beatIndex: number) => {
+    if (!activeFormationData) return;
+    const { copyKeyframe } = require('../../utils/formationInterpolator');
+    // Find closest previous keyframe
+    const prev = activeFormationData.keyframes
+      .filter((kf: any) => kf.beatIndex < beatIndex)
+      .sort((a: any, b: any) => b.beatIndex - a.beatIndex)[0];
+    if (!prev) return;
+    // Copy prev keyframe to 4 beats BEFORE current position
+    const targetBeat = Math.max(0, beatIndex - 4);
+    if (targetBeat <= prev.beatIndex) return; // no room for dissolve
+    handleFormationUpdate(copyKeyframe(activeFormationData, prev.beatIndex, targetBeat));
+  }, [activeFormationData, handleFormationUpdate]);
 
   const handleFormationBeatChange = useCallback((beatIndex: number) => {
     setFormationEditBeatIndex(beatIndex);
@@ -633,7 +680,8 @@ export default function PlayerScreen() {
 
   const handleSharePhraseNote = useCallback(() => {
     if (!currentTrack || !analysis || !phraseMap) return;
-    Alert.alert('Share PhraseNote', 'Choose how to share', [
+    const noteLabel = activeFormationData ? 'ChoreoNote' : 'PhraseNote';
+    Alert.alert(`Share ${noteLabel}`, 'Choose how to share', [
       {
         text: 'Share to Crew',
         onPress: () => {
@@ -650,6 +698,7 @@ export default function PlayerScreen() {
             boundaries,
             beatsPerPhrase: phraseMap.beatsPerPhrase,
             cellNotes: notes,
+            formation: activeFormationData ?? undefined,
           });
           router.push({
             pathname: '/community/share-to-crew',
@@ -658,15 +707,40 @@ export default function PlayerScreen() {
               songTitle: currentTrack.title,
               bpm: analysis.bpm ? String(Math.round(analysis.bpm)) : '',
               danceStyle,
+              noteType: activeFormationData ? 'cnote' : 'pnote',
             },
           });
         },
       },
       {
         text: 'External Share',
-        onPress: () => {
-          setShareAuthorName('');
-          setShareModalVisible(true);
+        onPress: async () => {
+          if (!currentTrack || !analysis || !phraseMap) return;
+          const trackId = currentTrack.id;
+          const offset = downbeatOffsets[trackId] ?? 0;
+          const boundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+          const notes = cellNotes[trackId] ?? {};
+          const { useAuthStore } = await import('../../stores/authStore');
+          const authUser = useAuthStore.getState().user;
+          const authorName = authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || authUser?.email?.split('@')[0] || 'Unknown';
+          const pnote = buildPhraseNoteFile({
+            author: authorName,
+            title: currentTrack.title,
+            analysis,
+            danceStyle,
+            downbeatOffset: offset,
+            boundaries,
+            beatsPerPhrase: phraseMap.beatsPerPhrase,
+            cellNotes: notes,
+            formation: activeFormationData ?? undefined,
+          });
+          try {
+            await exportPhraseNote(pnote, currentTrack.title);
+          } catch (err: any) {
+            if (err?.message !== 'User did not share') {
+              Alert.alert('Share Error', err?.message || 'Failed to share');
+            }
+          }
         },
       },
       { text: 'Cancel', style: 'cancel' },
@@ -689,6 +763,7 @@ export default function PlayerScreen() {
       boundaries,
       beatsPerPhrase: phraseMap.beatsPerPhrase,
       cellNotes: notes,
+      formation: activeFormationData ?? undefined,
     });
     // Close modal first, then wait for dismiss animation before opening share sheet
     setShareModalVisible(false);
@@ -857,28 +932,20 @@ export default function PlayerScreen() {
   // Analyze mode selection
   const [analyzeMenuVisible, setAnalyzeMenuVisible] = useState(false);
   const [choreoDancerCount, setChoreoDancerCount] = useState(4);
-  const setServerFormation = useSettingsStore((s) => s.setServerFormation);
+
+  // Formation setup dialog
+  const [formationSetupVisible, setFormationSetupVisible] = useState(false);
+  const [setupDancerCount, setSetupDancerCount] = useState(4);
+  const [setupStagePresetIdx, setSetupStagePresetIdx] = useState(1); // default 8×4m
 
   const handleAnalyzePress = () => {
     if (!currentTrack || currentTrack.analysisStatus === 'analyzing') return;
     setAnalyzeMenuVisible(true);
   };
 
-  const runAnalysis = async (withFormation: boolean) => {
+  const runAnalysis = async () => {
     if (!currentTrack) return;
     setAnalyzeMenuVisible(false);
-
-    // If already analyzed, skip re-analysis and just request formation
-    if (analysis && withFormation) {
-      try {
-        const { requestFormationSuggestion } = await import('../../services/formationApi');
-        const formationData = await requestFormationSuggestion(analysis, choreoDancerCount, danceStyle);
-        setServerFormation(currentTrack.id, formationData);
-      } catch (fe: any) {
-        Alert.alert(t('player.formation'), fe.message || 'Could not generate formation suggestions.');
-      }
-      return;
-    }
 
     setTrackAnalysisStatus(currentTrack.id, 'analyzing');
     try {
@@ -896,16 +963,6 @@ export default function PlayerScreen() {
           return closest;
         });
         setServerEdition(currentTrack.id, boundaryBeatIndices);
-      }
-      // Request formation suggestion if choreography mode
-      if (withFormation && result.beats.length >= 4) {
-        try {
-          const { requestFormationSuggestion } = await import('../../services/formationApi');
-          const formationData = await requestFormationSuggestion(result, choreoDancerCount, danceStyle);
-          setServerFormation(currentTrack.id, formationData);
-        } catch (fe: any) {
-          Alert.alert(t('player.formation'), fe.message || 'Could not generate formation suggestions.');
-        }
       }
     } catch (e: any) {
       setTrackAnalysisStatus(currentTrack.id, 'error');
@@ -988,25 +1045,8 @@ export default function PlayerScreen() {
                 <Text style={styles.analyzeBtnText}>{t('player.analyze')}</Text>
               </TouchableOpacity>
             )}
-            {!isYouTube && currentTrack.analysisStatus === 'done' && !activeFormationData && (
-              <TouchableOpacity style={styles.analyzeBtn} onPress={() => {
-                // Create empty formation locally — no server needed
-                const dancers = createDefaultDancers(choreoDancerCount);
-                const emptyFormation: FormationData = {
-                  version: 1,
-                  dancers,
-                  keyframes: [{
-                    beatIndex: 0,
-                    positions: dancers.map((d, i) => ({
-                      dancerId: d.id,
-                      x: 0.3 + (i % 2) * 0.4,
-                      y: 0.3 + Math.floor(i / 2) * 0.2,
-                    })),
-                  }],
-                };
-                setDraftFormation(currentTrack.id, emptyFormation);
-                setEditMode('formation');
-              }}>
+            {!isYouTube && !activeFormationData && (
+              <TouchableOpacity style={styles.analyzeBtn} onPress={() => setFormationSetupVisible(true)}>
                 <Ionicons name="people-outline" size={16} color={Colors.text} />
                 <Text style={styles.analyzeBtnText}>{t('player.formation')}</Text>
               </TouchableOpacity>
@@ -1020,31 +1060,7 @@ export default function PlayerScreen() {
           </View>
         </View>
 
-        {/* Beat offset fine-tune row */}
-        {analysis && (
-          <View style={styles.beatOffsetRow}>
-            <TouchableOpacity
-              style={styles.beatOffsetBtn}
-              onPress={() => setBeatTimeOffset(currentTrack.id, beatTimeOffset - 100)}
-            >
-              <Text style={styles.beatOffsetBtnText}>−100ms</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.beatOffsetCenter, beatTimeOffset !== 0 && { backgroundColor: 'rgba(187,134,252,0.2)' }]}
-              onPress={() => setBeatTimeOffset(currentTrack.id, 0)}
-            >
-              <Text style={[styles.beatOffsetCenterText, beatTimeOffset !== 0 && { color: Colors.primary }]}>
-                {beatTimeOffset > 0 ? `+${beatTimeOffset}ms` : beatTimeOffset === 0 ? '0ms ×' : `${beatTimeOffset}ms`}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.beatOffsetBtn}
-              onPress={() => setBeatTimeOffset(currentTrack.id, beatTimeOffset + 100)}
-            >
-              <Text style={styles.beatOffsetBtnText}>+100ms</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Beat offset fine-tune row — removed (±100ms) */}
 
         {/* BPM edit modal */}
         {editingBpm && (
@@ -1239,33 +1255,22 @@ export default function PlayerScreen() {
         {/* ③ Compact Count + PhraseGrid (audio only) */}
         {!isVisual && currentTrack.analysisStatus === 'done' && (
           <View style={styles.countSection}>
-            {/* Formation Stage (embedded, shown when formation data exists and mode is formation) */}
-            {editMode === 'formation' && activeFormationData ? (
-              <FormationStageView
-                formationData={activeFormationData}
-                currentBeatIndex={isPlaying ? fractionalBeatIndex : formationEditBeatIndex}
-                totalBeats={effectiveBeats.length}
-                stageConfig={stageConfig}
-                isPlaying={isPlaying}
-                isEditing={true}
-                onUpdate={handleFormationUpdate}
-                onBeatChange={handleFormationBeatChange}
-                onStageConfigChange={handleStageConfigChange}
-                onTogglePlay={togglePlay}
-              />
-            ) : activeFormationData && editMode === 'none' ? (
-              <FormationStageView
-                formationData={activeFormationData}
-                currentBeatIndex={fractionalBeatIndex}
-                totalBeats={effectiveBeats.length}
-                stageConfig={stageConfig}
-                isPlaying={isPlaying}
-                isEditing={false}
-                onUpdate={handleFormationUpdate}
-                onBeatChange={handleFormationBeatChange}
-                onStageConfigChange={handleStageConfigChange}
-                onTogglePlay={togglePlay}
-              />
+            {/* Formation Stage (embedded, shown in formation mode only) */}
+            {activeFormationData && editMode === 'formation' ? (
+              <View style={{ maxHeight: '56%', overflow: 'hidden' }}>
+                <FormationStageView
+                  formationData={activeFormationData}
+                  currentBeatIndex={editMode === 'formation' ? (isPlaying ? fractionalBeatIndex : formationEditBeatIndex) : fractionalBeatIndex}
+                  totalBeats={effectiveBeats.length}
+                  stageConfig={stageConfig}
+                  isPlaying={isPlaying}
+                  isEditing={editMode === 'formation'}
+                  onUpdate={handleFormationUpdate}
+                  onBeatChange={handleFormationBeatChange}
+                  onStageConfigChange={handleStageConfigChange}
+                  onTogglePlay={togglePlay}
+                />
+              </View>
             ) : (
               /* Count number with bounce animation (when no formation or note mode) */
               <Animated.Text
@@ -1286,35 +1291,40 @@ export default function PlayerScreen() {
             )}
 
             {/* PhraseGrid — rhythm game style */}
-            <PhraseGrid
-              countInfo={countInfo}
-              phraseMap={phraseMap ?? null}
-              hasAnalysis={!!analysis}
-              beats={effectiveBeats}
-              isPlaying={isPlaying}
-              onTapBeat={handleGridTapBeat}
-              onReArrangePhrase={handleReArrangePhrase}
-              onSplitPhraseHere={handleSplitPhraseHere}
-              onSetLoopPoint={handleSetLoopPoint}
-              onClearLoop={clearLoop}
-              onSeekAndPlay={handleSeekAndPlay}
-              onSeekOnly={handleSeekOnly}
-              onMergeWithPrevious={handleMergeWithPrevious}
-              loopStart={loopStart}
-              loopEnd={loopEnd}
-              scrollMode={gridScrollMode}
-              cellNotes={currentCellNotes}
-              onSetCellNote={handleSetCellNote}
-              onClearCellNote={handleClearCellNote}
-              currentBeatNote={currentBeatNote}
-              formationData={activeFormationData}
-              onEditFormation={handleEditFormation}
-              editMode={editMode}
-            />
+            <View style={{ flex: 1, width: '100%' }}>
+              <PhraseGrid
+                countInfo={countInfo}
+                phraseMap={phraseMap ?? null}
+                hasAnalysis={!!analysis}
+                beats={effectiveBeats}
+                isPlaying={isPlaying}
+                onTapBeat={handleGridTapBeat}
+                onReArrangePhrase={handleReArrangePhrase}
+                onSplitPhraseHere={handleSplitPhraseHere}
+                onSetLoopPoint={handleSetLoopPoint}
+                onClearLoop={clearLoop}
+                onSeekAndPlay={handleSeekAndPlay}
+                onSeekOnly={handleSeekOnly}
+                onMergeWithPrevious={handleMergeWithPrevious}
+                loopStart={loopStart}
+                loopEnd={loopEnd}
+                rows={activeFormationData && editMode === 'formation' ? 5 : undefined}
+                scrollMode={gridScrollMode}
+                cellNotes={currentCellNotes}
+                onSetCellNote={handleSetCellNote}
+                onClearCellNote={handleClearCellNote}
+                currentBeatNote={currentBeatNote}
+                formationData={activeFormationData}
+                onEditFormation={handleEditFormation}
+                onCopyPrevKeyframe={handleCopyPrevKeyframe}
+                onDissolveKeyframe={handleDissolveKeyframe}
+                editMode={editMode}
+              />
+            </View>
 
             {/* ChoreoNote Draft Save/Discard (inside countSection) */}
             {currentTrack && draftFormation[currentTrack.id] && editMode === 'formation' && (
-              <View style={[styles.draftActions, { marginTop: Spacing.sm }]}>
+              <View style={[styles.draftActions, { marginTop: 10 }]}>
                 <TouchableOpacity
                   style={[styles.draftSaveButton, { borderColor: 'rgba(255, 215, 0, 0.4)', backgroundColor: 'rgba(255, 215, 0, 0.15)', paddingVertical: 4, paddingHorizontal: 12 }]}
                   onPress={() => {
@@ -1348,8 +1358,19 @@ export default function PlayerScreen() {
                   <Text style={[styles.draftSaveText, { color: NoteTypeColors.choreoNote }]}>{t('common.save')} Ⓒ</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                  style={[styles.draftUndoButton, !canUndoFormation && { opacity: 0.35 }, { paddingVertical: 4, paddingHorizontal: 12 }]}
+                  onPress={handleFormationUndo}
+                  disabled={!canUndoFormation}
+                >
+                  <Ionicons name="arrow-undo-circle" size={18} color={Colors.primary} />
+                  <Text style={styles.draftUndoText}>실행취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={[styles.draftDiscardButton, { paddingVertical: 4, paddingHorizontal: 12 }]}
-                  onPress={() => clearFormationDraft(currentTrack.id)}
+                  onPress={() => {
+                    formationUndoRef.current[currentTrack.id] = [];
+                    clearFormationDraft(currentTrack.id);
+                  }}
                 >
                   <Ionicons name="close-circle" size={18} color={Colors.error} />
                   <Text style={styles.draftDiscardText}>{t('common.reset')}</Text>
@@ -1492,6 +1513,8 @@ export default function PlayerScreen() {
                 const isActive = activeSource === `imported-${note.id}`;
                 const author = note.phraseNote.metadata.author;
                 const initial = author ? author[0].toUpperCase() : '?';
+                const isChoreo = note.phraseNote.format === 'cnote';
+                const noteColor = isChoreo ? NoteTypeColors.choreoNote : NoteTypeColors.phraseNote;
                 return (
                   <TouchableOpacity
                     key={note.id}
@@ -1501,19 +1524,21 @@ export default function PlayerScreen() {
                     delayLongPress={500}
                   >
                     <View style={{
-                      width: 28, height: 28, borderRadius: 14,
+                      width: 34, height: 34, borderRadius: 17,
                       borderWidth: 2,
-                      borderColor: isActive ? NoteTypeColors.phraseNote : Colors.textMuted,
+                      borderColor: isActive ? noteColor : Colors.textMuted,
                       backgroundColor: Colors.surface,
                       justifyContent: 'center', alignItems: 'center',
+                      overflow: 'hidden',
                     }}>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: isActive ? Colors.text : Colors.textSecondary }}>
-                        {initial}
-                      </Text>
+                      {note.authorAvatarUrl ? (
+                        <Image source={{ uri: note.authorAvatarUrl }} style={{ width: 30, height: 30, borderRadius: 15 }} />
+                      ) : (
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: isActive ? Colors.text : Colors.textSecondary }}>
+                          {initial}
+                        </Text>
+                      )}
                     </View>
-                    <Text style={{ fontSize: 8, color: isActive ? Colors.text : Colors.textMuted, marginTop: 1 }}>
-                      Ⓟ
-                    </Text>
                   </TouchableOpacity>
                 );
               })}
@@ -1582,7 +1607,7 @@ export default function PlayerScreen() {
               <Ionicons
                 name={editMode === 'note' ? 'create' : 'create-outline'}
                 size={20}
-                color={editMode === 'note' ? Colors.accent : Colors.textMuted}
+                color={editMode === 'note' ? NoteTypeColors.phraseNote : Colors.textMuted}
               />
             </TouchableOpacity>
           )}
@@ -1613,7 +1638,7 @@ export default function PlayerScreen() {
               <Ionicons
                 name={editMode === 'formation' ? 'people' : 'people-outline'}
                 size={20}
-                color={editMode === 'formation' ? Colors.accent : Colors.textMuted}
+                color={editMode === 'formation' ? NoteTypeColors.choreoNote : Colors.textMuted}
               />
             </TouchableOpacity>
           )}
@@ -1676,7 +1701,7 @@ export default function PlayerScreen() {
             <Text style={styles.analyzeMenuTitle}>{t('player.analyze')}</Text>
             <TouchableOpacity
               style={styles.analyzeMenuOption}
-              onPress={() => runAnalysis(false)}
+              onPress={() => runAnalysis()}
             >
               <Ionicons name="musical-notes-outline" size={22} color={Colors.primary} />
               <View style={styles.analyzeMenuOptionText}>
@@ -1684,41 +1709,97 @@ export default function PlayerScreen() {
                 <Text style={styles.analyzeMenuOptionDesc}>Beat analysis + phrase detection</Text>
               </View>
             </TouchableOpacity>
-            <View style={styles.analyzeMenuDivider} />
-            <TouchableOpacity
-              style={styles.analyzeMenuOption}
-              onPress={() => runAnalysis(true)}
-            >
-              <Ionicons name="people-outline" size={22} color={Colors.accent} />
-              <View style={styles.analyzeMenuOptionText}>
-                <Text style={styles.analyzeMenuOptionTitle}>Choreography</Text>
-                <Text style={styles.analyzeMenuOptionDesc}>PhraseNote + formation suggestions</Text>
-              </View>
-            </TouchableOpacity>
-            {/* Dancer count stepper — only for choreography */}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Formation Setup Dialog */}
+      <Modal
+        visible={formationSetupVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFormationSetupVisible(false)}
+      >
+        <Pressable
+          style={styles.shareModalBackdrop}
+          onPress={() => setFormationSetupVisible(false)}
+        >
+          <Pressable style={styles.analyzeMenuContainer} onPress={() => {}}>
+            <Text style={styles.analyzeMenuTitle}>{t('player.formation')}</Text>
+
+            {/* Stage size presets */}
+            <Text style={[styles.dancerCountLabel, { marginBottom: 8 }]}>Stage Size</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+              {STAGE_PRESETS.map((preset, idx) => (
+                <TouchableOpacity
+                  key={preset.label}
+                  style={[
+                    styles.stagePresetBtn,
+                    setupStagePresetIdx === idx && styles.stagePresetBtnActive,
+                  ]}
+                  onPress={() => setSetupStagePresetIdx(idx)}
+                >
+                  <Text style={[
+                    styles.stagePresetBtnText,
+                    setupStagePresetIdx === idx && styles.stagePresetBtnTextActive,
+                  ]}>{preset.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Dancer count stepper */}
             <View style={styles.dancerCountRow}>
               <Text style={styles.dancerCountLabel}>Dancers</Text>
               <View style={styles.dancerCountStepper}>
                 <TouchableOpacity
                   style={styles.dancerCountBtn}
-                  onPress={() => setChoreoDancerCount(Math.max(2, choreoDancerCount - 1))}
+                  onPress={() => setSetupDancerCount(Math.max(2, setupDancerCount - 1))}
                 >
                   <Ionicons name="remove" size={18} color={Colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.dancerCountValue}>{choreoDancerCount}</Text>
+                <Text style={styles.dancerCountValue}>{setupDancerCount}</Text>
                 <TouchableOpacity
                   style={styles.dancerCountBtn}
-                  onPress={() => setChoreoDancerCount(Math.min(12, choreoDancerCount + 1))}
+                  onPress={() => setSetupDancerCount(Math.min(12, setupDancerCount + 1))}
                 >
                   <Ionicons name="add" size={18} color={Colors.text} />
                 </TouchableOpacity>
               </View>
             </View>
+
+            {/* Start button */}
+            <TouchableOpacity
+              style={[styles.analyzeMenuOption, { backgroundColor: 'rgba(187,134,252,0.15)', borderRadius: 10, marginTop: 8 }]}
+              onPress={() => {
+                if (!currentTrack) return;
+                const preset = STAGE_PRESETS[setupStagePresetIdx];
+                setStageConfig(preset.config);
+                const dancers = createDefaultDancers(setupDancerCount);
+                const emptyFormation: FormationData = {
+                  version: 1,
+                  dancers,
+                  keyframes: [{
+                    beatIndex: 0,
+                    positions: dancers.map((d, i) => ({
+                      dancerId: d.id,
+                      x: 0.3 + (i % 2) * 0.4,
+                      y: 0.3 + Math.floor(i / 2) * 0.2,
+                    })),
+                  }],
+                };
+                setDraftFormation(currentTrack.id, emptyFormation);
+                setEditMode('formation');
+                setFormationSetupVisible(false);
+              }}
+            >
+              <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+              <View style={styles.analyzeMenuOptionText}>
+                <Text style={styles.analyzeMenuOptionTitle}>Start Formation</Text>
+              </View>
+            </TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
-
-      {/* Formation Stage is now inline — see sections ①②③ above */}
 
       {/* ─── Fullscreen Video Overlay ─── */}
       {isFullScreen && (
@@ -1779,7 +1860,7 @@ export default function PlayerScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scrollArea: { flex: 1 },
-  audioScrollContent: { flex: 1, padding: Spacing.lg, paddingBottom: Spacing.md },
+  audioScrollContent: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs, paddingBottom: Spacing.xs },
   videoScrollContent: { flex: 1, paddingHorizontal: 0, paddingBottom: Spacing.md },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm },
   emptyTitle: { color: Colors.text, fontSize: FontSize.xl, fontWeight: '600', marginTop: Spacing.md },
@@ -1880,7 +1961,7 @@ const styles = StyleSheet.create({
   },
 
   // ─── Count Display + PhraseGrid ─────────────────
-  countSection: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: -10 },
+  countSection: { flex: 1, alignItems: 'center', marginTop: -10 },
   compactCount: {
     fontSize: 160,
     fontWeight: '800',
@@ -1995,7 +2076,7 @@ const styles = StyleSheet.create({
   },
 
   // ─── Seek / Timeline ───────────────────────────
-  seekSection: { marginTop: Spacing.sm },
+  seekSection: { marginTop: 2 },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.xs },
   timeText: { color: Colors.textSecondary, fontSize: FontSize.sm },
   sectionLabel: { color: Colors.textSecondary, fontSize: FontSize.sm, marginBottom: Spacing.sm },
@@ -2115,6 +2196,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
+  // ─── Stage preset buttons ──
+  stagePresetBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  stagePresetBtnActive: {
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(187,134,252,0.15)',
+  },
+  stagePresetBtnText: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+  },
+  stagePresetBtnTextActive: {
+    color: Colors.primary,
+  },
+
   // ─── Loop (inline A-B controls in scroll area) ──
   loopInlineSection: {
     marginTop: Spacing.sm,
@@ -2142,9 +2245,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 4,
     paddingHorizontal: Spacing.lg,
-    marginTop: Spacing.xs,
+    marginTop: 2,
   },
   draftSaveButton: {
     flexDirection: 'row',

@@ -24,7 +24,9 @@ export default function ShareToCrewScreen() {
     songTitle?: string;
     bpm?: string;
     danceStyle?: string;
+    noteType?: string;
   }>();
+  const noteLabel = params.noteType === 'cnote' ? 'ChoreoNote' : 'PhraseNote';
 
   const {
     myCrewIds,
@@ -90,14 +92,14 @@ export default function ShareToCrewScreen() {
 
   const handlePost = async () => {
     if (!selectedThread || !params.phraseNoteData) {
-      Alert.alert('Error', 'Missing PhraseNote data');
+      Alert.alert('Error', `Missing ${noteLabel} data`);
       return;
     }
     setIsPosting(true);
     try {
       const noteData = JSON.parse(params.phraseNoteData);
       await postPhraseNote(selectedThread.id, noteData, description.trim() || undefined);
-      Alert.alert('Shared!', `PhraseNote posted to "${selectedThread.title}"`, [
+      Alert.alert('Shared!', `${noteLabel} posted to "${selectedThread.title}"`, [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (err: any) {
@@ -111,7 +113,7 @@ export default function ShareToCrewScreen() {
     <>
       <Stack.Screen
         options={{
-          title: step === 'crew' ? 'Select Crew' : step === 'thread' ? 'Select Thread' : 'Share PhraseNote',
+          title: step === 'crew' ? 'Select Crew' : step === 'thread' ? 'Select Thread' : `Share ${noteLabel}`,
           presentation: 'modal',
         }}
       />
@@ -287,7 +289,7 @@ export default function ShareToCrewScreen() {
               ) : (
                 <>
                   <Ionicons name="share-outline" size={20} color="#FFF" />
-                  <Text style={styles.postButtonText}>Share PhraseNote</Text>
+                  <Text style={styles.postButtonText}>Share {noteLabel}</Text>
                 </>
               )}
             </TouchableOpacity>

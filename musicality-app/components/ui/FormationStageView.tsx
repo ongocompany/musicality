@@ -36,14 +36,10 @@ import { Colors, FontSize, Spacing } from '../../constants/theme';
 
 // ─── Pattern templates (client-side for quick apply) ─────
 const PATTERN_TEMPLATES: { id: PatternId; label: string; icon: string }[] = [
-  { id: 'pairs-facing', label: 'Pairs', icon: 'people' },
   { id: 'line', label: 'Line', icon: 'remove' },
-  { id: 'circle', label: 'Circle', icon: 'ellipse-outline' },
-  { id: 'v-shape', label: 'V', icon: 'chevron-down-outline' },
-  { id: 'diamond', label: 'Diamond', icon: 'diamond-outline' },
   { id: 'two-lines', label: '2Lines', icon: 'reorder-two' },
-  { id: 'staggered', label: 'Stagger', icon: 'grid-outline' },
-  { id: 'scatter', label: 'Scatter', icon: 'sparkles-outline' },
+  { id: 'v-shape', label: 'V', icon: 'chevron-down-outline' },
+  { id: 'v-shape-inv', label: 'Λ', icon: 'chevron-up-outline' },
 ];
 
 // ─── Pattern coordinate generators ──────────────────────
@@ -75,6 +71,18 @@ const PATTERN_COORDS: Record<string, CoordFn> = {
       const maxD = Math.max(1, Math.floor((n - 1) / 2));
       const xOff = 0.15 + 0.2 * depth / maxD;
       const y = 0.3 + 0.4 * depth / maxD;
+      res.push([side === 0 ? 0.5 - xOff : 0.5 + xOff, y]);
+    }
+    return res;
+  },
+  'v-shape-inv': (n) => {
+    const res: [number, number][] = [];
+    for (let i = 0; i < n; i++) {
+      const side = i % 2;
+      const depth = Math.floor(i / 2);
+      const maxD = Math.max(1, Math.floor((n - 1) / 2));
+      const xOff = 0.15 + 0.2 * depth / maxD;
+      const y = 0.7 - 0.4 * depth / maxD;
       res.push([side === 0 ? 0.5 - xOff : 0.5 + xOff, y]);
     }
     return res;
@@ -207,7 +215,7 @@ export function FormationStageView({
   const [dragDancerId, setDragDancerId] = useState<string | null>(null);
   const [showSizeMenu, setShowSizeMenu] = useState(false);
   const [editingDancerId, setEditingDancerId] = useState<string | null>(null);
-  const [is3D, setIs3D] = useState(true);
+  const [is3D, setIs3D] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
   const [editingName, setEditingName] = useState('');
   const [showMemberPicker, setShowMemberPicker] = useState(false);
@@ -502,14 +510,23 @@ export function FormationStageView({
     onUpdate(removeKeyframe(formationData, currentBeatIndex));
   }, [formationData, currentBeatIndex, onUpdate]);
 
-  const handleCopyFromPrev = useCallback(() => {
-    const prev = formationData.keyframes
-      .filter((kf) => kf.beatIndex < currentBeatIndex)
-      .sort((a, b) => b.beatIndex - a.beatIndex)[0];
-    if (prev) {
-      onUpdate(copyKeyframe(formationData, prev.beatIndex, currentBeatIndex));
-    }
-  }, [formationData, currentBeatIndex, onUpdate]);
+  // Clipboard: copy current keyframe positions, paste to another beat
+  const [clipboardPositions, setClipboardPositions] = useState<DancerPosition[] | null>(null);
+
+  const handleCopyKeyframe = useCallback(() => {
+    if (!currentPositions) return;
+    setClipboardPositions([...currentPositions]);
+  }, [currentPositions]);
+
+  const handlePasteKeyframe = useCallback(() => {
+    if (!clipboardPositions) return;
+    const keyframe: FormationKeyframe = {
+      beatIndex: currentBeatIndex,
+      positions: clipboardPositions.map(p => ({ ...p })),
+    };
+    onUpdate(setKeyframe(formationData, keyframe));
+    setClipboardPositions(null);
+  }, [clipboardPositions, currentBeatIndex, formationData, onUpdate]);
 
   // ─── Add / Remove dancers ─────────────────────────
   const DANCER_COLORS = [
@@ -1177,27 +1194,10 @@ export function FormationStageView({
         </View>
       )}
 
-      {/* Editing controls */}
-      {isEditing && (
+      {/* Editing controls — reserve space even when not editing */}
+      {isEditing ? (
         <View style={styles.editControls}>
-          {/* Beat navigation */}
-          <View style={styles.beatNav}>
-            <Pressable onPress={() => handleBeatNav(-8)} style={styles.navBtn} hitSlop={8}>
-              <Ionicons name="play-skip-back" size={14} color={Colors.text} />
-            </Pressable>
-            <Pressable onPress={() => handleBeatNav(-1)} style={styles.navBtn} hitSlop={8}>
-              <Ionicons name="chevron-back" size={16} color={Colors.text} />
-            </Pressable>
-            <View style={styles.beatLabelCenter}>
-              <Text style={styles.beatText}>{Math.round(currentBeatIndex) + 1}/{totalBeats}</Text>
-            </View>
-            <Pressable onPress={() => handleBeatNav(1)} style={styles.navBtn} hitSlop={8}>
-              <Ionicons name="chevron-forward" size={16} color={Colors.text} />
-            </Pressable>
-            <Pressable onPress={() => handleBeatNav(8)} style={styles.navBtn} hitSlop={8}>
-              <Ionicons name="play-skip-forward" size={14} color={Colors.text} />
-            </Pressable>
-          </View>
+          {/* Beat navigation — removed (use grid cells or playback controls) */}
 
           {/* Pattern templates + actions */}
           <ScrollView
@@ -1217,9 +1217,9 @@ export function FormationStageView({
               </Pressable>
             ))}
             <View style={styles.toolDivider} />
-            <Pressable style={styles.toolBtn} onPress={handleCopyFromPrev}>
-              <Ionicons name="copy-outline" size={14} color={Colors.text} />
-              <Text style={styles.toolLabel}>Copy</Text>
+            <Pressable style={styles.toolBtn} onPress={clipboardPositions ? handlePasteKeyframe : handleCopyKeyframe}>
+              <Ionicons name={clipboardPositions ? 'clipboard-outline' : 'copy-outline'} size={14} color={clipboardPositions ? Colors.accent : Colors.text} />
+              <Text style={[styles.toolLabel, clipboardPositions && { color: Colors.accent }]}>{clipboardPositions ? 'Paste' : 'Copy'}</Text>
             </Pressable>
             {isKeyframe && (
               <Pressable style={styles.toolBtn} onPress={handleDeleteKeyframe}>
@@ -1230,6 +1230,8 @@ export function FormationStageView({
           </ScrollView>
 
         </View>
+      ) : (
+        <View style={{ height: 40 }} />
       )}
     </View>
   );
@@ -1444,7 +1446,6 @@ const styles = StyleSheet.create({
   // Edit controls
   editControls: {
     paddingHorizontal: 4,
-    paddingTop: 4,
   },
   beatNav: {
     flexDirection: 'row',
@@ -1473,12 +1474,15 @@ const styles = StyleSheet.create({
   },
   // Tool row (patterns + actions)
   toolRow: {
-    maxHeight: 40,
+    height: 32,
+    marginTop: 6,
     marginBottom: 4,
   },
   toolRowContent: {
     gap: 4,
     paddingHorizontal: 4,
+    justifyContent: 'center',
+    flexGrow: 1,
   },
   toolBtn: {
     backgroundColor: Colors.surface,
