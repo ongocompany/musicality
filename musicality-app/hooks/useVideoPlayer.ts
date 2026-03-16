@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react';
+import { Platform, InteractionManager } from 'react-native';
 import { Video, AVPlaybackStatus, VideoReadyForDisplayEvent } from 'expo-av';
 import { usePlayerStore } from '../stores/playerStore';
 
@@ -24,14 +25,32 @@ export function useVideoPlayer() {
     loopEnd,
   } = usePlayerStore();
 
-  // Playback status callback (same logic as useAudioPlayer)
+  // Playback status callback — on Android, defer position updates to avoid
+  // blocking the UI thread while Video's SurfaceView is rendering
+  const pendingPositionRef = useRef<number | null>(null);
+  const rafRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
+
   const onPlaybackStatusUpdate = useCallback(
     (status: AVPlaybackStatus) => {
       if (!status.isLoaded) return;
 
       const store = usePlayerStore.getState();
       if (!store.isSeeking) {
-        setPosition(status.positionMillis);
+        if (Platform.OS === 'android') {
+          // Batch position updates via requestAnimationFrame to avoid UI thread starvation
+          pendingPositionRef.current = status.positionMillis;
+          if (!rafRef.current) {
+            rafRef.current = requestAnimationFrame(() => {
+              if (pendingPositionRef.current !== null) {
+                setPosition(pendingPositionRef.current);
+                pendingPositionRef.current = null;
+              }
+              rafRef.current = null;
+            });
+          }
+        } else {
+          setPosition(status.positionMillis);
+        }
       }
       if (status.durationMillis) {
         setDuration(status.durationMillis);

@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, StatusBar, useWindowDimensions, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, StatusBar, useWindowDimensions, Image, Platform } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
@@ -1210,15 +1210,16 @@ export default function PlayerScreen() {
                 style={styles.video}
                 resizeMode={ResizeMode.CONTAIN}
                 shouldPlay={false}
-                progressUpdateIntervalMillis={100}
+                progressUpdateIntervalMillis={Platform.OS === 'android' ? 200 : 100}
                 onPlaybackStatusUpdate={videoPlayer.onPlaybackStatusUpdate}
                 onReadyForDisplay={videoPlayer.onReadyForDisplay}
                 onLoad={onMainVideoLoad}
               />
               {currentTrack.analysisStatus === 'done' && (
-                <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
+                <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 10, elevation: 10 }} pointerEvents="none">
+                  <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
+                </View>
               )}
-              {/* Fullscreen button — disabled for v1, deferred to v2 */}
             </View>
             {currentTrack.analysisStatus === 'done' && (
               <View style={styles.videoCountSection}>

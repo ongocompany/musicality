@@ -88,27 +88,30 @@ export async function analyzeTrack(
   fileName: string,
   format: string,
 ): Promise<AnalysisResult> {
-  // Extract audio + downsample to mono 22kHz (native module, graceful fallback)
+  // For video files, extract audio via native module; for audio files, send original
   let uploadUri = uri;
   let uploadFormat = format;
   let uploadMime = '';
-  try {
-    const { extractAndDownsample } = require('../modules/my-module');
-    console.log(`[AudioExtractor] Starting: ${fileName}.${format} (${uri.slice(-30)})`);
-    const t0 = Date.now();
-    const timeoutPromise = new Promise<null>((_, reject) =>
-      setTimeout(() => reject(new Error('Extract timeout (10s)')), 10000)
-    );
-    const processed = await Promise.race([extractAndDownsample(uri), timeoutPromise]);
-    console.log(`[AudioExtractor] Done in ${Date.now() - t0}ms → ${processed?.slice(-40)}`);
-    if (processed) {
-      uploadUri = processed.startsWith('/') ? `file://${processed}` : processed;
-      uploadFormat = 'wav';
-      uploadMime = 'audio/wav';
+  const isVideoFile = ['mp4', 'mov', 'avi', 'mkv', 'm4v'].includes(format.toLowerCase());
+  if (isVideoFile) {
+    try {
+      const { extractAndDownsample } = require('../modules/my-module');
+      console.log(`[AudioExtractor] Starting: ${fileName}.${format} (${uri.slice(-30)})`);
+      const t0 = Date.now();
+      const timeoutPromise = new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error('Extract timeout (10s)')), 10000)
+      );
+      const processed = await Promise.race([extractAndDownsample(uri), timeoutPromise]);
+      console.log(`[AudioExtractor] Done in ${Date.now() - t0}ms → ${processed?.slice(-40)}`);
+      if (processed) {
+        uploadUri = processed.startsWith('/') ? `file://${processed}` : processed;
+        uploadFormat = 'wav';
+        uploadMime = 'audio/wav';
+      }
+    } catch (e: any) {
+      console.warn(`[AudioExtractor] FAILED for ${fileName}.${format}: ${e?.message}`);
+      // Fallback: send original file
     }
-  } catch (e: any) {
-    console.warn(`[AudioExtractor] FAILED for ${fileName}.${format}: ${e?.message}`);
-    // Fallback: send original file
   }
 
   const mimeMap: Record<string, string> = {
