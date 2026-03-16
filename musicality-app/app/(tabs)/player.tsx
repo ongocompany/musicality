@@ -119,22 +119,8 @@ export default function PlayerScreen() {
   const isYouTube = currentTrack?.mediaType === 'youtube';
   const isVisual = isVideo || isYouTube;
 
-  // Dynamic grid rows for video mode based on available screen space
-  // Header(~40) + Video(~220 YT or aspectRatio-based) + BottomBar(~52) + TabBar(~50) + padding
+  // Screen dimensions (used for fullscreen video sizing)
   const { width: winW, height: winH } = useWindowDimensions();
-  const videoGridRows = useMemo(() => {
-    if (!isVisual) return undefined; // audio mode uses auto rows
-    const headerH = 44;
-    const videoH = isYouTube ? 220 : Math.min(360, winH * 0.35);
-    const bottomBarH = 52;
-    const tabBarH = 50;
-    const paddingH = 24;
-    const availableH = winH - headerH - videoH - bottomBarH - tabBarH - paddingH;
-    // Each row ≈ cellSize + gap. cellSize ≈ (screenWidth / 8) - gap, gap = 3
-    const approxCellSize = Math.floor((winH > 700 ? 40 : 34));
-    const rowH = approxCellSize + 3;
-    return Math.max(3, Math.floor(availableH / rowH));
-  }, [isVisual, isYouTube, winH]);
 
   const audioPlayer = useAudioPlayer();
   const videoPlayer = useVideoPlayer();
@@ -1132,7 +1118,6 @@ export default function PlayerScreen() {
             {currentTrack.analysisStatus === 'done' && (
               <View style={styles.videoCountSection}>
                 <PhraseGrid
-                  rows={videoGridRows}
                   countInfo={countInfo}
                   phraseMap={phraseMap ?? null}
                   hasAnalysis={!!analysis}
@@ -1222,7 +1207,6 @@ export default function PlayerScreen() {
             {currentTrack.analysisStatus === 'done' && (
               <View style={styles.videoCountSection}>
                 <PhraseGrid
-                  rows={videoGridRows}
                   countInfo={countInfo}
                   phraseMap={phraseMap ?? null}
                   hasAnalysis={!!analysis}
@@ -1303,7 +1287,6 @@ export default function PlayerScreen() {
 
             {/* PhraseGrid — rhythm game style */}
             <PhraseGrid
-              rows={(editMode === 'formation' || (editMode === 'none' && activeFormationData)) ? 4 : undefined}
               countInfo={countInfo}
               phraseMap={phraseMap ?? null}
               hasAnalysis={!!analysis}
@@ -1850,7 +1833,7 @@ const styles = StyleSheet.create({
   analyzingText: { color: Colors.primary, fontSize: FontSize.xs },
 
   // ─── Video ──────────────────────────────────────
-  videoSection: { alignItems: 'center' },
+  videoSection: { flex: 1, alignItems: 'center' },
   videoContainer: {
     width: '100%',
     maxHeight: 360,

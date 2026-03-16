@@ -558,7 +558,7 @@ export function PhraseGrid({
   }
 
   return (
-    <View style={[styles.container, rows === undefined && { flex: 1 }]} onLayout={onContainerLayout}>
+    <View style={[styles.container, { flex: 1 }]} onLayout={onContainerLayout}>
       {/* "Selecting B" hint */}
       {repeatSelectMode && (
         <View style={styles.repeatHint}>
