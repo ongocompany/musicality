@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,6 +13,7 @@ import { DanceStyle } from '../../utils/beatCounter';
 import { CueType } from '../../types/cue';
 import { PhraseDetectionMode } from '../../types/analysis';
 import { LANGUAGES, LanguageCode } from '../../i18n';
+import { exportLibraryBackup, importLibraryBackup, LibraryBackup } from '../../services/libraryBackupService';
 
 const LOOK_AHEAD_STEP = 25; // ms per tap
 
@@ -47,11 +48,10 @@ export default function SettingsScreen() {
     setShowLangPicker(false);
   };
 
-  const cueLabels: Record<CueType, string> = {
+  const cueLabels: Partial<Record<CueType, string>> = {
     'off': t('settings.cueOff'),
     'click': t('settings.cueClick'),
     'beep': t('settings.cueBeep'),
-    'voice-ko': t('settings.cueVoiceKo'),
     'voice-en': t('settings.cueVoiceEn'),
   };
 
@@ -156,80 +156,9 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {/* Dance Style */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('settings.danceStyle')}</Text>
-        {([
-          { key: 'bachata' as DanceStyle, label: 'Bachata', desc: '1-2-3-TAP-5-6-7-TAP' },
-          { key: 'salsa-on1' as DanceStyle, label: 'Salsa On1', desc: '1-2-3-pause-5-6-7-pause' },
-          { key: 'salsa-on2' as DanceStyle, label: 'Salsa On2', desc: '1-2-3-pause-5-6-7-pause' },
-        ]).map((item) => (
-          <TouchableOpacity
-            key={item.key}
-            style={[styles.row, danceStyle === item.key && styles.rowActive]}
-            onPress={() => setDanceStyle(item.key)}
-          >
-            <Ionicons
-              name={danceStyle === item.key ? 'radio-button-on' : 'radio-button-off'}
-              size={20}
-              color={danceStyle === item.key ? Colors.primary : Colors.textSecondary}
-            />
-            <Text style={[styles.label, danceStyle === item.key && styles.labelActive]}>
-              {item.label}
-            </Text>
-            <Text style={styles.styleDesc}>{item.desc}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Dance Style — hidden (auto-detected, kept for internal use) */}
 
-      {/* Phrase Detection */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('settings.phraseDetection')}</Text>
-        {([
-          { key: 'rule-based' as PhraseDetectionMode, label: t('settings.ruleBased'), desc: t('settings.ruleBasedDesc') },
-          { key: 'user-marked' as PhraseDetectionMode, label: t('settings.userMark'), desc: t('settings.userMarkDesc') },
-          { key: 'server' as PhraseDetectionMode, label: t('settings.serverAnalysis'), desc: t('settings.serverAnalysisDesc') },
-        ]).map((item) => (
-          <TouchableOpacity
-            key={item.key}
-            style={[styles.row, phraseDetectionMode === item.key && styles.rowActive]}
-            onPress={() => setPhraseDetectionMode(item.key)}
-          >
-            <Ionicons
-              name={phraseDetectionMode === item.key ? 'radio-button-on' : 'radio-button-off'}
-              size={20}
-              color={phraseDetectionMode === item.key ? Colors.primary : Colors.textSecondary}
-            />
-            <Text style={[styles.label, phraseDetectionMode === item.key && styles.labelActive]}>
-              {item.label}
-            </Text>
-            <Text style={styles.styleDesc}>{item.desc}</Text>
-          </TouchableOpacity>
-        ))}
-        {/* Beats per phrase (for rule-based mode) */}
-        <View style={styles.row}>
-          <Ionicons name="resize-outline" size={20} color={Colors.textSecondary} />
-          <Text style={styles.label}>{t('settings.phraseLength')}</Text>
-          <View style={styles.lookAheadControls}>
-            <TouchableOpacity
-              style={styles.lookAheadBtn}
-              onPress={() => setDefaultBeatsPerPhrase(defaultBeatsPerPhrase - 8)}
-            >
-              <Ionicons name="remove" size={18} color={Colors.text} />
-            </TouchableOpacity>
-            <Text style={styles.lookAheadValue}>{defaultBeatsPerPhrase / 8}×8</Text>
-            <TouchableOpacity
-              style={styles.lookAheadBtn}
-              onPress={() => setDefaultBeatsPerPhrase(defaultBeatsPerPhrase + 8)}
-            >
-              <Ionicons name="add" size={18} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-        </View>
-        <Text style={styles.lookAheadHint}>
-          {t('settings.phraseLengthHint', { beats: defaultBeatsPerPhrase, count: defaultBeatsPerPhrase / 8 })}
-        </Text>
-      </View>
+      {/* Phrase Detection — hidden (managed in player via grid long-press) */}
 
       {/* Count Timing */}
       <View style={styles.section}>
@@ -258,9 +187,126 @@ export default function SettingsScreen() {
         </Text>
       </View>
 
-      {/* Data Reset */}
+      {/* Data */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('settings.data')}</Text>
+
+        {/* Export Library */}
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => {
+            const playerState = usePlayerStore.getState();
+            const settingsState = useSettingsStore.getState();
+            const trackCount = playerState.tracks.length;
+
+            if (trackCount === 0) {
+              Alert.alert('Export', 'Library is empty. Nothing to export.');
+              return;
+            }
+
+            Alert.alert(
+              'Export Library',
+              `${trackCount}개의 트랙 메타데이터(분석 결과, 프레이즈, 메모, 포메이션)를 백업합니다.\n\n⚠ 음원/영상 파일은 포함되지 않습니다. 파일을 이동하거나 삭제하면 라이브러리에서 다시 불러와야 합니다.`,
+              [
+                { text: t('common.cancel'), style: 'cancel' },
+                {
+                  text: 'Export',
+                  onPress: async () => {
+                    try {
+                      const backup: LibraryBackup = {
+                        version: 1,
+                        createdAt: Date.now(),
+                        player: {
+                          tracks: playerState.tracks,
+                          folders: playerState.folders,
+                          sortBy: playerState.sortBy,
+                          sortOrder: playerState.sortOrder,
+                        },
+                        settings: {
+                          downbeatOffsets: settingsState.downbeatOffsets,
+                          beatTimeOffsets: settingsState.beatTimeOffsets,
+                          bpmOverrides: settingsState.bpmOverrides,
+                          phraseMarks: settingsState.phraseMarks,
+                          trackEditions: settingsState.trackEditions,
+                          cellNotes: settingsState.cellNotes,
+                          importedNotes: settingsState.importedNotes,
+                          trackFormations: settingsState.trackFormations,
+                          stageConfig: settingsState.stageConfig,
+                        },
+                      };
+                      await exportLibraryBackup(backup);
+                    } catch (err: any) {
+                      if (err?.message !== 'User did not share') {
+                        Alert.alert('Error', err?.message || 'Export failed');
+                      }
+                    }
+                  },
+                },
+              ],
+            );
+          }}
+        >
+          <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
+          <Text style={[styles.label, { color: Colors.primary }]}>Export Library</Text>
+          <Text style={styles.value}>메타데이터 백업</Text>
+        </TouchableOpacity>
+
+        {/* Import Library */}
+        <TouchableOpacity
+          style={styles.row}
+          onPress={async () => {
+            try {
+              const backup = await importLibraryBackup();
+              if (!backup) return; // cancelled
+
+              const trackCount = backup.player.tracks.length;
+              const folderCount = backup.player.folders.length;
+              const date = new Date(backup.createdAt).toLocaleDateString();
+
+              Alert.alert(
+                'Import Library',
+                `${date}에 생성된 백업\n${trackCount}개 트랙, ${folderCount}개 폴더\n\n현재 라이브러리를 백업 데이터로 교체합니다.`,
+                [
+                  { text: t('common.cancel'), style: 'cancel' },
+                  {
+                    text: 'Import',
+                    style: 'destructive',
+                    onPress: async () => {
+                      // Restore player store
+                      usePlayerStore.setState({
+                        tracks: backup.player.tracks,
+                        folders: backup.player.folders,
+                        sortBy: backup.player.sortBy as any,
+                        sortOrder: backup.player.sortOrder as any,
+                      });
+                      // Restore settings store
+                      useSettingsStore.setState({
+                        downbeatOffsets: backup.settings.downbeatOffsets ?? {},
+                        beatTimeOffsets: backup.settings.beatTimeOffsets ?? {},
+                        bpmOverrides: backup.settings.bpmOverrides ?? {},
+                        phraseMarks: backup.settings.phraseMarks ?? {},
+                        trackEditions: backup.settings.trackEditions ?? {},
+                        cellNotes: backup.settings.cellNotes ?? {},
+                        importedNotes: backup.settings.importedNotes ?? [],
+                        trackFormations: backup.settings.trackFormations ?? {},
+                        stageConfig: backup.settings.stageConfig ?? { gridWidth: 8, gridHeight: 4 },
+                      });
+                      Alert.alert(t('common.done'), `${trackCount}개 트랙이 복원되었습니다.`);
+                    },
+                  },
+                ],
+              );
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Import failed');
+            }
+          }}
+        >
+          <Ionicons name="cloud-download-outline" size={20} color={Colors.accent} />
+          <Text style={[styles.label, { color: Colors.accent }]}>Import Library</Text>
+          <Text style={styles.value}>백업에서 복원</Text>
+        </TouchableOpacity>
+
+        {/* Reset Library */}
         <TouchableOpacity
           style={styles.row}
           onPress={() => {
@@ -341,6 +387,49 @@ export default function SettingsScreen() {
           </>
         )}
       </View>
+
+      {/* Account */}
+      {user && !guestMode && (
+        <View style={[styles.section, { marginTop: Spacing.xl }]}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              Alert.alert(
+                '회원 탈퇴',
+                '현재 저장한 라이브러리, 크루목록, 프레이즈노트 및 코레오노트 등 모든 정보가 삭제됩니다. 탈퇴하시겠습니까?',
+                [
+                  { text: t('common.cancel'), style: 'cancel' },
+                  {
+                    text: '탈퇴',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        const { supabase } = await import('../../lib/supabase');
+                        // Delete user data
+                        const userId = user.id;
+                        await supabase.from('profiles').delete().eq('id', userId);
+                        await supabase.from('crew_members').delete().eq('user_id', userId);
+                        await supabase.from('thread_phrase_notes').delete().eq('user_id', userId);
+                        await supabase.from('board_posts').delete().eq('user_id', userId);
+                        // Clear local data
+                        await AsyncStorage.clear();
+                        // Sign out
+                        await signOut();
+                        Alert.alert('완료', '회원 탈퇴가 완료되었습니다.');
+                      } catch (err: any) {
+                        Alert.alert('Error', err?.message || '탈퇴 처리 중 오류가 발생했습니다.');
+                      }
+                    },
+                  },
+                ],
+              );
+            }}
+          >
+            <Ionicons name="person-remove-outline" size={20} color={Colors.error} />
+            <Text style={[styles.label, { color: Colors.error }]}>회원 탈퇴</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </ScrollView>
   );
 }

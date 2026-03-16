@@ -468,18 +468,17 @@ export default function LibraryScreen() {
 
   const handleAnalyzePress = (track: Track) => {
     if (track.analysisStatus === 'analyzing') return;
-    setAnalyzeTarget(track);
-    setAnalyzeMenuVisible(true);
+    runAnalysis(track);
   };
 
   const handleReanalyze = (track: Track) => {
     Alert.alert('Re-analyze Track', '기존 분석 데이터가 삭제되고 새로 분석됩니다. 계속하시겠습니까?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Re-analyze', style: 'destructive', onPress: () => handleAnalyzePress(track) },
+      { text: 'Re-analyze', style: 'destructive', onPress: () => runAnalysis(track) },
     ]);
   };
 
-  const runAnalysis = async (track: Track, withFormation: boolean) => {
+  const runAnalysis = async (track: Track) => {
     setAnalyzeMenuVisible(false);
     setTrackAnalysisStatus(track.id, 'analyzing');
     try {
@@ -496,13 +495,6 @@ export default function LibraryScreen() {
           return closest;
         });
         setServerEdition(track.id, boundaryBeatIndices);
-      }
-      if (withFormation && result.beats.length >= 4) {
-        try {
-          const { requestFormationSuggestion } = await import('../../services/formationApi');
-          const formationData = await requestFormationSuggestion(result, choreoDancerCount, danceStyle);
-          setServerFormation(track.id, formationData);
-        } catch { /* formation suggestion is optional */ }
       }
     } catch (e: any) {
       setTrackAnalysisStatus(track.id, 'error');
@@ -829,7 +821,7 @@ export default function LibraryScreen() {
             <Text style={styles.analyzeMenuTitle}>Analyze</Text>
             <TouchableOpacity
               style={styles.analyzeMenuOption}
-              onPress={() => analyzeTarget && runAnalysis(analyzeTarget, false)}
+              onPress={() => analyzeTarget && runAnalysis(analyzeTarget)}
             >
               <Ionicons name="musical-notes-outline" size={22} color={Colors.primary} />
               <View style={styles.analyzeMenuOptionText}>
@@ -837,35 +829,6 @@ export default function LibraryScreen() {
                 <Text style={styles.analyzeMenuOptionDesc}>Beat analysis + phrase detection</Text>
               </View>
             </TouchableOpacity>
-            <View style={styles.analyzeMenuDivider} />
-            <TouchableOpacity
-              style={styles.analyzeMenuOption}
-              onPress={() => analyzeTarget && runAnalysis(analyzeTarget, true)}
-            >
-              <Ionicons name="people-outline" size={22} color="#FF9500" />
-              <View style={styles.analyzeMenuOptionText}>
-                <Text style={styles.analyzeMenuOptionTitle}>Choreography</Text>
-                <Text style={styles.analyzeMenuOptionDesc}>PhraseNote + formation suggestions</Text>
-              </View>
-            </TouchableOpacity>
-            <View style={styles.dancerCountRow}>
-              <Text style={styles.dancerCountLabel}>Dancers</Text>
-              <View style={styles.dancerCountStepper}>
-                <TouchableOpacity
-                  style={styles.dancerCountBtn}
-                  onPress={() => setChoreoDancerCount(Math.max(2, choreoDancerCount - 1))}
-                >
-                  <Ionicons name="remove" size={18} color={Colors.text} />
-                </TouchableOpacity>
-                <Text style={styles.dancerCountValue}>{choreoDancerCount}</Text>
-                <TouchableOpacity
-                  style={styles.dancerCountBtn}
-                  onPress={() => setChoreoDancerCount(Math.min(12, choreoDancerCount + 1))}
-                >
-                  <Ionicons name="add" size={18} color={Colors.text} />
-                </TouchableOpacity>
-              </View>
-            </View>
           </Pressable>
         </Pressable>
       </Modal>

@@ -174,6 +174,7 @@ export function SectionTimeline({
             height={BAR_HEIGHT}
             phrases={phrases}
             duration={duration}
+            containerWidth={width}
           />
         )}
 

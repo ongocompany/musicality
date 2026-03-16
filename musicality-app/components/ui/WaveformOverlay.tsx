@@ -11,19 +11,20 @@ interface WaveformOverlayProps {
   height?: number;       // container height (default 50)
   phrases?: Phrase[];    // phrase data for rainbow coloring
   duration?: number;     // total duration in seconds
+  containerWidth?: number; // actual container width (from parent)
 }
 
 /**
  * Renders waveform bars colored by phrase (rainbow).
  * Played portion is brighter; unplayed is dimmer.
  */
-export function WaveformOverlay({ peaks, progress, height = 50, phrases, duration }: WaveformOverlayProps) {
+export function WaveformOverlay({ peaks, progress, height = 50, phrases, duration, containerWidth }: WaveformOverlayProps) {
   if (!peaks || peaks.length === 0) return null;
 
-  const screenWidth = Dimensions.get('window').width;
+  const effectiveWidth = containerWidth || Dimensions.get('window').width;
 
   const bars = useMemo(() => {
-    const maxBars = Math.floor(screenWidth / 2.5);
+    const maxBars = Math.floor(effectiveWidth / 2.5);
     const barCount = Math.min(peaks.length, maxBars);
     const step = peaks.length / barCount;
 
@@ -51,9 +52,9 @@ export function WaveformOverlay({ peaks, progress, height = 50, phrases, duratio
       });
     }
     return result;
-  }, [peaks, screenWidth, phrases, duration, height]);
+  }, [peaks, effectiveWidth, phrases, duration, height]);
 
-  const barWidth = Math.max(1, (screenWidth - bars.length * BAR_GAP) / bars.length);
+  const barWidth = Math.max(1, (effectiveWidth - bars.length * BAR_GAP) / bars.length);
   const progressIndex = Math.floor(progress * bars.length);
 
   return (
