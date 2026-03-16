@@ -1,6 +1,14 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+# Collections compatibility shim — madmom uses collections.MutableSequence
+# which was removed in Python 3.10+. Restore it before any madmom import.
+import collections
+import collections.abc
+for _attr in ('MutableSequence', 'MutableMapping', 'MutableSet', 'Mapping', 'Sequence'):
+    if not hasattr(collections, _attr):
+        setattr(collections, _attr, getattr(collections.abc, _attr))
+
 # Numpy compatibility shim — madmom's compiled Cython extensions use np.int/np.float
 # which were removed in NumPy 1.24+. Restore them before any madmom import.
 import numpy as np

@@ -60,9 +60,8 @@ export function PhraseGrid({
   editMode = 'none',
 }: PhraseGridProps) {
   const { t } = useTranslation();
-  const rowCount = rows ?? DEFAULT_ROWS;
-  const CELLS_PER_PAGE = COLS * rowCount; // used only for placeholder
   const [containerWidth, setContainerWidth] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(0);
   const [flashCellIndex, setFlashCellIndex] = useState<number | null>(null);
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -113,6 +112,10 @@ export function PhraseGrid({
     setContainerWidth(e.nativeEvent.layout.width);
   }, []);
 
+  const onContainerLayout = useCallback((e: LayoutChangeEvent) => {
+    setContainerHeight(e.nativeEvent.layout.height);
+  }, []);
+
   // ─── Phrase-aware beat layout ───
   const globalBeatIndex = countInfo?.beatIndex ?? -1;
   const totalBeats = beats.length;
@@ -149,9 +152,6 @@ export function PhraseGrid({
     return { visualCells: cells, beatToVisualCell: b2vc };
   }, [beats.length, phraseMap]);
 
-  const totalVisualCells = visualCells.length > 0 ? visualCells.length : CELLS_PER_PAGE;
-  const totalDataRows = Math.ceil(totalVisualCells / COLS);
-
   // Cell size (width-based, uniform spacing)
   const cellSize = useMemo(() => {
     if (containerWidth <= 0) return 0;
@@ -161,7 +161,20 @@ export function PhraseGrid({
   }, [containerWidth]);
 
   const rowHeight = cellSize + CELL_GAP;
-  const visibleHeight = rowCount * rowHeight;
+
+  const rowCount = useMemo(() => {
+    if (rows !== undefined) return rows;
+    if (containerHeight > 0 && rowHeight > 0) {
+      return Math.max(1, Math.floor(containerHeight / rowHeight));
+    }
+    return DEFAULT_ROWS;
+  }, [rows, containerHeight, rowHeight]);
+
+  const CELLS_PER_PAGE = COLS * rowCount;
+  const visibleHeight = rowHeight > 0 ? rowCount * rowHeight : undefined;
+
+  const totalVisualCells = visualCells.length > 0 ? visualCells.length : CELLS_PER_PAGE;
+  const totalDataRows = Math.ceil(totalVisualCells / COLS);
 
   // ─── Reset render window when phrase layout changes (e.g. split/re-arrange) ───
   const prevVisualCellsRef = useRef(visualCells);
@@ -545,7 +558,7 @@ export function PhraseGrid({
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, rows === undefined && { flex: 1 }]} onLayout={onContainerLayout}>
       {/* "Selecting B" hint */}
       {repeatSelectMode && (
         <View style={styles.repeatHint}>
@@ -620,7 +633,7 @@ export function PhraseGrid({
           return (
             <ScrollView
               ref={scrollViewRef}
-              style={visibleHeight > 0 ? { maxHeight: visibleHeight } : undefined}
+              style={visibleHeight != null && visibleHeight > 0 ? { maxHeight: visibleHeight } : { flex: 1 }}
               showsVerticalScrollIndicator={false}
               onScroll={handleScroll}
               onScrollBeginDrag={handleScrollBeginDrag}
@@ -641,7 +654,7 @@ export function PhraseGrid({
 
         // Page mode: fixed view, no scroll
         return (
-          <View style={visibleHeight > 0 ? { height: visibleHeight, overflow: 'hidden' } : undefined}>
+          <View style={visibleHeight != null && visibleHeight > 0 ? { height: visibleHeight, overflow: 'hidden' } : { flex: 1, overflow: 'hidden' }}>
             {gridContent}
           </View>
         );

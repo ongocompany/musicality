@@ -1,11 +1,11 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, Platform, StatusBar, Dimensions, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, StatusBar, useWindowDimensions } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import { activateKeepAwake, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRouter } from 'expo-router';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
@@ -119,15 +119,22 @@ export default function PlayerScreen() {
   const isYouTube = currentTrack?.mediaType === 'youtube';
   const isVisual = isVideo || isYouTube;
 
-  // Dynamic grid rows for video mode based on aspect ratio
+  // Dynamic grid rows for video mode based on available screen space
+  // Header(~40) + Video(~220 YT or aspectRatio-based) + BottomBar(~52) + TabBar(~50) + padding
+  const { width: winW, height: winH } = useWindowDimensions();
   const videoGridRows = useMemo(() => {
-    const c = Dimensions.get('window').height < 700;
-    if (isYouTube) return c ? 3 : 5;
-    if (!isVideo) return c ? 6 : 8;
-    if (videoAspectRatio >= 1.5) return c ? 3 : 5;
-    if (videoAspectRatio >= 1.0) return c ? 2 : 4;
-    return c ? 2 : 4;
-  }, [isVideo, isYouTube, videoAspectRatio]);
+    if (!isVisual) return undefined; // audio mode uses auto rows
+    const headerH = 44;
+    const videoH = isYouTube ? 220 : Math.min(360, winH * 0.35);
+    const bottomBarH = 52;
+    const tabBarH = 50;
+    const paddingH = 24;
+    const availableH = winH - headerH - videoH - bottomBarH - tabBarH - paddingH;
+    // Each row ≈ cellSize + gap. cellSize ≈ (screenWidth / 8) - gap, gap = 3
+    const approxCellSize = Math.floor((winH > 700 ? 40 : 34));
+    const rowH = approxCellSize + 3;
+    return Math.max(3, Math.floor(availableH / rowH));
+  }, [isVisual, isYouTube, winH]);
 
   const audioPlayer = useAudioPlayer();
   const videoPlayer = useVideoPlayer();
@@ -224,8 +231,7 @@ export default function PlayerScreen() {
 
   // ─── Fullscreen video mode ───
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const { width: winW, height: winH } = useWindowDimensions();
-  const compact = winH < 700;
+
   const fullscreenVideoRef = useRef<Video>(null);
   const savedPositionRef = useRef(0);
 
@@ -287,14 +293,14 @@ export default function PlayerScreen() {
     }
   }, []);
 
-  // Keep screen awake while playing
+  // Keep screen awake while playing (sync + tag for Android reliability)
   useEffect(() => {
     if (isPlaying) {
-      activateKeepAwakeAsync();
+      activateKeepAwake('playing');
     } else {
-      deactivateKeepAwake();
+      deactivateKeepAwake('playing');
     }
-    return () => { deactivateKeepAwake(); };
+    return () => { deactivateKeepAwake('playing'); };
   }, [isPlaying]);
 
   // When main video remounts after fullscreen exit, restore position & play state
@@ -1096,10 +1102,12 @@ export default function PlayerScreen() {
                   height={200}
                   videoId={currentTrack.uri}
                   play={isPlaying}
-                  initialPlayerParams={{ start: Math.floor(ytSavedTimeRef.current / 1000) }}
+                  initialPlayerParams={{
+                    start: Math.floor(ytSavedTimeRef.current / 1000),
+                    preventFullScreen: true,
+                  }}
                   onReady={youtubePlayer.onReady}
                   onChangeState={onYtStateChange}
-                  onFullScreenChange={onYtFullScreenChange}
                   webViewProps={{
                     allowsInlineMediaPlayback: true,
                     injectedJavaScript: `
@@ -1117,12 +1125,7 @@ export default function PlayerScreen() {
                   <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
                 </View>
               )}
-              {/* Fullscreen button — only when not in edit mode */}
-              {editMode === 'none' && (
-                <TouchableOpacity style={styles.fullscreenBtn} onPress={enterFullScreen}>
-                  <Ionicons name="expand" size={22} color="#fff" />
-                </TouchableOpacity>
-              )}
+              {/* Fullscreen button — disabled for v1, deferred to v2 */}
             </View>
 
             {/* Analysis done → PhraseGrid */}
@@ -1214,12 +1217,7 @@ export default function PlayerScreen() {
               {currentTrack.analysisStatus === 'done' && (
                 <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
               )}
-              {/* Fullscreen button — only when not in edit mode */}
-              {editMode === 'none' && (
-                <TouchableOpacity style={styles.fullscreenBtn} onPress={enterFullScreen}>
-                  <Ionicons name="expand" size={22} color="#fff" />
-                </TouchableOpacity>
-              )}
+              {/* Fullscreen button — disabled for v1, deferred to v2 */}
             </View>
             {currentTrack.analysisStatus === 'done' && (
               <View style={styles.videoCountSection}>
@@ -1305,7 +1303,7 @@ export default function PlayerScreen() {
 
             {/* PhraseGrid — rhythm game style */}
             <PhraseGrid
-              rows={(editMode === 'formation' || (editMode === 'none' && activeFormationData)) ? 4 : compact ? 6 : undefined}
+              rows={(editMode === 'formation' || (editMode === 'none' && activeFormationData)) ? 4 : undefined}
               countInfo={countInfo}
               phraseMap={phraseMap ?? null}
               hasAnalysis={!!analysis}
@@ -1861,6 +1859,7 @@ const styles = StyleSheet.create({
   },
   video: { width: '100%', height: '100%' },
   videoCountSection: {
+    flex: 1,
     width: '100%',
     paddingHorizontal: Spacing.sm,
     paddingTop: Spacing.sm,

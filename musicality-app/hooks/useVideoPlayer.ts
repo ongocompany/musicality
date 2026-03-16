@@ -108,9 +108,10 @@ export function useVideoPlayer() {
     }
   }, []);
 
-  // Cleanup on track change
+  // Cleanup on track change — pause + unload to prevent stale position updates
   useEffect(() => {
     return () => {
+      videoRef.current?.pauseAsync().catch(() => {});
       videoRef.current?.unloadAsync().catch(() => {});
     };
   }, [currentTrack?.id]);

@@ -173,7 +173,7 @@ export const usePlayerStore = create<PlayerState>()(
 
       // Playback
       currentTrack: null,
-      setCurrentTrack: (track) => set({ currentTrack: track, position: 0, loopEnabled: false, loopStart: null, loopEnd: null, videoAspectRatio: 16 / 9 }),
+      setCurrentTrack: (track) => set({ currentTrack: track, position: 0, isPlaying: false, loopEnabled: false, loopStart: null, loopEnd: null, videoAspectRatio: 16 / 9 }),
       isPlaying: false,
       setIsPlaying: (playing) => set({ isPlaying: playing }),
       position: 0,

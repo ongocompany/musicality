@@ -88,6 +88,29 @@ export async function analyzeTrack(
   fileName: string,
   format: string,
 ): Promise<AnalysisResult> {
+  // Extract audio + downsample to mono 22kHz (native module, graceful fallback)
+  let uploadUri = uri;
+  let uploadFormat = format;
+  let uploadMime = '';
+  try {
+    const { extractAndDownsample } = require('../modules/my-module');
+    console.log(`[AudioExtractor] Starting: ${fileName}.${format} (${uri.slice(-30)})`);
+    const t0 = Date.now();
+    const timeoutPromise = new Promise<null>((_, reject) =>
+      setTimeout(() => reject(new Error('Extract timeout (10s)')), 10000)
+    );
+    const processed = await Promise.race([extractAndDownsample(uri), timeoutPromise]);
+    console.log(`[AudioExtractor] Done in ${Date.now() - t0}ms → ${processed?.slice(-40)}`);
+    if (processed) {
+      uploadUri = processed.startsWith('/') ? `file://${processed}` : processed;
+      uploadFormat = 'wav';
+      uploadMime = 'audio/wav';
+    }
+  } catch (e: any) {
+    console.warn(`[AudioExtractor] FAILED for ${fileName}.${format}: ${e?.message}`);
+    // Fallback: send original file
+  }
+
   const mimeMap: Record<string, string> = {
     mp3: 'audio/mpeg',
     wav: 'audio/wav',
@@ -101,13 +124,15 @@ export async function analyzeTrack(
 
   const formData = new FormData();
   formData.append('file', {
-    uri,
-    name: `${fileName || 'track'}.${format}`,
-    type: mimeMap[format] || 'audio/mpeg',
+    uri: uploadUri,
+    name: `${fileName || 'track'}.${uploadFormat}`,
+    type: uploadMime || mimeMap[uploadFormat] || 'audio/mpeg',
   } as any);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT_MS);
+
+  console.log(`[Upload] Sending ${uploadFormat} to ${API_BASE_URL}/analyze (uri: ${uploadUri.slice(-50)})`);
 
   try {
     const response = await fetch(`${API_BASE_URL}/analyze`, {

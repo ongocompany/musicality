@@ -76,3 +76,28 @@
 - [ ] Full codebase scan for any remaining hardcoded Korean/English strings
 - [ ] library.tsx, messages screens may have untranslated strings
 - [ ] Expo server on jinserver may need `--clear` cache restart after locale changes
+
+---
+
+## Session 2026-03-16
+
+### 작업 완료
+- **EAS preview 빌드** — development → preview 프로필로 변경 (Metro 서버 불필요)
+- **API_BASE_URL 변경** — `jinserver.tail3a2ff1.ts.net` → `api.ritmo.kr` (Cloudflare Tunnel, Tailscale 불필요)
+- **곡 분석 알고리즘 향상 계획** — checklist.md 하단에 3단계 로드맵 추가
+- **곡 분석 최신 기술 리서치** — Beat This!(ISMIR 2024), BeatNet+, All-In-One, Essentia 등 조사 완료
+
+### 발견된 버그: 유튜브 전체화면 3종
+
+| # | 증상 | 원인 추정 | 심각도 |
+|---|------|----------|--------|
+| 1 | 전체화면 시 **하단 탭바가 보임** | fullscreen 진입 시 탭바 hide 처리 누락 | Medium |
+| 2 | 전체화면 복귀 후 **하단 컨트롤러 먹통**, 유튜브 핸들러만 작동 | YouTube iframe이 터치 이벤트를 가로챔 (z-index/pointer 문제) | High |
+| 3 | 다시 전체화면 진입 시 **영상 freeze + 음악만 재생** | iframe 재진입 시 player state 동기화 실패 | High |
+
+**관련 파일**: `hooks/useVideoPlayer.ts`, `app/(tabs)/player.tsx`
+
+### 기타 메모
+- 안드로이드 롱프레스 팝업 모달 디자인 개선 필요 (iOS 대비 밋밋함) — 우선순위 낮음
+- 곡 분석: 타악기 편성이 흐린 곡에서 beat 감지 불안정 → beat 후처리 + BPM 교차검증 우선 적용 예정
+- 서버 로그가 소켓으로 빠져서 확인 불가 → 다음에 로그 파일로 리다이렉트 설정 필요

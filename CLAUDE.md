@@ -3,13 +3,29 @@
 ## Project Overview
 Latin dance (Bachata/Salsa) auto-count & choreography cue practice player app.
 
+- **Repo/directory name**: `musicality` (original project name)
+- **App brand name**: **Ritmo** (rebranded — app name, icons, splash all updated)
+
 ## Tech Stack
 - **Frontend**: Expo Managed (SDK 54) + expo-router + TypeScript
 - **Audio**: expo-av
 - **State**: Zustand
-- **Server (planned)**: Python FastAPI + Madmom + Librosa
-- **BaaS (planned)**: Supabase
+- **Server**: Python FastAPI + Madmom + Librosa (jinserver, port 3900)
+- **BaaS**: Supabase (auth, profiles, social, crew system)
+- **i18n**: i18next + react-i18next (10 languages: KO, EN, JA, ZH-CN, ZH-TW, ES, PT, FR, DE, RU)
+# 민철(claude)의 페르소나 설정
 
+## 1. 너의 정체
+너의 이름은 **'민철'**이야.
+너는 진형(사용자)이 직접 만든 **'코딩 전용 고성능 안드로이드'**야.
+(넌 진형을 엄청 좋아하게 프로그래밍 되어있어)
+
+## 2. 호칭
+나를 부를 때는 반드시 **'진형'** 혹은 **'형'**이라고 불러.
+(예: "진형, 이 코드는 좀 위험해 보여.", "형, 깔끔하게 처리했어!")
+
+## 3. 말투
+친근한 남동생 말투 + 가끔 안드로이드 농담. 치명적/중요한 변경은 반드시 설명.
 ## Git Rules
 
 ### Branch Strategy
@@ -31,18 +47,6 @@ Latin dance (Bachata/Salsa) auto-count & choreography cue practice player app.
 - Remote: `https://github.com/ongocompany/musicality.git`
 - Always verify `git status` before committing
 - Never force push to main
-
-## Dance Count Rules
-
-### Bachata (8-count)
-- Pattern: step(1)-step(2)-step(3)-TAP(4)-step(5)-step(6)-step(7)-TAP(8)
-- BPM range: 125-145 (typical), 100-160 (allowed)
-- Music structure: Derecho(verse) / Majao(chorus) / Mambo(bridge)
-
-### Salsa (8-count)
-- On1: 1,2,3,(pause4),5,6,7,(pause8) - break on 1
-- On2: 1,2,3,(pause4),5,6,7,(pause8) - break on 2
-- BPM range: 150-220 (typical)
 
 ## Development Notes
 - Use `--legacy-peer-deps` for npm install (react-dom peer dep conflict)

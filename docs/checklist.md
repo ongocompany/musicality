@@ -255,3 +255,21 @@
 | **M6** 커뮤니티 + 소셜 | ✅ 완료 | O (Supabase) |
 | **M7** 국제화 (i18n) | ✅ 완료 | X |
 | ~~**M8** EQ (악기 강조)~~ | ❌ 취소 | - |
+
+---
+
+## 🔮 향후 발전 계획: 곡 분석 알고리즘 향상
+
+### 1단계: 즉시 적용 가능 (Quick Wins)
+- [ ] **BPM 추정 개선**: Madmom beat 간격 기반 BPM 직접 계산 → librosa tempo와 교차 검증 (half/double tempo 오류 방지)
+- [ ] **Beat 후처리**: 이상치 제거 (median 대비 0.5x~2x 범위 밖), 빠진 beat 보간, 저confidence beat 필터링
+
+### 2단계: 중기 개선
+- [ ] **장르별 파라미터 튜닝**: BPM 범위로 바차타/살사 자동 구분 → 장르별 최적 파라미터 적용 (beat_per_bar, 구간 길이 기대치 등)
+- [ ] **사용자 피드백 루프**: 수동 beat 보정 데이터를 서버에 저장 → 같은 곡 재분석 시 참조 (fingerprint 캐시 활용)
+- [ ] **구간 분류 정확도**: 현재 규칙 기반 scoring → 라틴 댄스 음악 특화 가중치 추가 학습
+
+### 3단계: 장기 과제
+- [ ] **앙상블 Beat Tracking**: Madmom + BeatNet/TCN Beat Tracker 등 복수 모델 결과 앙상블
+- [ ] **딥러닝 구간 분류**: 라틴 댄스 음악 데이터셋 구축 → ML 기반 section classifier fine-tune
+- [ ] **온디바이스 분석**: 경량 모델로 서버 없이 기본 beat/BPM 분석 (오프라인 지원)

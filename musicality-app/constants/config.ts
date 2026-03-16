@@ -2,6 +2,7 @@
 // Production: https://api.ritmo.kr (jinserver via Cloudflare Tunnel)
 // Dev LAN: 192.168.0.75 (notebook) / mac-mini: 192.168.0.12
 // Dev Tailscale: 100.68.25.79 (jinserver)
+// Vultr VPS: http://158.247.225.152:3900 (direct, no Cloudflare)
 export const API_BASE_URL = 'https://api.ritmo.kr';
 
 // Request timeout in ms (analysis can take a while for long tracks)
