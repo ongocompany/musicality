@@ -5,6 +5,7 @@ import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRouter } from 'expo-router';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
@@ -120,11 +121,12 @@ export default function PlayerScreen() {
 
   // Dynamic grid rows for video mode based on aspect ratio
   const videoGridRows = useMemo(() => {
-    if (isYouTube) return 5;                  // YouTube always landscape
-    if (!isVideo) return 8;
-    if (videoAspectRatio >= 1.5) return 5;    // landscape (16:9+)
-    if (videoAspectRatio >= 1.0) return 4;    // square~landscape
-    return 4;                                  // portrait
+    const c = Dimensions.get('window').height < 700;
+    if (isYouTube) return c ? 3 : 5;
+    if (!isVideo) return c ? 6 : 8;
+    if (videoAspectRatio >= 1.5) return c ? 3 : 5;
+    if (videoAspectRatio >= 1.0) return c ? 2 : 4;
+    return c ? 2 : 4;
   }, [isVideo, isYouTube, videoAspectRatio]);
 
   const audioPlayer = useAudioPlayer();
@@ -165,9 +167,28 @@ export default function PlayerScreen() {
   const draftBoundaries = useSettingsStore((s) => s.draftBoundaries);
   const setDraftBoundaries = useSettingsStore((s) => s.setDraftBoundaries);
   const clearDraft = useSettingsStore((s) => s.clearDraft);
+  const undoStackRef = useRef<Record<string, number[][]>>({});
+  const pushUndo = useCallback((trackId: string, boundaries: number[]) => {
+    if (!undoStackRef.current[trackId]) undoStackRef.current[trackId] = [];
+    undoStackRef.current[trackId].push([...boundaries]);
+  }, []);
+  const handleUndo = useCallback(() => {
+    if (!currentTrack) return;
+    const stack = undoStackRef.current[currentTrack.id];
+    if (!stack || stack.length === 0) return;
+    setDraftBoundaries(currentTrack.id, stack.pop()!);
+  }, [currentTrack, setDraftBoundaries]);
+  const canUndo = currentTrack
+    ? (undoStackRef.current[currentTrack.id]?.length ?? 0) > 0
+    : false;
   const saveDraftAsEdition = useSettingsStore((s) => s.saveDraftAsEdition);
   const gridScrollMode = useSettingsStore((s) => s.gridScrollMode);
   const toggleGridScrollMode = useSettingsStore((s) => s.toggleGridScrollMode);
+  const beatTimeOffsets = useSettingsStore((s) => s.beatTimeOffsets);
+  const setBeatTimeOffset = useSettingsStore((s) => s.setBeatTimeOffset);
+  const bpmOverrides = useSettingsStore((s) => s.bpmOverrides);
+  const setBpmOverride = useSettingsStore((s) => s.setBpmOverride);
+  const clearBpmOverride = useSettingsStore((s) => s.clearBpmOverride);
   const cellNotes = useSettingsStore((s) => s.cellNotes);
   const setCellNote = useSettingsStore((s) => s.setCellNote);
   const clearCellNote = useSettingsStore((s) => s.clearCellNote);
@@ -190,18 +211,21 @@ export default function PlayerScreen() {
     youtubePlayer.onStateChange(state);
   }, []);
 
-  // Force WebView reflow after fullscreen exit to fix touch capture bug
-  const [ytReflow, setYtReflow] = useState(false);
+  // Force YoutubePlayer remount after fullscreen exit to fix Android touch capture bug
+  const [ytMountKey, setYtMountKey] = useState(0);
+  const ytSavedTimeRef = useRef(0);
   const onYtFullScreenChange = useCallback((isFullScreen: boolean) => {
     if (!isFullScreen) {
-      setYtReflow(true);
-      setTimeout(() => setYtReflow(false), 50);
+      // Save current position before remount
+      ytSavedTimeRef.current = usePlayerStore.getState().position;
+      setYtMountKey(k => k + 1);
     }
   }, []);
 
   // ─── Fullscreen video mode ───
   const [isFullScreen, setIsFullScreen] = useState(false);
   const { width: winW, height: winH } = useWindowDimensions();
+  const compact = winH < 700;
   const fullscreenVideoRef = useRef<Video>(null);
   const savedPositionRef = useRef(0);
 
@@ -262,6 +286,16 @@ export default function PlayerScreen() {
       store.setIsPlaying(false);
     }
   }, []);
+
+  // Keep screen awake while playing
+  useEffect(() => {
+    if (isPlaying) {
+      activateKeepAwakeAsync();
+    } else {
+      deactivateKeepAwake();
+    }
+    return () => { deactivateKeepAwake(); };
+  }, [isPlaying]);
 
   // When main video remounts after fullscreen exit, restore position & play state
   const fullscreenJustExitedRef = useRef(false);
@@ -370,16 +404,36 @@ export default function PlayerScreen() {
     }
   }, [analysis, offsetBeatIndex, phraseDetectionMode, defaultBeatsPerPhrase, phraseMarks, currentTrack?.id, trackEditions, draftBoundaries, effectiveAnalysisData]);
 
+  // ─── Beat time offset + BPM override (per-track, immediate) ───
+  const beatTimeOffset = currentTrack ? (beatTimeOffsets[currentTrack.id] ?? 0) : 0;
+  const bpmOverride = currentTrack ? bpmOverrides[currentTrack.id] : undefined;
+  const [editingBpm, setEditingBpm] = useState(false);
+  const [bpmInputValue, setBpmInputValue] = useState('');
+
+  // ─── Effective beats/downbeats with timing offset applied ───
+  const effectiveBeats = useMemo(() => {
+    const beats = effectiveAnalysisData?.beats ?? analysis?.beats ?? [];
+    const offsetSec = beatTimeOffset / 1000;
+    if (offsetSec === 0) return beats;
+    return beats.map(b => Math.max(0, b + offsetSec));
+  }, [effectiveAnalysisData, analysis, beatTimeOffset]);
+
+  const effectiveDownbeats = useMemo(() => {
+    const dbs = effectiveAnalysisData?.downbeats ?? analysis?.downbeats ?? [];
+    const offsetSec = beatTimeOffset / 1000;
+    if (offsetSec === 0) return dbs;
+    return dbs.map(b => Math.max(0, b + offsetSec));
+  }, [effectiveAnalysisData, analysis, beatTimeOffset]);
+
   // Stable countInfo — only update reference when beatIndex/phraseIndex actually change
   // This prevents PhraseGrid re-renders on every 50ms position tick
   const prevCountRef = useRef<CountInfo | null>(null);
   const countInfo = useMemo(() => {
-    // When imported note is active, use its beats/downbeats/offset
-    const effBeats = effectiveAnalysisData?.beats ?? analysis?.beats;
-    const effDownbeats = effectiveAnalysisData?.downbeats ?? analysis?.downbeats;
+    // Use offset-applied beats
+    const effBeats = effectiveBeats.length > 0 ? effectiveBeats : null;
     const effOffset = effectiveAnalysisData?.offsetBeatIndex ?? offsetBeatIndex;
     const raw = effBeats
-      ? getPhraseCountInfo(position + lookAheadMs, effBeats, effDownbeats ?? [], effOffset, danceStyle, phraseMap)
+      ? getPhraseCountInfo(position + lookAheadMs, effBeats, effectiveDownbeats, effOffset, danceStyle, phraseMap)
       : null;
     const prev = prevCountRef.current;
     if (prev && raw && prev.beatIndex === raw.beatIndex && prev.phraseIndex === raw.phraseIndex) {
@@ -387,7 +441,7 @@ export default function PlayerScreen() {
     }
     prevCountRef.current = raw;
     return raw;
-  }, [position, lookAheadMs, analysis, offsetBeatIndex, danceStyle, phraseMap]);
+  }, [position, lookAheadMs, effectiveBeats, effectiveDownbeats, offsetBeatIndex, effectiveAnalysisData, danceStyle, phraseMap]);
 
   // Bounce animation for count number
   const countBounceAnim = useRef(new Animated.Value(1)).current;
@@ -435,8 +489,9 @@ export default function PlayerScreen() {
       const shifted = currentBoundaries[i] + offset;
       if (shifted < totalBeats) newBoundaries.push(shifted);
     }
+    pushUndo(currentTrack.id, currentBoundaries);
     setDraftBoundaries(currentTrack.id, newBoundaries);
-  }, [currentTrack, analysis, phraseMap, setDraftBoundaries]);
+  }, [currentTrack, analysis, phraseMap, setDraftBoundaries, pushUndo]);
 
   // Paused tap: seek to beat and start playback (preview)
   const handleSeekAndPlay = useCallback((beatTimeMs: number) => {
@@ -454,12 +509,14 @@ export default function PlayerScreen() {
   const handleSplitPhraseHere = useCallback((globalBeatIndex: number) => {
     if (!currentTrack || !analysis || !phraseMap) return;
     const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+    const before = phraseMap.phrases.map(p => p.startBeatIndex);
     if (!currentBoundaries.includes(globalBeatIndex)) {
       currentBoundaries.push(globalBeatIndex);
     }
     currentBoundaries.sort((a, b) => a - b);
+    pushUndo(currentTrack.id, before);
     setDraftBoundaries(currentTrack.id, currentBoundaries);
-  }, [currentTrack, analysis, phraseMap, setDraftBoundaries]);
+  }, [currentTrack, analysis, phraseMap, setDraftBoundaries, pushUndo]);
 
   // Merge: remove phrase boundary to merge with previous phrase
   const handleMergeWithPrevious = useCallback((globalBeatIndex: number) => {
@@ -467,13 +524,10 @@ export default function PlayerScreen() {
     const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
     // Remove this boundary (keep the first boundary at index 0 always)
     const newBoundaries = currentBoundaries.filter(b => b !== globalBeatIndex);
+    pushUndo(currentTrack.id, currentBoundaries);
     setDraftBoundaries(currentTrack.id, newBoundaries);
-  }, [currentTrack, phraseMap, setDraftBoundaries]);
+  }, [currentTrack, phraseMap, setDraftBoundaries, pushUndo]);
 
-  // ─── Effective beats array (imported or original) ───
-  const effectiveBeats = useMemo(() => {
-    return effectiveAnalysisData?.beats ?? analysis?.beats ?? [];
-  }, [effectiveAnalysisData, analysis]);
 
   // ─── Cell notes for current track (use imported notes when active) ───
   const currentCellNotes = useMemo(() => {
@@ -887,7 +941,7 @@ export default function PlayerScreen() {
   return (
     <View style={styles.container}>
       {/* ─── Scrollable Content ─── */}
-      <ScrollView style={styles.scrollArea} contentContainerStyle={isVisual ? styles.videoScrollContent : styles.audioScrollContent} scrollEnabled={editMode !== 'formation'}>
+      <ScrollView style={styles.scrollArea} contentContainerStyle={isVisual ? styles.videoScrollContent : styles.audioScrollContent} scrollEnabled={false}>
 
         {/* ① Compact Header (unified for all media types) */}
         <View style={styles.compactHeader}>
@@ -903,11 +957,17 @@ export default function PlayerScreen() {
                     color={gridScrollMode ? Colors.primary : Colors.textSecondary}
                   />
                 </TouchableOpacity>
-                <View style={styles.bpmBadge}>
+                <TouchableOpacity
+                  style={[styles.bpmBadge, bpmOverride != null && { backgroundColor: Colors.tapAccent }]}
+                  onPress={() => {
+                    setBpmInputValue(String(bpmOverride ?? Math.round(analysis.bpm)));
+                    setEditingBpm(true);
+                  }}
+                >
                   <Text style={styles.bpmText}>
-                    {Math.round(analysis.bpm)} BPM
+                    {Math.round(bpmOverride ?? analysis.bpm)} BPM{bpmOverride != null ? ' ✎' : ''}
                   </Text>
-                </View>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={handleSharePhraseNote} style={styles.scrollModeBtn}>
                   <Ionicons name="share-outline" size={16} color={Colors.textSecondary} />
                 </TouchableOpacity>
@@ -968,16 +1028,75 @@ export default function PlayerScreen() {
           </View>
         </View>
 
+        {/* Beat offset fine-tune row */}
+        {analysis && (
+          <View style={styles.beatOffsetRow}>
+            <TouchableOpacity
+              style={styles.beatOffsetBtn}
+              onPress={() => setBeatTimeOffset(currentTrack.id, beatTimeOffset - 100)}
+            >
+              <Text style={styles.beatOffsetBtnText}>−100ms</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.beatOffsetCenter, beatTimeOffset !== 0 && { backgroundColor: 'rgba(187,134,252,0.2)' }]}
+              onPress={() => setBeatTimeOffset(currentTrack.id, 0)}
+            >
+              <Text style={[styles.beatOffsetCenterText, beatTimeOffset !== 0 && { color: Colors.primary }]}>
+                {beatTimeOffset > 0 ? `+${beatTimeOffset}ms` : beatTimeOffset === 0 ? '0ms ×' : `${beatTimeOffset}ms`}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.beatOffsetBtn}
+              onPress={() => setBeatTimeOffset(currentTrack.id, beatTimeOffset + 100)}
+            >
+              <Text style={styles.beatOffsetBtnText}>+100ms</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* BPM edit modal */}
+        {editingBpm && (
+          <Modal transparent animationType="fade" onRequestClose={() => setEditingBpm(false)}>
+            <Pressable style={styles.bpmModalBackdrop} onPress={() => setEditingBpm(false)}>
+              <Pressable style={styles.bpmModalBox} onPress={e => e.stopPropagation()}>
+                <Text style={styles.bpmModalTitle}>BPM 수정</Text>
+                <TextInput
+                  style={styles.bpmModalInput}
+                  value={bpmInputValue}
+                  onChangeText={setBpmInputValue}
+                  keyboardType="numeric"
+                  autoFocus
+                  selectTextOnFocus
+                />
+                <View style={styles.bpmModalActions}>
+                  <TouchableOpacity onPress={() => { clearBpmOverride(currentTrack.id); setEditingBpm(false); }}>
+                    <Text style={styles.bpmModalReset}>초기화</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => {
+                    const v = parseFloat(bpmInputValue);
+                    if (v > 0) setBpmOverride(currentTrack.id, v);
+                    setEditingBpm(false);
+                  }}>
+                    <Text style={styles.bpmModalConfirm}>확인</Text>
+                  </TouchableOpacity>
+                </View>
+              </Pressable>
+            </Pressable>
+          </Modal>
+        )}
+
         {/* ② YouTube Player */}
         {isYouTube && (
           <View style={styles.videoSection}>
             <View style={styles.youtubeContainer}>
-              <View style={ytReflow ? { height: 0, overflow: 'hidden' } : undefined}>
+              <View>
                 <YoutubePlayer
+                  key={ytMountKey}
                   ref={youtubePlayer.playerRef}
                   height={200}
                   videoId={currentTrack.uri}
                   play={isPlaying}
+                  initialPlayerParams={{ start: Math.floor(ytSavedTimeRef.current / 1000) }}
                   onReady={youtubePlayer.onReady}
                   onChangeState={onYtStateChange}
                   onFullScreenChange={onYtFullScreenChange}
@@ -1186,7 +1305,7 @@ export default function PlayerScreen() {
 
             {/* PhraseGrid — rhythm game style */}
             <PhraseGrid
-              rows={(editMode === 'formation' || (editMode === 'none' && activeFormationData)) ? 4 : undefined}
+              rows={(editMode === 'formation' || (editMode === 'none' && activeFormationData)) ? 4 : compact ? 6 : undefined}
               countInfo={countInfo}
               phraseMap={phraseMap ?? null}
               hasAnalysis={!!analysis}
@@ -1301,8 +1420,19 @@ export default function PlayerScreen() {
               <Text style={styles.draftSaveText}>{t('common.save')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              style={[styles.draftUndoButton, !canUndo && { opacity: 0.35 }]}
+              onPress={handleUndo}
+              disabled={!canUndo}
+            >
+              <Ionicons name="arrow-undo-circle" size={20} color={Colors.primary} />
+              <Text style={styles.draftUndoText}>Undo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={styles.draftDiscardButton}
-              onPress={() => clearDraft(currentTrack.id)}
+              onPress={() => {
+                undoStackRef.current[currentTrack.id] = [];
+                clearDraft(currentTrack.id);
+              }}
             >
               <Ionicons name="close-circle" size={20} color={Colors.error} />
               <Text style={styles.draftDiscardText}>{t('common.reset')}</Text>
@@ -2047,6 +2177,107 @@ const styles = StyleSheet.create({
   },
   draftSaveText: {
     color: '#4CAF50',
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+  },
+  // ─── Beat offset row ────────────────────────────
+  beatOffsetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
+  },
+  beatOffsetBtn: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  beatOffsetBtnText: {
+    color: Colors.text,
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+  },
+  beatOffsetCenter: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  beatOffsetCenterText: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+  },
+
+  // ─── BPM edit modal ──────────────────────────────
+  bpmModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bpmModalBox: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.xl,
+    width: 240,
+    gap: Spacing.md,
+  },
+  bpmModalTitle: {
+    color: Colors.text,
+    fontSize: FontSize.lg,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  bpmModalInput: {
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    color: Colors.text,
+    fontSize: 28,
+    fontWeight: '700',
+    textAlign: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  bpmModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: Spacing.xs,
+  },
+  bpmModalReset: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.md,
+    fontWeight: '600',
+  },
+  bpmModalConfirm: {
+    color: Colors.primary,
+    fontSize: FontSize.md,
+    fontWeight: '700',
+  },
+
+  draftUndoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(187, 134, 252, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(187, 134, 252, 0.4)',
+  },
+  draftUndoText: {
+    color: Colors.primary,
     fontSize: FontSize.sm,
     fontWeight: '700',
   },

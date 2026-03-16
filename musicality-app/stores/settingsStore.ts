@@ -26,6 +26,15 @@ interface SettingsState {
   setDownbeatOffset: (trackId: string, beatIndex: number) => void;
   clearDownbeatOffset: (trackId: string) => void;
 
+  // Per-track beat timing offset (ms) — applied immediately, not part of edition
+  beatTimeOffsets: Record<string, number>;
+  setBeatTimeOffset: (trackId: string, offsetMs: number) => void;
+
+  // Per-track BPM override (display + synthetic regen)
+  bpmOverrides: Record<string, number>;
+  setBpmOverride: (trackId: string, bpm: number) => void;
+  clearBpmOverride: (trackId: string) => void;
+
   // Grid display mode: page (classic) vs scroll (rhythm-game style)
   gridScrollMode: boolean;
   toggleGridScrollMode: () => void;
@@ -145,6 +154,23 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => {
           const { [trackId]: _, ...rest } = state.downbeatOffsets;
           return { downbeatOffsets: rest };
+        }),
+
+      beatTimeOffsets: {},
+      setBeatTimeOffset: (trackId, offsetMs) =>
+        set((state) => ({
+          beatTimeOffsets: { ...state.beatTimeOffsets, [trackId]: offsetMs },
+        })),
+
+      bpmOverrides: {},
+      setBpmOverride: (trackId, bpm) =>
+        set((state) => ({
+          bpmOverrides: { ...state.bpmOverrides, [trackId]: Math.max(1, Math.round(bpm * 10) / 10) },
+        })),
+      clearBpmOverride: (trackId) =>
+        set((state) => {
+          const { [trackId]: _, ...rest } = state.bpmOverrides;
+          return { bpmOverrides: rest };
         }),
 
       gridScrollMode: false,
@@ -545,7 +571,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'musicality-settings',
-      version: 5,
+      version: 6,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persistedState: any, version: number) => {
         let state = { ...persistedState };
@@ -582,6 +608,10 @@ export const useSettingsStore = create<SettingsState>()(
           // Add language preference
           state.language = state.language ?? '';
         }
+        if (version < 6) {
+          state.beatTimeOffsets = state.beatTimeOffsets ?? {};
+          state.bpmOverrides = state.bpmOverrides ?? {};
+        }
         // stageConfig — no version bump needed, default applied by store init
         if (!state.stageConfig) {
           state.stageConfig = { gridWidth: 8, gridHeight: 4 };
@@ -594,6 +624,8 @@ export const useSettingsStore = create<SettingsState>()(
         gridScrollMode: state.gridScrollMode,
         lookAheadMs: state.lookAheadMs,
         downbeatOffsets: state.downbeatOffsets,
+        beatTimeOffsets: state.beatTimeOffsets,
+        bpmOverrides: state.bpmOverrides,
         cueType: state.cueType,
         cueVolume: state.cueVolume,
         cueEnabled: state.cueEnabled,
