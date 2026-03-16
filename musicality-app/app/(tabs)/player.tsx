@@ -933,7 +933,7 @@ export default function PlayerScreen() {
   return (
     <View style={styles.container}>
       {/* ─── Scrollable Content ─── */}
-      <ScrollView style={styles.scrollArea} contentContainerStyle={isVisual ? styles.videoScrollContent : styles.audioScrollContent} scrollEnabled={false}>
+      <View style={[styles.scrollArea, isVisual ? styles.videoScrollContent : styles.audioScrollContent]}>
 
         {/* ① Compact Header (unified for all media types) */}
         <View style={styles.compactHeader}>
@@ -1569,7 +1569,7 @@ export default function PlayerScreen() {
             )}
           </View>
         )}
-      </ScrollView>
+      </View>
 
       {/* ─── Fixed Bottom Bar (above tab bar) ─── */}
       <View style={styles.bottomBar}>
@@ -1779,8 +1779,8 @@ export default function PlayerScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scrollArea: { flex: 1 },
-  audioScrollContent: { flexGrow: 1, padding: Spacing.lg, paddingBottom: Spacing.md },
-  videoScrollContent: { paddingHorizontal: 0, paddingBottom: Spacing.md },
+  audioScrollContent: { flex: 1, padding: Spacing.lg, paddingBottom: Spacing.md },
+  videoScrollContent: { flex: 1, paddingHorizontal: 0, paddingBottom: Spacing.md },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm },
   emptyTitle: { color: Colors.text, fontSize: FontSize.xl, fontWeight: '600', marginTop: Spacing.md },
   emptySubtitle: { color: Colors.textSecondary, fontSize: FontSize.md },
