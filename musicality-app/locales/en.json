@@ -184,7 +184,8 @@
     "enterAuthorName": "Enter your name (displayed to recipients)",
     "phraseNoteAnalysis": "Beat analysis + phrase detection",
     "importLoaded": "{{author}}'s PhraseNote has been loaded.",
-    "importFailed": "Could not read PhraseNote file."
+    "importFailed": "Could not read PhraseNote file.",
+    "newFormationStart": "New Formation Start"
   },
   "onboarding": {
     "s1Title": "Ritmo",

@@ -869,7 +869,7 @@ export function FormationStageView({
           onPress={() => setIsFlipped(!isFlipped)}
           hitSlop={6}
         >
-          <Ionicons name={isFlipped ? 'eye-outline' : 'eye-off-outline'} size={14} color={Colors.textSecondary} />
+          <Ionicons name="swap-vertical" size={14} color={isFlipped ? Colors.primary : Colors.textSecondary} />
         </Pressable>
         <Pressable
           style={styles.sizeBtn}

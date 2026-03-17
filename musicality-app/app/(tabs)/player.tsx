@@ -630,19 +630,36 @@ export default function PlayerScreen() {
     }
   }, [activeFormationData, handleFormationUpdate]);
 
-  const handleDissolveKeyframe = useCallback((beatIndex: number) => {
+  const handleNewFormation = useCallback((beatIndex: number, halfWidth: number) => {
     if (!activeFormationData) return;
-    const { copyKeyframe } = require('../../utils/formationInterpolator');
+    const { copyKeyframe, setKeyframe, getFormationAtBeat } = require('../../utils/formationInterpolator');
     // Find closest previous keyframe
     const prev = activeFormationData.keyframes
       .filter((kf: any) => kf.beatIndex < beatIndex)
       .sort((a: any, b: any) => b.beatIndex - a.beatIndex)[0];
     if (!prev) return;
-    // Copy prev keyframe to 4 beats BEFORE current position
-    const targetBeat = Math.max(0, beatIndex - 4);
-    if (targetBeat <= prev.beatIndex) return; // no room for dissolve
-    handleFormationUpdate(copyKeyframe(activeFormationData, prev.beatIndex, targetBeat));
-  }, [activeFormationData, handleFormationUpdate]);
+
+    let data = activeFormationData;
+    // 1. Copy prev keyframe to (beatIndex - halfWidth) — end of old formation
+    const beforeBeat = Math.max(0, beatIndex - halfWidth);
+    if (beforeBeat > prev.beatIndex) {
+      data = copyKeyframe(data, prev.beatIndex, beforeBeat);
+    }
+    // 2. Create new keyframe at beatIndex (current positions = dissolve target)
+    const currentPositions = getFormationAtBeat(data, beatIndex);
+    if (currentPositions) {
+      data = setKeyframe(data, {
+        beatIndex,
+        positions: currentPositions.map((p: any) => ({ ...p })),
+      });
+    }
+    // 3. Copy new keyframe to (beatIndex + halfWidth) — hold new formation
+    const afterBeat = beatIndex + halfWidth;
+    if (afterBeat < effectiveBeats.length) {
+      data = copyKeyframe(data, beatIndex, afterBeat);
+    }
+    handleFormationUpdate(data);
+  }, [activeFormationData, handleFormationUpdate, effectiveBeats]);
 
   const handleFormationBeatChange = useCallback((beatIndex: number) => {
     setFormationEditBeatIndex(beatIndex);
@@ -1052,12 +1069,12 @@ export default function PlayerScreen() {
             )}
             {!isYouTube && currentTrack.analysisStatus === 'done' && (
               <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyzePress}>
-                <Ionicons name="refresh" size={16} color={Colors.textSecondary} />
+                <Image source={require('../../assets/ritmo-r-icon.png')} style={{ width: 16, height: 16, opacity: 0.5 }} />
               </TouchableOpacity>
             )}
             {!isYouTube && (!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
               <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyzePress}>
-                <Ionicons name="analytics-outline" size={16} color={Colors.text} />
+                <Image source={require('../../assets/ritmo-r-icon.png')} style={{ width: 16, height: 16 }} />
                 <Text style={styles.analyzeBtnText}>{t('player.analyze')}</Text>
               </TouchableOpacity>
             )}
@@ -1358,7 +1375,7 @@ export default function PlayerScreen() {
                 formationData={activeFormationData}
                 onEditFormation={handleEditFormation}
                 onCopyPrevKeyframe={handleCopyPrevKeyframe}
-                onDissolveKeyframe={handleDissolveKeyframe}
+                onNewFormation={handleNewFormation}
                 editMode={editMode}
               />
             </View>
@@ -1943,12 +1960,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    backgroundColor: Colors.surfaceLight,
+    backgroundColor: Colors.background,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: Colors.border,
   },
   analyzeBtnText: { color: Colors.primary, fontSize: FontSize.xs, fontWeight: '600' },
   analyzingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },

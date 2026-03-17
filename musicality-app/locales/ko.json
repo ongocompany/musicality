@@ -184,7 +184,8 @@
     "enterAuthorName": "이름을 입력하세요 (수신자에게 표시됩니다)",
     "phraseNoteAnalysis": "비트 분석 + 프레이즈 감지",
     "importLoaded": "{{author}}님의 PhraseNote를 불러왔습니다.",
-    "importFailed": "PhraseNote 파일을 읽을 수 없습니다."
+    "importFailed": "PhraseNote 파일을 읽을 수 없습니다.",
+    "newFormationStart": "새 포메이션 시작"
   },
   "onboarding": {
     "s1Title": "Ritmo",

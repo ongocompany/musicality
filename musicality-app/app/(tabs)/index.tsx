@@ -130,7 +130,7 @@ function TrackItem({
             <Ionicons name="volume-high" size={20} color={Colors.primary} />
           ) : track.mediaType !== 'youtube' && (track.analysisStatus === 'idle' || track.analysisStatus === 'error') ? (
             <TouchableOpacity style={styles.analyzeButton} onPress={onAnalyze}>
-              <Ionicons name="analytics-outline" size={20} color={Colors.primary} />
+              <Image source={require('../../assets/ritmo-r-icon.png')} style={{ width: 22, height: 22 }} />
             </TouchableOpacity>
           ) : (
             <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />

@@ -37,7 +37,7 @@ interface PhraseGridProps {
   formationData?: FormationData | null;
   onEditFormation?: (beatIndex: number) => void;
   onCopyPrevKeyframe?: (beatIndex: number) => void;
-  onDissolveKeyframe?: (beatIndex: number) => void;
+  onNewFormation?: (beatIndex: number, halfWidth: number) => void;
   // Edit mode — changes cell tap behavior
   editMode?: 'none' | 'note' | 'formation';
 }
@@ -58,7 +58,7 @@ export function PhraseGrid({
   loopStart, loopEnd, rows, scrollMode,
   cellNotes, onSetCellNote, onClearCellNote,
   currentBeatNote,
-  formationData, onEditFormation, onCopyPrevKeyframe, onDissolveKeyframe,
+  formationData, onEditFormation, onCopyPrevKeyframe, onNewFormation,
   editMode = 'none',
 }: PhraseGridProps) {
   const { t } = useTranslation();
@@ -671,7 +671,7 @@ export function PhraseGrid({
       >
         <Pressable style={styles.menuBackdrop} onPress={() => setMenuVisible(false)}>
           <View style={[styles.menuContainer, editMode === 'formation' ? { borderColor: NoteTypeColors.choreoNote, borderWidth: 1.5 } : editMode === 'note' ? { borderColor: NoteTypeColors.phraseNote, borderWidth: 1.5 } : {}]}>
-            <Text style={styles.menuTitle}>Beat {menuGlobalBeat + 1}</Text>
+            <Text style={[styles.menuTitle, { color: menuCellIndex >= 0 ? getCellPhraseColor(menuCellIndex) : Colors.textMuted }]}>Beat {menuGlobalBeat + 1}</Text>
             {/* Show existing note content in context menu (non-formation only) */}
             {editMode !== 'formation' && menuHasNote && cellNotes && menuGlobalBeat >= 0 && (
               <View style={styles.menuNotePreview}>
@@ -683,20 +683,39 @@ export function PhraseGrid({
 
             {/* Formation mode: keyframe tools */}
             {editMode === 'formation' && onCopyPrevKeyframe && (
-              <TouchableOpacity style={styles.menuOption} onPress={() => {
+              <TouchableOpacity style={[styles.menuOption, { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8 }]} onPress={() => {
                 onCopyPrevKeyframe(menuGlobalBeat);
                 setMenuVisible(false);
               }}>
                 <Text style={styles.menuOptionText}>키프레임 복사</Text>
               </TouchableOpacity>
             )}
-            {editMode === 'formation' && onDissolveKeyframe && (
-              <TouchableOpacity style={styles.menuOption} onPress={() => {
-                onDissolveKeyframe(menuGlobalBeat);
-                setMenuVisible(false);
-              }}>
-                <Text style={styles.menuOptionText}>변환점 지정</Text>
-              </TouchableOpacity>
+            {editMode === 'formation' && onNewFormation && (
+              <View>
+                <Text style={[styles.menuOptionText, { paddingVertical: 8, color: Colors.textMuted, fontSize: FontSize.sm }]}>
+                  {t('player.newFormationStart')}
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
+                  <TouchableOpacity
+                    style={[styles.menuOption, { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8 }]}
+                    onPress={() => {
+                      onNewFormation(menuGlobalBeat, 2);
+                      setMenuVisible(false);
+                    }}
+                  >
+                    <Text style={styles.menuOptionText}>4 cell</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.menuOption, { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8 }]}
+                    onPress={() => {
+                      onNewFormation(menuGlobalBeat, 4);
+                      setMenuVisible(false);
+                    }}
+                  >
+                    <Text style={styles.menuOptionText}>8 cell</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             )}
 
             {/* Non-formation mode: phrase editing options */}
