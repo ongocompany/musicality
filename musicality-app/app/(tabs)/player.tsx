@@ -6,7 +6,7 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { activateKeepAwake, deactivateKeepAwake } from 'expo-keep-awake';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { PhraseGrid } from '../../components/ui/PhraseGrid';
@@ -115,6 +115,7 @@ export default function PlayerScreen() {
   } = usePlayerStore();
 
   const videoAspectRatio = usePlayerStore((s) => s.videoAspectRatio);
+  const navigation = useNavigation();
 
   const isVideo = currentTrack?.mediaType === 'video';
   const isYouTube = currentTrack?.mediaType === 'youtube';
@@ -256,6 +257,58 @@ export default function PlayerScreen() {
       },
     });
   }, [videoCollapsed, collapseVideo, expandVideo]);
+
+  // ─── Focus mode (hide controls, maximize grid) ───
+  const focusAnim = useRef(new Animated.Value(1)).current; // 1 = normal, 0 = focused
+  const [focusMode, setFocusMode] = useState(false);
+
+  const enterFocusMode = useCallback(() => {
+    setFocusMode(true);
+    Animated.spring(focusAnim, {
+      toValue: 0,
+      useNativeDriver: false,
+      tension: 80,
+      friction: 12,
+    }).start();
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: 'none' },
+    });
+  }, [navigation]);
+
+  const exitFocusMode = useCallback(() => {
+    setFocusMode(false);
+    Animated.spring(focusAnim, {
+      toValue: 1,
+      useNativeDriver: false,
+      tension: 80,
+      friction: 12,
+    }).start();
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { backgroundColor: Colors.surface, borderTopColor: Colors.border },
+    });
+  }, [navigation]);
+
+  const focusSwipeResponder = useMemo(() => {
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 15 && Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > 50 && !focusMode) {
+          enterFocusMode();
+        } else if (gs.dy < -50 && focusMode) {
+          exitFocusMode();
+        }
+      },
+    });
+  }, [focusMode, enterFocusMode, exitFocusMode]);
+
+  // Restore tab bar on unmount
+  useEffect(() => {
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: { backgroundColor: Colors.surface, borderTopColor: Colors.border },
+      });
+    };
+  }, [navigation]);
 
   const fullscreenVideoRef = useRef<Video>(null);
   const savedPositionRef = useRef(0);
@@ -1236,7 +1289,7 @@ export default function PlayerScreen() {
 
             {/* Analysis done → PhraseGrid */}
             {currentTrack.analysisStatus === 'done' && (
-              <View style={styles.videoCountSection}>
+              <View style={styles.videoCountSection} {...focusSwipeResponder.panHandlers}>
                 <PhraseGrid
                   countInfo={countInfo}
                   phraseMap={phraseMap ?? null}
@@ -1353,7 +1406,7 @@ export default function PlayerScreen() {
               </TouchableOpacity>
             </View>
             {currentTrack.analysisStatus === 'done' && (
-              <View style={styles.videoCountSection}>
+              <View style={styles.videoCountSection} {...focusSwipeResponder.panHandlers}>
                 <PhraseGrid
                   countInfo={countInfo}
                   phraseMap={phraseMap ?? null}
@@ -1386,7 +1439,7 @@ export default function PlayerScreen() {
 
         {/* ③ Compact Count + PhraseGrid (audio only) */}
         {!isVisual && currentTrack.analysisStatus === 'done' && (
-          <View style={styles.countSection}>
+          <View style={styles.countSection} {...focusSwipeResponder.panHandlers}>
             {/* Formation Stage (embedded, shown in formation mode only) */}
             {activeFormationData && editMode === 'formation' ? (
               <View style={{ maxHeight: '56%' }}>
@@ -1574,7 +1627,25 @@ export default function PlayerScreen() {
           </View>
         )}
 
-        {/* ⑤ Phrase Timeline (seek + waveform + playhead) */}
+        {/* Focus mode handle — chevron-down to enter, chevron-up to exit */}
+        <TouchableOpacity
+          style={[styles.focusHandle, focusMode && styles.focusHandleActive]}
+          onPress={focusMode ? exitFocusMode : enterFocusMode}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={focusMode ? 'chevron-up' : 'chevron-down'}
+            size={focusMode ? 20 : 16}
+            color={focusMode ? Colors.primary : Colors.textMuted}
+          />
+        </TouchableOpacity>
+
+        {/* ⑤~⑦ Controls area — hidden in focus mode */}
+        <Animated.View style={{
+          maxHeight: focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 500] }),
+          opacity: focusAnim,
+          overflow: 'hidden',
+        }}>
         <View style={[styles.seekSection, isVisual && { paddingHorizontal: Spacing.lg }]}>
           {phraseMap && phraseMap.phrases.length > 0 && analysis && (
             <SectionTimeline
@@ -1722,10 +1793,15 @@ export default function PlayerScreen() {
             {/* Loop status text removed — A/B buttons already show times */}
           </View>
         )}
+        </Animated.View>
       </View>
 
-      {/* ─── Fixed Bottom Bar (above tab bar) ─── */}
-      <View style={styles.bottomBar}>
+      {/* ─── Fixed Bottom Bar (above tab bar) — hidden in focus mode ─── */}
+      <Animated.View style={[styles.bottomBar, {
+        maxHeight: focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 60] }),
+        opacity: focusAnim,
+        overflow: 'hidden',
+      }]}>
         <View style={styles.bottomBarSide}>
           {currentTrack?.analysisStatus === 'done' && (
             <TouchableOpacity
@@ -1771,7 +1847,27 @@ export default function PlayerScreen() {
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </Animated.View>
+
+      {/* ─── Focus mode UI ─── */}
+      {focusMode && (
+        <>
+          <TouchableOpacity
+            style={styles.focusPlayButton}
+            onPress={togglePlay}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.focusExitHandle}
+            onPress={exitFocusMode}
+            activeOpacity={0.7}
+          >
+            <View style={styles.focusExitHandleBar} />
+          </TouchableOpacity>
+        </>
+      )}
 
       {/* Share PhraseNote — author name modal */}
       <Modal
@@ -2633,5 +2729,46 @@ const styles = StyleSheet.create({
   editionChipTextActive: {
     color: Colors.primary,
     fontWeight: '700',
+  },
+
+  // ─── Focus mode ──────────────────────────────────
+  focusHandle: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  focusHandleActive: {
+    paddingVertical: 8,
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 8,
+  },
+  focusPlayButton: {
+    position: 'absolute',
+    bottom: 32,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(187,134,252,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  focusExitHandle: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(30,30,30,0.8)',
+  },
+  focusExitHandleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.textMuted,
   },
 });
