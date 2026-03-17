@@ -1060,7 +1060,31 @@ export default function PlayerScreen() {
           </View>
         </View>
 
-        {/* Beat offset fine-tune row — removed (±100ms) */}
+        {/* Beat offset fine-tune row */}
+        {analysis && (
+          <View style={styles.beatOffsetRow}>
+            <TouchableOpacity
+              style={styles.beatOffsetBtn}
+              onPress={() => setBeatTimeOffset(currentTrack.id, beatTimeOffset - 100)}
+            >
+              <Text style={styles.beatOffsetBtnText}>-100ms</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.beatOffsetCenter, beatTimeOffset !== 0 && { backgroundColor: 'rgba(187,134,252,0.2)' }]}
+              onPress={() => setBeatTimeOffset(currentTrack.id, 0)}
+            >
+              <Text style={[styles.beatOffsetCenterText, beatTimeOffset !== 0 && { color: Colors.primary }]}>
+                {beatTimeOffset > 0 ? `+${beatTimeOffset}ms` : beatTimeOffset === 0 ? '0ms' : `${beatTimeOffset}ms`}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.beatOffsetBtn}
+              onPress={() => setBeatTimeOffset(currentTrack.id, beatTimeOffset + 100)}
+            >
+              <Text style={styles.beatOffsetBtnText}>+100ms</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* BPM edit modal */}
         {editingBpm && (
@@ -1205,6 +1229,7 @@ export default function PlayerScreen() {
           <View style={styles.videoSection}>
             <View style={[styles.videoContainer, { aspectRatio: videoAspectRatio }]}>
               <Video
+                key={currentTrack.id}
                 ref={videoPlayer.videoRef}
                 source={{ uri: currentTrack.uri }}
                 style={styles.video}

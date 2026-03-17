@@ -127,11 +127,22 @@ export function useVideoPlayer() {
     }
   }, []);
 
-  // Cleanup on track change — pause + unload to prevent stale position updates
+  // Cleanup on track change — reset refs + pause + unload
   useEffect(() => {
+    // Reset batch refs on new track
+    pendingPositionRef.current = null;
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     return () => {
       videoRef.current?.pauseAsync().catch(() => {});
       videoRef.current?.unloadAsync().catch(() => {});
+      pendingPositionRef.current = null;
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     };
   }, [currentTrack?.id]);
 

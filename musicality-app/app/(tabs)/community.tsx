@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
+import * as Localization from 'expo-localization';
 import { useAuthStore } from '../../stores/authStore';
 import { useCommunityStore } from '../../stores/communityStore';
 import { useSocialStore } from '../../stores/socialStore';
@@ -37,6 +38,13 @@ export default function CommunityScreen() {
   const [searchText, setSearchText] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [profilePanelVisible, setProfilePanelVisible] = useState(false);
+  const [showGlobal, setShowGlobal] = useState(false);
+
+  // Device country code for local filtering
+  const deviceCountry = useMemo(() => {
+    const locales = Localization.getLocales();
+    return locales?.[0]?.regionCode ?? '';
+  }, []);
 
   const isAuthenticated = user !== null;
 
@@ -59,6 +67,14 @@ export default function CommunityScreen() {
   }, [searchText]);
 
   const myCrews = myCrewIds.map((id) => crewCache[id]).filter(Boolean);
+
+  // Filter discover crews by region
+  const filteredDiscoverCrews = useMemo(() => {
+    if (showGlobal || !deviceCountry) return discoverCrews;
+    return discoverCrews.filter(
+      (crew) => crew.region === deviceCountry || crew.region === 'global'
+    );
+  }, [discoverCrews, showGlobal, deviceCountry]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -119,6 +135,13 @@ export default function CommunityScreen() {
           <Text style={styles.headerStatNumber}>{myProfile?.followingCount ?? 0}</Text>
           <Text style={styles.headerStatLabel}>{t('community.following')}</Text>
         </View>
+        <TouchableOpacity
+          style={styles.createButton}
+          onPress={() => setShowGlobal(!showGlobal)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="globe-outline" size={20} color={showGlobal ? Colors.primary : Colors.textMuted} />
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.createButton}
           onPress={() => router.push('/community/create-crew')}
@@ -192,7 +215,7 @@ export default function CommunityScreen() {
 
           {loading.discover ? (
             <ActivityIndicator size="small" color={Colors.primary} style={{ paddingVertical: Spacing.lg }} />
-          ) : discoverCrews.length === 0 ? (
+          ) : filteredDiscoverCrews.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="globe-outline" size={40} color={Colors.textMuted} />
               <Text style={styles.emptyText}>No crews found</Text>
@@ -202,7 +225,7 @@ export default function CommunityScreen() {
             </View>
           ) : (
             <View style={styles.crewList}>
-              {discoverCrews.map((crew) => (
+              {filteredDiscoverCrews.map((crew) => (
                 <CrewCard
                   key={crew.id}
                   crew={crew}

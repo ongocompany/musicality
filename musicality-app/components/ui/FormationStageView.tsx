@@ -325,6 +325,10 @@ export function FormationStageView({
     return { hLines, vLines };
   }, [stageConfig]);
 
+  // ─── Selection rectangle (drag-select) ──────────────
+  const [selectionRect, setSelectionRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
+  const selectionStartRef = useRef<{ normX: number; normY: number } | null>(null);
+
   // ─── Touch handling ─────────────────────────────────
   const findClosestDancer = useCallback(
     (normX: number, normY: number): string | null => {
@@ -372,7 +376,9 @@ export function FormationStageView({
             setDragDancerId(null);
           }, 500);
         } else {
-          // Tap on empty space → deselect all + close popup
+          // Empty space → start selection rectangle
+          selectionStartRef.current = { normX, normY };
+          setSelectionRect(null);
           setSelectedDancerIds(new Set());
           if (editingDancerId) {
             handleNameConfirm();
@@ -385,17 +391,38 @@ export function FormationStageView({
           clearTimeout(longPressTimerRef.current);
           longPressTimerRef.current = null;
         }
-        if (!dragDancerId || !currentPositions) return;
+
         const { locationX, locationY } = evt.nativeEvent;
         const stageY = isFlipped ? locationY : locationY - backstageHeight;
-        const screenNormX = Math.max(0.02, Math.min(0.98, locationX / stageWidth));
-        // Allow negative normY for backstage placement
-        const screenNormY = Math.max(-backstageHeight / stageHeight, Math.min(0.98, stageY / stageHeight));
+        const screenNormX = Math.max(0, Math.min(1, locationX / stageWidth));
+        const screenNormY = Math.max(-backstageHeight / stageHeight, Math.min(1, stageY / stageHeight));
         const normX = isFlipped ? 1 - screenNormX : screenNormX;
         const normY = isFlipped ? 1 - screenNormY : screenNormY;
 
+        // Selection rectangle drag (empty space)
+        if (selectionStartRef.current && !dragDancerId) {
+          const s = selectionStartRef.current;
+          // Convert back to screen coords for display
+          const displayStartX = (isFlipped ? 1 - s.normX : s.normX) * stageWidth;
+          const displayStartY = (isFlipped ? 1 - s.normY : s.normY) * stageHeight + (isFlipped ? 0 : backstageHeight);
+          const displayEndX = locationX;
+          const displayEndY = locationY;
+          setSelectionRect({
+            startX: Math.min(displayStartX, displayEndX),
+            startY: Math.min(displayStartY, displayEndY),
+            endX: Math.max(displayStartX, displayEndX),
+            endY: Math.max(displayStartY, displayEndY),
+          });
+          return;
+        }
+
+        // Dancer drag
+        if (!dragDancerId || !currentPositions) return;
+        const clampedNormX = Math.max(0.02, Math.min(0.98, normX));
+        const clampedNormY = Math.max(-backstageHeight / stageHeight, Math.min(0.98, normY));
+
         const newPositions = currentPositions.map((p) =>
-          p.dancerId === dragDancerId ? { ...p, x: normX, y: normY } : p,
+          p.dancerId === dragDancerId ? { ...p, x: clampedNormX, y: clampedNormY } : p,
         );
 
         const keyframe: FormationKeyframe = {
@@ -409,6 +436,33 @@ export function FormationStageView({
         onUpdate(setKeyframe(formationData, keyframe));
       },
       onPanResponderRelease: (evt) => {
+        // Selection rectangle release → select dancers inside
+        if (selectionStartRef.current && !dragDancerId && currentPositions) {
+          const s = selectionStartRef.current;
+          const { locationX, locationY } = evt.nativeEvent;
+          const stageY = isFlipped ? locationY : locationY - backstageHeight;
+          const endNormX = isFlipped ? 1 - Math.max(0, Math.min(1, locationX / stageWidth)) : Math.max(0, Math.min(1, locationX / stageWidth));
+          const endNormY = isFlipped ? 1 - Math.max(0, Math.min(1, stageY / stageHeight)) : Math.max(0, Math.min(1, stageY / stageHeight));
+
+          const minX = Math.min(s.normX, endNormX);
+          const maxX = Math.max(s.normX, endNormX);
+          const minY = Math.min(s.normY, endNormY);
+          const maxY = Math.max(s.normY, endNormY);
+
+          // Only select if dragged a meaningful distance
+          if (maxX - minX > 0.03 || maxY - minY > 0.03) {
+            const selected = new Set<string>();
+            for (const pos of currentPositions) {
+              if (pos.x >= minX && pos.x <= maxX && pos.y >= minY && pos.y <= maxY) {
+                selected.add(pos.dancerId);
+              }
+            }
+            setSelectedDancerIds(selected);
+          }
+          setSelectionRect(null);
+          selectionStartRef.current = null;
+        }
+
         // If long-press timer still active, it's a tap → toggle selection
         if (longPressTimerRef.current) {
           clearTimeout(longPressTimerRef.current);
@@ -423,6 +477,8 @@ export function FormationStageView({
           }
         }
         setDragDancerId(null);
+        selectionStartRef.current = null;
+        setSelectionRect(null);
       },
     });
   }, [isEditing, dragDancerId, currentPositions, currentBeatIndex, formationData, stageWidth, stageHeight, backstageHeight, onUpdate, findClosestDancer, isFlipped]);
@@ -1095,6 +1151,25 @@ export function FormationStageView({
             </View>
           );
         })}
+
+        {/* Selection rectangle (drag-select) */}
+        {selectionRect && (
+          <View
+            style={{
+              position: 'absolute',
+              left: selectionRect.startX,
+              top: selectionRect.startY,
+              width: selectionRect.endX - selectionRect.startX,
+              height: selectionRect.endY - selectionRect.startY,
+              borderWidth: 1.5,
+              borderColor: 'rgba(187,134,252,0.8)',
+              borderStyle: 'dashed',
+              backgroundColor: 'rgba(187,134,252,0.1)',
+              zIndex: 20,
+            }}
+            pointerEvents="none"
+          />
+        )}
       </View>
 
       {/* Dancer edit popup (longpress) */}

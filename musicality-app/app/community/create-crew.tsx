@@ -47,7 +47,10 @@ export default function CreateCrewScreen() {
   const [description, setDescription] = useState('');
   const [crewType, setCrewType] = useState<CrewType>('open');
   const [danceStyle, setDanceStyle] = useState('bachata');
-  const [region, setRegion] = useState('global');
+  const [region, setRegion] = useState(() => {
+    const locales = getLocales();
+    return locales?.[0]?.regionCode ?? 'global';
+  });
   const [memberLimit, setMemberLimit] = useState('50');
 
   const deviceCountry = getDeviceCountry();
