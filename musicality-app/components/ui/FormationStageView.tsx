@@ -1589,6 +1589,8 @@ const styles = StyleSheet.create({
     padding: 10,
     borderWidth: 1,
     borderColor: Colors.border,
+    zIndex: 50,
+    elevation: 50,
   },
   dancerEditHeader: {
     flexDirection: 'row',

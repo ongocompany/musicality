@@ -435,6 +435,20 @@ export default function PlayerScreen() {
     return raw;
   }, [position, lookAheadMs, effectiveBeats, effectiveDownbeats, offsetBeatIndex, effectiveAnalysisData, danceStyle, phraseMap]);
 
+  // ─── Instantaneous BPM at current position ───
+  const currentBpm = useMemo(() => {
+    if (!effectiveBeats.length || !countInfo || countInfo.beatIndex < 0) return null;
+    const idx = countInfo.beatIndex;
+    // Average over a few beats around current position for stability
+    const windowSize = 4;
+    const start = Math.max(0, idx - windowSize);
+    const end = Math.min(effectiveBeats.length - 1, idx + windowSize);
+    if (end <= start) return null;
+    const interval = (effectiveBeats[end] - effectiveBeats[start]) / (end - start);
+    if (interval <= 0) return null;
+    return Math.round(60 / interval);
+  }, [effectiveBeats, countInfo?.beatIndex]);
+
   // Bounce animation for count number
   const countBounceAnim = useRef(new Animated.Value(1)).current;
   const prevCountNumRef = useRef<number | null>(null);
@@ -1014,7 +1028,9 @@ export default function PlayerScreen() {
                   }}
                 >
                   <Text style={styles.bpmText}>
-                    {Math.round(bpmOverride ?? analysis.bpm)} BPM{bpmOverride != null ? ' ✎' : ''}
+                    {bpmOverride != null
+                      ? `${Math.round(bpmOverride)} BPM ✎`
+                      : `${currentBpm ?? Math.round(analysis.bpm)} BPM`}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleSharePhraseNote} style={styles.scrollModeBtn}>
@@ -1283,7 +1299,7 @@ export default function PlayerScreen() {
           <View style={styles.countSection}>
             {/* Formation Stage (embedded, shown in formation mode only) */}
             {activeFormationData && editMode === 'formation' ? (
-              <View style={{ maxHeight: '56%', overflow: 'hidden' }}>
+              <View style={{ maxHeight: '56%' }}>
                 <FormationStageView
                   formationData={activeFormationData}
                   currentBeatIndex={editMode === 'formation' ? (isPlaying ? fractionalBeatIndex : formationEditBeatIndex) : fractionalBeatIndex}
