@@ -695,9 +695,9 @@ export default function PlayerScreen() {
   const handleSharePhraseNote = useCallback(() => {
     if (!currentTrack || !analysis || !phraseMap) return;
     const noteLabel = activeFormationData ? 'ChoreoNote' : 'PhraseNote';
-    Alert.alert(`Share ${noteLabel}`, 'Choose how to share', [
+    Alert.alert(t('player.shareTitle', { noteLabel }), t('player.chooseHowToShare'), [
       {
-        text: 'Share to Crew',
+        text: t('player.shareToCrew'),
         onPress: () => {
           const trackId = currentTrack.id;
           const offset = downbeatOffsets[trackId] ?? 0;
@@ -727,7 +727,7 @@ export default function PlayerScreen() {
         },
       },
       {
-        text: 'External Share',
+        text: t('player.externalShare'),
         onPress: async () => {
           if (!currentTrack || !analysis || !phraseMap) return;
           const trackId = currentTrack.id;
@@ -752,12 +752,12 @@ export default function PlayerScreen() {
             await exportPhraseNote(pnote, currentTrack.title);
           } catch (err: any) {
             if (err?.message !== 'User did not share') {
-              Alert.alert('Share Error', err?.message || 'Failed to share');
+              Alert.alert(t('player.shareError'), err?.message || t('player.failedToShare'));
             }
           }
         },
       },
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('common.cancel'), style: 'cancel' },
     ]);
   }, [currentTrack, analysis, phraseMap, downbeatOffsets, cellNotes, danceStyle, router]);
 
@@ -787,7 +787,7 @@ export default function PlayerScreen() {
     } catch (err: any) {
       console.warn('[PhraseNote Share]', err?.message || err);
       if (err?.message !== 'User did not share') {
-        Alert.alert('Share Error', err?.message || 'Failed to share PhraseNote');
+        Alert.alert(t('player.shareError'), err?.message || t('player.failedToSharePhraseNote'));
       }
     }
   }, [currentTrack, analysis, phraseMap, downbeatOffsets, cellNotes, danceStyle, shareAuthorName]);
@@ -810,7 +810,7 @@ export default function PlayerScreen() {
   }, [currentTrack, setActiveImportedNote]);
 
   const handleDeleteImported = useCallback((noteId: string) => {
-    Alert.alert('Delete imported note?', 'This cannot be undone.', [
+    Alert.alert(t('player.deleteImportedNote'), t('player.cannotBeUndone'), [
       { text: t('common.cancel'), style: 'cancel' },
       {
         text: t('common.delete'), style: 'destructive',
@@ -868,9 +868,9 @@ export default function PlayerScreen() {
       setActiveImportedNote(matchedTrackId, null);
       addImportedNote(imported);
 
-      Alert.alert(t('player.import'), `${pnote.metadata.author}'s PhraseNote has been loaded.`);
+      Alert.alert(t('player.import'), t('player.importLoaded', { author: pnote.metadata.author }));
     } catch (err: any) {
-      Alert.alert(t('player.analysisFailed'), err.message || 'Could not read PhraseNote file.');
+      Alert.alert(t('player.analysisFailed'), err.message || t('player.importFailed'));
     }
   }, [tracks, currentTrack, addImportedNote, setActiveImportedNote]);
 
@@ -929,7 +929,7 @@ export default function PlayerScreen() {
     if (!currentTrack) return;
     if (isYouTube) {
       if (tapBpm <= 0) {
-        Alert.alert('BPM 필요', '먼저 TAP 버튼으로 BPM을 설정하세요.'); // no matching key
+        Alert.alert(t('player.bpmRequired'), t('player.setBpmFirst'));
         return;
       }
       const synth = generateSyntheticAnalysis(tapBpm, duration, position);
@@ -1376,23 +1376,23 @@ export default function PlayerScreen() {
                       const sorted = [...(formations?.userEditions ?? [])].sort((a, b) => a.createdAt - b.createdAt);
                       const evictId = sorted[0]?.id ?? '1';
                       Alert.alert(
-                        '슬롯 부족',
-                        `3개 슬롯이 모두 사용 중입니다.\nEdition ${evictId}을 대체하고 저장할까요?`,
+                        t('player.slotsFull'),
+                        t('player.allSlotsUsed', { slotId: evictId }),
                         [
                           { text: t('common.cancel'), style: 'cancel' },
                           {
-                            text: '대체하고 저장',
+                            text: t('player.replaceAndSave'),
                             style: 'destructive',
                             onPress: () => {
                               const slotId = saveFormationDraftAsEdition(currentTrack.id);
-                              if (slotId) Alert.alert(t('player.saveEdition'), `ChoreoNote Edition ${slotId}에 저장되었습니다`);
+                              if (slotId) Alert.alert(t('player.saveEdition'), t('player.editionSaved', { slotId }));
                             },
                           },
                         ],
                       );
                     } else {
                       const slotId = saveFormationDraftAsEdition(currentTrack.id);
-                      if (slotId) Alert.alert(t('player.saveEdition'), `ChoreoNote Edition ${slotId}에 저장되었습니다`);
+                      if (slotId) Alert.alert(t('player.saveEdition'), t('player.editionSaved', { slotId }));
                     }
                   }}
                 >
@@ -1405,7 +1405,7 @@ export default function PlayerScreen() {
                   disabled={!canUndoFormation}
                 >
                   <Ionicons name="arrow-undo-circle" size={18} color={Colors.primary} />
-                  <Text style={styles.draftUndoText}>실행취소</Text>
+                  <Text style={styles.draftUndoText}>{t('player.undo')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.draftDiscardButton, { paddingVertical: 4, paddingHorizontal: 12 }]}
@@ -1436,17 +1436,17 @@ export default function PlayerScreen() {
                   const sorted = [...(editions?.userEditions ?? [])].sort((a, b) => a.createdAt - b.createdAt);
                   const evictId = sorted[0]?.id ?? '1';
                   Alert.alert(
-                    '슬롯 부족',
-                    `3개 슬롯이 모두 사용 중입니다.\nEdition ${evictId}을 대체하고 저장할까요?`,
+                    t('player.slotsFull'),
+                    t('player.allSlotsUsed', { slotId: evictId }),
                     [
                       { text: t('common.cancel'), style: 'cancel' },
                       {
-                        text: '대체하고 저장',
+                        text: t('player.replaceAndSave'),
                         style: 'destructive',
                         onPress: () => {
                           const slotId = saveDraftAsEdition(currentTrack.id);
                           if (slotId) {
-                            Alert.alert(t('player.saveEdition'), `Edition ${slotId}에 저장되었습니다`);
+                            Alert.alert(t('player.saveEdition'), t('player.phraseEditionSaved', { slotId }));
                           }
                         },
                       },
@@ -1455,7 +1455,7 @@ export default function PlayerScreen() {
                 } else {
                   const slotId = saveDraftAsEdition(currentTrack.id);
                   if (slotId) {
-                    Alert.alert(t('player.saveEdition'), `Edition ${slotId}에 저장되었습니다`);
+                    Alert.alert(t('player.saveEdition'), t('player.phraseEditionSaved', { slotId }));
                   }
                 }
               }}
@@ -1469,7 +1469,7 @@ export default function PlayerScreen() {
               disabled={!canUndo}
             >
               <Ionicons name="arrow-undo-circle" size={20} color={Colors.primary} />
-              <Text style={styles.draftUndoText}>Undo</Text>
+              <Text style={styles.draftUndoText}>{t('player.undo')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.draftDiscardButton}
@@ -1700,13 +1700,13 @@ export default function PlayerScreen() {
         >
           <Pressable style={styles.shareModalContainer} onPress={() => {}}>
             <Text style={styles.shareModalTitle}>{t('player.export')}</Text>
-            <Text style={styles.shareModalSubtitle}>Enter your name (displayed to recipients)</Text>
+            <Text style={styles.shareModalSubtitle}>{t('player.enterAuthorName')}</Text>
             <TextInput
               style={styles.shareModalInput}
               value={shareAuthorName}
               onChangeText={setShareAuthorName}
               maxLength={30}
-              placeholder="Author name"
+              placeholder={t('player.authorNamePlaceholder')}
               placeholderTextColor={Colors.textMuted}
               autoFocus
               returnKeyType="done"
@@ -1748,7 +1748,7 @@ export default function PlayerScreen() {
               <Ionicons name="musical-notes-outline" size={22} color={Colors.primary} />
               <View style={styles.analyzeMenuOptionText}>
                 <Text style={styles.analyzeMenuOptionTitle}>PhraseNote</Text>
-                <Text style={styles.analyzeMenuOptionDesc}>Beat analysis + phrase detection</Text>
+                <Text style={styles.analyzeMenuOptionDesc}>{t('player.phraseNoteAnalysis')}</Text>
               </View>
             </TouchableOpacity>
           </Pressable>
@@ -1770,7 +1770,7 @@ export default function PlayerScreen() {
             <Text style={styles.analyzeMenuTitle}>{t('player.formation')}</Text>
 
             {/* Stage size presets */}
-            <Text style={[styles.dancerCountLabel, { marginBottom: 8 }]}>Stage Size</Text>
+            <Text style={[styles.dancerCountLabel, { marginBottom: 8 }]}>{t('player.stageSize')}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
               {STAGE_PRESETS.map((preset, idx) => (
                 <TouchableOpacity
@@ -1791,7 +1791,7 @@ export default function PlayerScreen() {
 
             {/* Dancer count stepper */}
             <View style={styles.dancerCountRow}>
-              <Text style={styles.dancerCountLabel}>Dancers</Text>
+              <Text style={styles.dancerCountLabel}>{t('player.dancers')}</Text>
               <View style={styles.dancerCountStepper}>
                 <TouchableOpacity
                   style={styles.dancerCountBtn}
@@ -1836,7 +1836,7 @@ export default function PlayerScreen() {
             >
               <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
               <View style={styles.analyzeMenuOptionText}>
-                <Text style={styles.analyzeMenuOptionTitle}>Start Formation</Text>
+                <Text style={styles.analyzeMenuOptionTitle}>{t('player.startFormation')}</Text>
               </View>
             </TouchableOpacity>
           </Pressable>

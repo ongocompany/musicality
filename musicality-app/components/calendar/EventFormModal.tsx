@@ -12,6 +12,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 import type { CalendarEvent, CreateEventInput } from '../../types/calendar';
 
@@ -36,6 +37,7 @@ export default function EventFormModal({
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const { t } = useTranslation();
 
   const isEdit = !!editEvent;
 
@@ -88,10 +90,10 @@ export default function EventFormModal({
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
-              <Text style={styles.cancelText}>취소</Text>
+              <Text style={styles.cancelText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
             <Text style={styles.headerTitle}>
-              {isEdit ? '일정 수정' : '새 일정'}
+              {isEdit ? t('calendar.editEvent') : t('calendar.newEvent')}
             </Text>
             <TouchableOpacity
               onPress={handleSubmit}
@@ -102,7 +104,7 @@ export default function EventFormModal({
                 <ActivityIndicator size="small" color={Colors.primary} />
               ) : (
                 <Text style={[styles.saveText, !canSubmit && { opacity: 0.4 }]}>
-                  {isEdit ? '수정' : '저장'}
+                  {isEdit ? t('common.edit') : t('common.save')}
                 </Text>
               )}
             </TouchableOpacity>
@@ -111,12 +113,12 @@ export default function EventFormModal({
           <ScrollView style={styles.form} keyboardShouldPersistTaps="handled">
             {/* Title */}
             <View style={styles.field}>
-              <Text style={styles.label}>제목 *</Text>
+              <Text style={styles.label}>{t('calendar.titleRequired')}</Text>
               <TextInput
                 style={styles.input}
                 value={title}
                 onChangeText={setTitle}
-                placeholder="일정 제목"
+                placeholder={t('calendar.titlePlaceholder')}
                 placeholderTextColor={Colors.textMuted}
                 maxLength={100}
                 autoFocus
@@ -125,12 +127,12 @@ export default function EventFormModal({
 
             {/* Date */}
             <View style={styles.field}>
-              <Text style={styles.label}>날짜 *</Text>
+              <Text style={styles.label}>{t('calendar.dateRequired')}</Text>
               <TextInput
                 style={styles.input}
                 value={eventDate}
                 onChangeText={(t) => setEventDate(formatDateInput(t))}
-                placeholder="YYYY-MM-DD"
+                placeholder={t('calendar.datePlaceholder')}
                 placeholderTextColor={Colors.textMuted}
                 keyboardType="numeric"
                 maxLength={10}
@@ -139,12 +141,12 @@ export default function EventFormModal({
 
             {/* Time */}
             <View style={styles.field}>
-              <Text style={styles.label}>시간</Text>
+              <Text style={styles.label}>{t('calendar.time')}</Text>
               <TextInput
                 style={styles.input}
                 value={eventTime}
                 onChangeText={(t) => setEventTime(formatTimeInput(t))}
-                placeholder="HH:MM (선택)"
+                placeholder={t('calendar.timePlaceholder')}
                 placeholderTextColor={Colors.textMuted}
                 keyboardType="numeric"
                 maxLength={5}
@@ -153,12 +155,12 @@ export default function EventFormModal({
 
             {/* Location */}
             <View style={styles.field}>
-              <Text style={styles.label}>장소</Text>
+              <Text style={styles.label}>{t('calendar.location')}</Text>
               <TextInput
                 style={styles.input}
                 value={location}
                 onChangeText={setLocation}
-                placeholder="장소 (선택)"
+                placeholder={t('calendar.locationPlaceholder')}
                 placeholderTextColor={Colors.textMuted}
                 maxLength={200}
               />
@@ -166,12 +168,12 @@ export default function EventFormModal({
 
             {/* Description */}
             <View style={styles.field}>
-              <Text style={styles.label}>설명</Text>
+              <Text style={styles.label}>{t('calendar.description')}</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="설명 (선택)"
+                placeholder={t('calendar.descriptionPlaceholder')}
                 placeholderTextColor={Colors.textMuted}
                 multiline
                 numberOfLines={3}

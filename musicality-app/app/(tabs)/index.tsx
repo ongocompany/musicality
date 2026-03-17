@@ -164,6 +164,7 @@ function SwipeableTrackItem({
   onDeleteFormationEdition: (trackId: string, editionId: FormationEditionId) => void;
   onToggleSelect: (trackId: string) => void;
 }) {
+  const { t } = useTranslation();
   const swipeableRef = useRef<Swipeable>(null);
   const hasEditions = editions && (editions.server || editions.userEditions.length > 0);
   const hasFormationEditions = formations && formations.userEditions.length > 0;
@@ -195,9 +196,9 @@ function SwipeableTrackItem({
             ]}
             onPress={() => { onSelectEdition(track.id, id); swipeableRef.current?.close(); }}
             onLongPress={() => {
-              Alert.alert(`Ⓟ 에디션 ${id} 삭제`, '이 PhraseNote 에디션을 삭제하시겠습니까?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => { onDeleteEdition(track.id, id); swipeableRef.current?.close(); } },
+              Alert.alert(t('library.deletePhraseEdition', { id }), t('library.deletePhraseEditionConfirm'), [
+                { text: t('common.cancel'), style: 'cancel' },
+                { text: t('common.delete'), style: 'destructive', onPress: () => { onDeleteEdition(track.id, id); swipeableRef.current?.close(); } },
               ]);
             }}
           >
@@ -216,9 +217,9 @@ function SwipeableTrackItem({
             ]}
             onPress={() => { onSelectFormationEdition(track.id, id); swipeableRef.current?.close(); }}
             onLongPress={() => {
-              Alert.alert(`Ⓒ 에디션 ${id} 삭제`, '이 ChoreoNote 에디션을 삭제하시겠습니까?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => { onDeleteFormationEdition(track.id, id); swipeableRef.current?.close(); } },
+              Alert.alert(t('library.deleteChoreoEdition', { id }), t('library.deleteChoreoEditionConfirm'), [
+                { text: t('common.cancel'), style: 'cancel' },
+                { text: t('common.delete'), style: 'destructive', onPress: () => { onDeleteFormationEdition(track.id, id); swipeableRef.current?.close(); } },
               ]);
             }}
           >
@@ -426,7 +427,7 @@ export default function LibraryScreen() {
   const handleAddYouTube = () => {
     const videoId = parseYouTubeUrl(youtubeUrl);
     if (!videoId) {
-      Alert.alert('Invalid URL', 'Please enter a valid YouTube URL.');
+      Alert.alert(t('library.invalidUrl'), t('library.invalidUrlMsg'));
       return;
     }
     const track = createYouTubeTrack(videoId);
@@ -448,20 +449,20 @@ export default function LibraryScreen() {
     if (selectMode) return;
     const options: any[] = [
       {
-        text: 'Rename',
+        text: t('library.rename'),
         onPress: () => {
-          Alert.prompt('Rename Track', 'Enter new title:', (newTitle) => {
+          Alert.prompt(t('library.renameTrack'), t('library.renameTrackPrompt'), (newTitle) => {
             if (newTitle && newTitle.trim()) renameTrack(track.id, newTitle.trim());
           }, 'plain-text', track.title);
         },
       },
     ];
     if (track.mediaType !== 'youtube' && track.analysisStatus === 'done') {
-      options.push({ text: 'Re-analyze', onPress: () => handleReanalyze(track) });
+      options.push({ text: t('library.reanalyze'), onPress: () => handleReanalyze(track) });
     }
     options.push(
-      { text: 'Delete', style: 'destructive', onPress: () => removeTrack(track.id) },
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('common.delete'), style: 'destructive', onPress: () => removeTrack(track.id) },
+      { text: t('common.cancel'), style: 'cancel' },
     );
     Alert.alert(track.title, undefined, options);
   };
@@ -472,9 +473,9 @@ export default function LibraryScreen() {
   };
 
   const handleReanalyze = (track: Track) => {
-    Alert.alert('Re-analyze Track', '기존 분석 데이터가 삭제되고 새로 분석됩니다. 계속하시겠습니까?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Re-analyze', style: 'destructive', onPress: () => runAnalysis(track) },
+    Alert.alert(t('library.reanalyzeTrack'), t('library.reanalyzeConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('library.reanalyze'), style: 'destructive', onPress: () => runAnalysis(track) },
     ]);
   };
 
@@ -498,7 +499,7 @@ export default function LibraryScreen() {
       }
     } catch (e: any) {
       setTrackAnalysisStatus(track.id, 'error');
-      Alert.alert('Analysis Failed', e.message || 'Could not connect to analysis server.');
+      Alert.alert(t('player.analysisFailed'), e.message || t('library.analysisServerError'));
     }
   };
 
@@ -516,7 +517,7 @@ export default function LibraryScreen() {
       },
     }));
     options.push({ text: t('common.cancel'), onPress: () => {} });
-    Alert.alert('Sort', undefined, options);
+    Alert.alert(t('library.sort'), undefined, options);
   };
 
   // ─── Folder handlers ──────────────────────────────

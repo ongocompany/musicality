@@ -200,17 +200,17 @@ export default function SettingsScreen() {
             const trackCount = playerState.tracks.length;
 
             if (trackCount === 0) {
-              Alert.alert('Export', 'Library is empty. Nothing to export.');
+              Alert.alert(t('settings.exportLibrary'), t('settings.libraryEmpty'));
               return;
             }
 
             Alert.alert(
-              'Export Library',
-              `${trackCount}개의 트랙 메타데이터(분석 결과, 프레이즈, 메모, 포메이션)를 백업합니다.\n\n⚠ 음원/영상 파일은 포함되지 않습니다. 파일을 이동하거나 삭제하면 라이브러리에서 다시 불러와야 합니다.`,
+              t('settings.exportLibrary'),
+              t('settings.exportDesc', { trackCount }),
               [
                 { text: t('common.cancel'), style: 'cancel' },
                 {
-                  text: 'Export',
+                  text: t('player.export'),
                   onPress: async () => {
                     try {
                       const backup: LibraryBackup = {
@@ -237,7 +237,7 @@ export default function SettingsScreen() {
                       await exportLibraryBackup(backup);
                     } catch (err: any) {
                       if (err?.message !== 'User did not share') {
-                        Alert.alert('Error', err?.message || 'Export failed');
+                        Alert.alert(t('common.error'), err?.message || t('settings.exportFailed'));
                       }
                     }
                   },
@@ -247,8 +247,8 @@ export default function SettingsScreen() {
           }}
         >
           <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
-          <Text style={[styles.label, { color: Colors.primary }]}>Export Library</Text>
-          <Text style={styles.value}>메타데이터 백업</Text>
+          <Text style={[styles.label, { color: Colors.primary }]}>{t('settings.exportLibrary')}</Text>
+          <Text style={styles.value}>{t('settings.exportLibraryLabel')}</Text>
         </TouchableOpacity>
 
         {/* Import Library */}
@@ -264,12 +264,12 @@ export default function SettingsScreen() {
               const date = new Date(backup.createdAt).toLocaleDateString();
 
               Alert.alert(
-                'Import Library',
-                `${date}에 생성된 백업\n${trackCount}개 트랙, ${folderCount}개 폴더\n\n현재 라이브러리를 백업 데이터로 교체합니다.`,
+                t('settings.importLibrary'),
+                t('settings.importDesc', { date, trackCount, folderCount }),
                 [
                   { text: t('common.cancel'), style: 'cancel' },
                   {
-                    text: 'Import',
+                    text: t('player.import'),
                     style: 'destructive',
                     onPress: async () => {
                       // Restore player store
@@ -291,19 +291,19 @@ export default function SettingsScreen() {
                         trackFormations: backup.settings.trackFormations ?? {},
                         stageConfig: backup.settings.stageConfig ?? { gridWidth: 8, gridHeight: 4 },
                       });
-                      Alert.alert(t('common.done'), `${trackCount}개 트랙이 복원되었습니다.`);
+                      Alert.alert(t('common.done'), t('settings.importDone', { trackCount }));
                     },
                   },
                 ],
               );
             } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Import failed');
+              Alert.alert(t('common.error'), err?.message || t('settings.importFailed'));
             }
           }}
         >
           <Ionicons name="cloud-download-outline" size={20} color={Colors.accent} />
-          <Text style={[styles.label, { color: Colors.accent }]}>Import Library</Text>
-          <Text style={styles.value}>백업에서 복원</Text>
+          <Text style={[styles.label, { color: Colors.accent }]}>{t('settings.importLibrary')}</Text>
+          <Text style={styles.value}>{t('settings.importLibraryLabel')}</Text>
         </TouchableOpacity>
 
         {/* Reset Library */}
@@ -395,12 +395,12 @@ export default function SettingsScreen() {
             style={styles.row}
             onPress={() => {
               Alert.alert(
-                '회원 탈퇴',
-                '현재 저장한 라이브러리, 크루목록, 프레이즈노트 및 코레오노트 등 모든 정보가 삭제됩니다. 탈퇴하시겠습니까?',
+                t('settings.deleteAccount'),
+                t('settings.deleteAccountConfirm'),
                 [
                   { text: t('common.cancel'), style: 'cancel' },
                   {
-                    text: '탈퇴',
+                    text: t('settings.withdraw'),
                     style: 'destructive',
                     onPress: async () => {
                       try {
@@ -415,9 +415,9 @@ export default function SettingsScreen() {
                         await AsyncStorage.clear();
                         // Sign out
                         await signOut();
-                        Alert.alert('완료', '회원 탈퇴가 완료되었습니다.');
+                        Alert.alert(t('common.done'), t('settings.deleteAccountDone'));
                       } catch (err: any) {
-                        Alert.alert('Error', err?.message || '탈퇴 처리 중 오류가 발생했습니다.');
+                        Alert.alert(t('common.error'), err?.message || t('settings.deleteAccountFailed'));
                       }
                     },
                   },
@@ -426,7 +426,7 @@ export default function SettingsScreen() {
             }}
           >
             <Ionicons name="person-remove-outline" size={20} color={Colors.error} />
-            <Text style={[styles.label, { color: Colors.error }]}>회원 탈퇴</Text>
+            <Text style={[styles.label, { color: Colors.error }]}>{t('settings.deleteAccount')}</Text>
           </TouchableOpacity>
         </View>
       )}

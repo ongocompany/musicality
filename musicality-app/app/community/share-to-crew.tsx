@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useCommunityStore } from '../../stores/communityStore';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 import type { Crew, SongThread } from '../../types/community';
@@ -18,6 +19,7 @@ import type { Crew, SongThread } from '../../types/community';
 type Step = 'crew' | 'thread' | 'confirm';
 
 export default function ShareToCrewScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{
     phraseNoteData?: string;
@@ -84,7 +86,7 @@ export default function ShareToCrewScreen() {
         setStep('confirm');
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to create thread');
+      Alert.alert(t('common.error'), err.message || t('community.failedCreateThread'));
     } finally {
       setIsCreatingThread(false);
     }
@@ -92,18 +94,18 @@ export default function ShareToCrewScreen() {
 
   const handlePost = async () => {
     if (!selectedThread || !params.phraseNoteData) {
-      Alert.alert('Error', `Missing ${noteLabel} data`);
+      Alert.alert(t('common.error'), t('community.missingNoteData', { noteLabel }));
       return;
     }
     setIsPosting(true);
     try {
       const noteData = JSON.parse(params.phraseNoteData);
       await postPhraseNote(selectedThread.id, noteData, description.trim() || undefined);
-      Alert.alert('Shared!', `${noteLabel} posted to "${selectedThread.title}"`, [
-        { text: 'OK', onPress: () => router.back() },
+      Alert.alert(t('community.shared'), t('community.notePostedTo', { noteLabel, threadTitle: selectedThread.title }), [
+        { text: t('common.ok'), onPress: () => router.back() },
       ]);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to post');
+      Alert.alert(t('common.error'), err.message || t('community.failedToPost'));
     } finally {
       setIsPosting(false);
     }
@@ -113,7 +115,7 @@ export default function ShareToCrewScreen() {
     <>
       <Stack.Screen
         options={{
-          title: step === 'crew' ? 'Select Crew' : step === 'thread' ? 'Select Thread' : `Share ${noteLabel}`,
+          title: step === 'crew' ? t('community.selectCrew') : step === 'thread' ? t('community.selectThread') : t('community.shareNoteLabel', { noteLabel }),
           presentation: 'modal',
         }}
       />
@@ -124,7 +126,7 @@ export default function ShareToCrewScreen() {
             <View key={s} style={styles.stepItem}>
               <View style={[styles.stepDot, (step === s || i < ['crew', 'thread', 'confirm'].indexOf(step)) && styles.stepDotActive]} />
               <Text style={[styles.stepLabel, step === s && styles.stepLabelActive]}>
-                {s === 'crew' ? 'Crew' : s === 'thread' ? 'Thread' : 'Post'}
+                {s === 'crew' ? t('community.stepCrew') : s === 'thread' ? t('community.stepThread') : t('community.stepPost')}
               </Text>
             </View>
           ))}
@@ -137,13 +139,13 @@ export default function ShareToCrewScreen() {
               {myCrews.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Ionicons name="people-outline" size={48} color={Colors.textMuted} />
-                  <Text style={styles.emptyText}>No crews yet</Text>
-                  <Text style={styles.emptySubtext}>Join or create a crew first</Text>
+                  <Text style={styles.emptyText}>{t('community.noCrewsYet')}</Text>
+                  <Text style={styles.emptySubtext}>{t('community.joinOrCreateHint')}</Text>
                   <TouchableOpacity
                     style={styles.actionBtn}
                     onPress={() => router.replace('/community/create-crew')}
                   >
-                    <Text style={styles.actionBtnText}>Create Crew</Text>
+                    <Text style={styles.actionBtnText}>{t('community.createCrew')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -182,13 +184,13 @@ export default function ShareToCrewScreen() {
 
               {/* Create new thread */}
               <View style={styles.newThreadBox}>
-                <Text style={styles.newThreadLabel}>New Song Thread</Text>
+                <Text style={styles.newThreadLabel}>{t('community.newSongThread')}</Text>
                 <View style={styles.newThreadRow}>
                   <TextInput
                     style={styles.newThreadInput}
                     value={newThreadTitle}
                     onChangeText={setNewThreadTitle}
-                    placeholder="Song title..."
+                    placeholder={t('community.songTitlePlaceholder')}
                     placeholderTextColor={Colors.textMuted}
                     maxLength={100}
                   />
@@ -211,11 +213,11 @@ export default function ShareToCrewScreen() {
                 <ActivityIndicator size="small" color={Colors.primary} style={{ padding: Spacing.lg }} />
               ) : activeSongThreads.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptySubtext}>No existing threads — create one above</Text>
+                  <Text style={styles.emptySubtext}>{t('community.noThreadsHint')}</Text>
                 </View>
               ) : (
                 <View style={styles.list}>
-                  <Text style={styles.listHeader}>Existing Threads</Text>
+                  <Text style={styles.listHeader}>{t('community.existingThreads')}</Text>
                   {activeSongThreads.map((thread) => (
                     <TouchableOpacity
                       key={thread.id}
@@ -246,27 +248,27 @@ export default function ShareToCrewScreen() {
             <>
               <TouchableOpacity style={styles.backRow} onPress={() => setStep('thread')}>
                 <Ionicons name="arrow-back" size={16} color={Colors.primary} />
-                <Text style={styles.backText}>Back to threads</Text>
+                <Text style={styles.backText}>{t('community.backToThreads')}</Text>
               </TouchableOpacity>
 
               <View style={styles.confirmCard}>
                 <View style={styles.confirmRow}>
-                  <Text style={styles.confirmLabel}>Crew</Text>
+                  <Text style={styles.confirmLabel}>{t('community.stepCrew')}</Text>
                   <Text style={styles.confirmValue}>{selectedCrew.name}</Text>
                 </View>
                 <View style={styles.confirmRow}>
-                  <Text style={styles.confirmLabel}>Thread</Text>
+                  <Text style={styles.confirmLabel}>{t('community.stepThread')}</Text>
                   <Text style={styles.confirmValue}>{selectedThread.title}</Text>
                 </View>
               </View>
 
               <View style={styles.descField}>
-                <Text style={styles.descLabel}>Add a note (optional)</Text>
+                <Text style={styles.descLabel}>{t('community.addNoteOptional')}</Text>
                 <TextInput
                   style={styles.descInput}
                   value={description}
                   onChangeText={setDescription}
-                  placeholder="e.g. Basic step variation for beginners"
+                  placeholder={t('community.addNotePlaceholder')}
                   placeholderTextColor={Colors.textMuted}
                   maxLength={300}
                   multiline
@@ -289,7 +291,7 @@ export default function ShareToCrewScreen() {
               ) : (
                 <>
                   <Ionicons name="share-outline" size={20} color="#FFF" />
-                  <Text style={styles.postButtonText}>Share {noteLabel}</Text>
+                  <Text style={styles.postButtonText}>{t('community.shareNoteLabel', { noteLabel })}</Text>
                 </>
               )}
             </TouchableOpacity>

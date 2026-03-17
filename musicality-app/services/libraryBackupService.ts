@@ -37,7 +37,7 @@ export interface LibraryBackup {
     downbeatOffsets: Record<string, number>;
     beatTimeOffsets: Record<string, number>;
     bpmOverrides: Record<string, number>;
-    phraseMarks: Record<string, number[]>;
+    phraseMarks: Record<string, number>;
     trackEditions: Record<string, any>;
     cellNotes: Record<string, Record<string, string>>;
     importedNotes: any[];

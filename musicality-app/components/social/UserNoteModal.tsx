@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 
 interface Props {
@@ -30,6 +31,7 @@ export default function UserNoteModal({
   onDelete,
   onClose,
 }: Props) {
+  const { t } = useTranslation();
   const [content, setContent] = useState(initialContent);
   const [saving, setSaving] = useState(false);
 
@@ -44,17 +46,17 @@ export default function UserNoteModal({
       await onSave(content.trim());
       onClose();
     } catch (e: any) {
-      Alert.alert('오류', e.message ?? '메모 저장에 실패했습니다');
+      Alert.alert(t('common.error'), e.message ?? t('profile.noteSaveFailed'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = () => {
-    Alert.alert('메모 삭제', '이 메모를 삭제하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
+    Alert.alert(t('profile.deleteNote'), t('profile.deleteNoteConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: '삭제',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           setSaving(true);
@@ -62,7 +64,7 @@ export default function UserNoteModal({
             await onDelete();
             onClose();
           } catch (e: any) {
-            Alert.alert('오류', e.message ?? '삭제에 실패했습니다');
+            Alert.alert(t('common.error'), e.message ?? t('profile.noteDeleteFailed'));
           } finally {
             setSaving(false);
           }
@@ -80,19 +82,19 @@ export default function UserNoteModal({
         <View style={styles.sheet}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>{targetName} 메모</Text>
+            <Text style={styles.title}>{t('profile.noteTitle', { name: targetName })}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.hint}>이 메모는 나만 볼 수 있습니다</Text>
+          <Text style={styles.hint}>{t('profile.noteHint')}</Text>
 
           <TextInput
             style={styles.input}
             value={content}
             onChangeText={setContent}
-            placeholder="메모를 입력하세요..."
+            placeholder={t('profile.notePlaceholder')}
             placeholderTextColor={Colors.textMuted}
             multiline
             maxLength={500}
@@ -110,7 +112,7 @@ export default function UserNoteModal({
                 disabled={saving}
               >
                 <Ionicons name="trash-outline" size={18} color={Colors.error} />
-                <Text style={styles.deleteBtnText}>삭제</Text>
+                <Text style={styles.deleteBtnText}>{t('common.delete')}</Text>
               </TouchableOpacity>
             ) : (
               <View />
@@ -120,7 +122,7 @@ export default function UserNoteModal({
               onPress={handleSave}
               disabled={!content.trim() || saving}
             >
-              <Text style={styles.saveBtnText}>{saving ? '저장 중...' : '저장'}</Text>
+              <Text style={styles.saveBtnText}>{saving ? t('profile.saving') : t('common.save')}</Text>
             </TouchableOpacity>
           </View>
         </View>

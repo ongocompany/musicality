@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 import { useSocialStore } from '../../stores/socialStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -10,6 +11,7 @@ import FollowListModal from '../../components/social/FollowListModal';
 import UserNoteModal from '../../components/social/UserNoteModal';
 
 export default function UserProfileScreen() {
+  const { t } = useTranslation();
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const router = useRouter();
   const { user } = useAuthStore();
@@ -45,7 +47,7 @@ export default function UserProfileScreen() {
     try {
       await toggleFollow(userId);
     } catch (e: any) {
-      Alert.alert('오류', e.message ?? '팔로우 처리에 실패했습니다');
+      Alert.alert(t('common.error'), e.message ?? t('profile.followFailed'));
     } finally {
       setFollowLoading(false);
     }
@@ -57,15 +59,15 @@ export default function UserProfileScreen() {
 
     if (isBlocked) {
       // Unblock
-      Alert.alert('차단 해제', `${viewingProfile?.displayName}님의 차단을 해제하시겠습니까?`, [
-        { text: '취소', style: 'cancel' },
+      Alert.alert(t('profile.unblock'), t('profile.unblockConfirm', { name: viewingProfile?.displayName }), [
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: '해제',
+          text: t('profile.unblock'),
           onPress: async () => {
             try {
               await toggleBlock(userId);
             } catch (e: any) {
-              Alert.alert('오류', e.message);
+              Alert.alert(t('common.error'), e.message);
             }
           },
         },
@@ -73,18 +75,18 @@ export default function UserProfileScreen() {
     } else {
       // Block with warning
       Alert.alert(
-        '사용자 차단',
-        `${viewingProfile?.displayName}님을 차단하시겠습니까?\n\n차단하면 서로의 팔로우가 자동으로 해제됩니다.`,
+        t('profile.blockUser'),
+        t('profile.blockConfirm', { name: viewingProfile?.displayName }),
         [
-          { text: '취소', style: 'cancel' },
+          { text: t('common.cancel'), style: 'cancel' },
           {
-            text: '차단',
+            text: t('profile.block'),
             style: 'destructive',
             onPress: async () => {
               try {
                 await toggleBlock(userId);
               } catch (e: any) {
-                Alert.alert('오류', e.message);
+                Alert.alert(t('common.error'), e.message);
               }
             },
           },
@@ -125,7 +127,7 @@ export default function UserProfileScreen() {
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>프로필</Text>
+          <Text style={styles.headerTitle}>{t('profile.profile')}</Text>
           <View style={{ width: 24 }} />
         </View>
         {viewingLoading && <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.xl }} />}

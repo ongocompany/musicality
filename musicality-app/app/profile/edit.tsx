@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 import { useSocialStore } from '../../stores/socialStore';
@@ -26,6 +27,7 @@ const DANCE_STYLES = [
 ];
 
 export default function ProfileEditScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { myProfile, fetchMyProfile, updateMyProfile } = useSocialStore();
 
@@ -97,15 +99,15 @@ export default function ProfileEditScreen() {
 
   const handleSave = async () => {
     if (!displayName.trim()) {
-      Alert.alert('오류', '이름을 입력해주세요');
+      Alert.alert(t('common.error'), t('profile.displayNameRequired'));
       return;
     }
     if (nickname && !/^[a-zA-Z0-9_]{2,20}$/.test(nickname)) {
-      Alert.alert('오류', '닉네임은 2-20자, 영문/숫자/_ 만 가능합니다');
+      Alert.alert(t('common.error'), t('profile.nicknameInvalid'));
       return;
     }
     if (nicknameStatus === 'taken') {
-      Alert.alert('오류', '이미 사용 중인 닉네임입니다');
+      Alert.alert(t('common.error'), t('profile.nicknameTaken'));
       return;
     }
 
@@ -126,10 +128,10 @@ export default function ProfileEditScreen() {
         danceStyle,
       });
 
-      Alert.alert('완료', '프로필이 업데이트되었습니다');
+      Alert.alert(t('common.done'), t('profile.profileUpdated'));
       router.back();
     } catch (e: any) {
-      Alert.alert('오류', e.message ?? '프로필 업데이트에 실패했습니다');
+      Alert.alert(t('common.error'), e.message ?? t('profile.profileUpdateFailed'));
     } finally {
       setSaving(false);
     }
@@ -142,12 +144,12 @@ export default function ProfileEditScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>프로필 편집</Text>
+        <Text style={styles.headerTitle}>{t('profile.editProfile')}</Text>
         <TouchableOpacity onPress={handleSave} disabled={saving}>
           {saving ? (
             <ActivityIndicator size="small" color={Colors.primary} />
           ) : (
-            <Text style={styles.saveText}>저장</Text>
+            <Text style={styles.saveText}>{t('common.save')}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -168,12 +170,12 @@ export default function ProfileEditScreen() {
 
       {/* Display Name */}
       <View style={styles.field}>
-        <Text style={styles.fieldLabel}>이름</Text>
+        <Text style={styles.fieldLabel}>{t('profile.displayName')}</Text>
         <TextInput
           style={styles.input}
           value={displayName}
           onChangeText={setDisplayName}
-          placeholder="이름을 입력하세요"
+          placeholder={t('profile.displayNamePlaceholder')}
           placeholderTextColor={Colors.textMuted}
           maxLength={30}
         />
@@ -181,7 +183,7 @@ export default function ProfileEditScreen() {
 
       {/* Nickname */}
       <View style={styles.field}>
-        <Text style={styles.fieldLabel}>닉네임</Text>
+        <Text style={styles.fieldLabel}>{t('profile.nickname')}</Text>
         <View style={styles.nicknameRow}>
           <Text style={styles.atSign}>@</Text>
           <TextInput
@@ -204,17 +206,17 @@ export default function ProfileEditScreen() {
             <Ionicons name="close-circle" size={20} color={Colors.error} />
           )}
         </View>
-        <Text style={styles.fieldHint}>영문, 숫자, _ (2-20자)</Text>
+        <Text style={styles.fieldHint}>{t('profile.nicknameHint')}</Text>
       </View>
 
       {/* Phone */}
       <View style={styles.field}>
-        <Text style={styles.fieldLabel}>전화번호 (선택)</Text>
+        <Text style={styles.fieldLabel}>{t('profile.phone')}</Text>
         <TextInput
           style={styles.input}
           value={phone}
           onChangeText={setPhone}
-          placeholder="010-0000-0000"
+          placeholder={t('profile.phonePlaceholder')}
           placeholderTextColor={Colors.textMuted}
           keyboardType="phone-pad"
         />
@@ -222,7 +224,7 @@ export default function ProfileEditScreen() {
 
       {/* Dance Style */}
       <View style={styles.field}>
-        <Text style={styles.fieldLabel}>댄스 스타일</Text>
+        <Text style={styles.fieldLabel}>{t('profile.danceStyle')}</Text>
         <View style={styles.styleRow}>
           {DANCE_STYLES.map((s) => (
             <TouchableOpacity

@@ -9,6 +9,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
@@ -21,6 +22,7 @@ import type { CalendarEvent, CreateEventInput } from '../../types/calendar';
 
 export default function CalendarScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const {
@@ -98,16 +100,16 @@ export default function CalendarScreen() {
   };
 
   const handleDeleteEvent = (eventId: string) => {
-    Alert.alert('일정 삭제', '이 일정을 삭제하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
+    Alert.alert(t('calendar.deleteEvent'), t('calendar.deleteEventConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: '삭제',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deletePersonalEvent(eventId);
           } catch (err: any) {
-            Alert.alert('오류', err.message);
+            Alert.alert(t('common.error'), err.message);
           }
         },
       },
@@ -122,7 +124,7 @@ export default function CalendarScreen() {
         fetchSavedEvents();
       }
     } catch (err: any) {
-      Alert.alert('오류', err.message);
+      Alert.alert(t('common.error'), err.message);
     }
   };
 
@@ -156,7 +158,7 @@ export default function CalendarScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
           <Ionicons name="chevron-back" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>캘린더</Text>
+        <Text style={styles.headerTitle}>{t('calendar.calendar')}</Text>
         <TouchableOpacity
           onPress={() => {
             setEditingEvent(null);
@@ -186,11 +188,11 @@ export default function CalendarScreen() {
         <View style={styles.dateLabel}>
           <Text style={styles.dateLabelText}>
             {selectedDate
-              ? formatDateLabel(selectedDate)
-              : `${currentMonth}월 일정`}
+              ? formatDateLabel(selectedDate, t)
+              : t('calendar.monthEvents', { month: currentMonth })}
           </Text>
           <Text style={styles.eventCount}>
-            {dateEvents.length}건
+            {t('calendar.eventCount', { count: dateEvents.length })}
           </Text>
         </View>
 
@@ -206,7 +208,7 @@ export default function CalendarScreen() {
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons name="calendar-outline" size={40} color={Colors.textMuted} />
-              <Text style={styles.emptyText}>일정이 없습니다</Text>
+              <Text style={styles.emptyText}>{t('calendar.noEvents')}</Text>
             </View>
           }
         />
@@ -227,10 +229,10 @@ export default function CalendarScreen() {
   );
 }
 
-function formatDateLabel(dateStr: string): string {
+function formatDateLabel(dateStr: string, t: (key: string) => string): string {
   const d = new Date(dateStr + 'T00:00:00');
-  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${dayNames[d.getDay()]})`;
+  const dayNames = t('calendar.dayNames').split(',');
+  return `${d.getMonth() + 1}/${d.getDate()} (${dayNames[d.getDay()]})`;
 }
 
 const styles = StyleSheet.create({

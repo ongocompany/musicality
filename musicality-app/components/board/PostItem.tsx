@@ -11,6 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 import { parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
@@ -40,9 +41,10 @@ export default function PostItem({
   const [loadingReplies, setLoadingReplies] = useState(false);
   const [submittingReply, setSubmittingReply] = useState(false);
   const [showReplyInput, setShowReplyInput] = useState(false);
+  const { t } = useTranslation();
 
   const isAuthor = post.userId === currentUserId;
-  const timeAgo = formatTimeAgo(post.createdAt);
+  const timeAgo = formatTimeAgo(post.createdAt, t);
 
   const handleToggleReplies = async () => {
     if (showReplies) {
@@ -73,16 +75,16 @@ export default function PostItem({
       setReplies(data);
       setShowReplies(true);
     } catch (err: any) {
-      Alert.alert('오류', err.message);
+      Alert.alert(t('common.error'), err.message);
     } finally {
       setSubmittingReply(false);
     }
   };
 
   const handleDelete = () => {
-    Alert.alert('게시글 삭제', '이 게시글을 삭제하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
-      { text: '삭제', style: 'destructive', onPress: () => onDelete(post.id) },
+    Alert.alert(t('board.deletePost'), t('board.deletePostConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.delete'), style: 'destructive', onPress: () => onDelete(post.id) },
     ]);
   };
 
@@ -99,7 +101,7 @@ export default function PostItem({
         </View>
         <View style={styles.headerText}>
           <Text style={styles.authorName}>
-            {post.profile?.displayName || '알 수 없음'}
+            {post.profile?.displayName || t('board.unknownAuthor')}
           </Text>
           <Text style={styles.timeAgo}>{timeAgo}</Text>
         </View>
@@ -166,7 +168,7 @@ export default function PostItem({
             <ActivityIndicator size="small" color={Colors.primary} />
           ) : (
             <Text style={styles.showRepliesText}>
-              답글 {post.replyCount}개 보기
+              {t('board.viewReplies', { count: post.replyCount })}
             </Text>
           )}
         </TouchableOpacity>
@@ -179,15 +181,15 @@ export default function PostItem({
             <View key={reply.id} style={styles.replyItem}>
               <View style={styles.replyHeader}>
                 <Text style={styles.replyAuthor}>
-                  {reply.profile?.displayName || '알 수 없음'}
+                  {reply.profile?.displayName || t('board.unknownAuthor')}
                 </Text>
-                <Text style={styles.replyTime}>{formatTimeAgo(reply.createdAt)}</Text>
+                <Text style={styles.replyTime}>{formatTimeAgo(reply.createdAt, t)}</Text>
               </View>
               <Text style={styles.replyContent}>{reply.content}</Text>
             </View>
           ))}
           <TouchableOpacity onPress={() => setShowReplies(false)}>
-            <Text style={styles.showRepliesText}>답글 접기</Text>
+            <Text style={styles.showRepliesText}>{t('board.collapseReplies')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -199,7 +201,7 @@ export default function PostItem({
             style={styles.replyInput}
             value={replyText}
             onChangeText={setReplyText}
-            placeholder="답글 작성..."
+            placeholder={t('board.replyPlaceholder')}
             placeholderTextColor={Colors.textMuted}
             maxLength={500}
           />
@@ -251,6 +253,7 @@ function PostContent({ content }: { content: string }) {
 function InlineYouTube({ videoId }: { videoId: string }) {
   const [playing, setPlaying] = useState(false);
   const [activated, setActivated] = useState(false);
+  const { t } = useTranslation();
   const addTrack = usePlayerStore((s) => s.addTrack);
   const tracks = usePlayerStore((s) => s.tracks);
   const playerW = SCREEN_WIDTH - 64;
@@ -264,17 +267,17 @@ function InlineYouTube({ videoId }: { videoId: string }) {
     // Check if already in library
     const exists = tracks.some((t) => t.mediaType === 'youtube' && t.uri === videoId);
     if (exists) {
-      Alert.alert('이미 추가됨', '이 영상은 이미 라이브러리에 있습니다.');
+      Alert.alert(t('board.alreadyAdded'), t('board.alreadyInLibrary'));
       return;
     }
-    Alert.alert('라이브러리에 추가', '이 YouTube 영상을 내 라이브러리에 저장하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
+    Alert.alert(t('board.addToLibrary'), t('board.addToLibraryConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: '저장',
+        text: t('common.save'),
         onPress: () => {
           const track = createYouTubeTrack(videoId);
           addTrack(track);
-          Alert.alert('저장 완료', '라이브러리에 추가되었습니다.');
+          Alert.alert(t('board.saved'), t('board.addedToLibrary'));
         },
       },
     ]);
@@ -323,15 +326,15 @@ function mediaImageWidth(count: number): number {
   return (containerWidth - 4) / 2; // 4 = gap
 }
 
-function formatTimeAgo(dateStr: string): string {
+function formatTimeAgo(dateStr: string, t: (key: string, opts?: any) => string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
   const diff = Math.floor((now - then) / 1000);
 
-  if (diff < 60) return '방금 전';
-  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}일 전`;
+  if (diff < 60) return t('board.justNow');
+  if (diff < 3600) return t('board.minutesAgo', { count: Math.floor(diff / 60) });
+  if (diff < 86400) return t('board.hoursAgo', { count: Math.floor(diff / 3600) });
+  if (diff < 604800) return t('board.daysAgo', { count: Math.floor(diff / 86400) });
   const d = new Date(dateStr);
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }

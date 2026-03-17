@@ -68,7 +68,7 @@ export default function ProfileSlidePanel({ visible, onClose }: Props) {
   };
 
   const avatarUrl = myProfile?.avatarUrl || user?.user_metadata?.avatar_url;
-  const displayName = myProfile?.displayName || user?.user_metadata?.full_name || '사용자';
+  const displayName = myProfile?.displayName || user?.user_metadata?.full_name || 'User';
 
   const handleEditProfile = () => {
     handleClose();
@@ -83,9 +83,9 @@ export default function ProfileSlidePanel({ visible, onClose }: Props) {
   const handleLogout = () => {
     handleClose();
     setTimeout(() => {
-      Alert.alert('로그아웃', '정말 로그아웃하시겠습니까?', [
-        { text: '취소', style: 'cancel' },
-        { text: '로그아웃', style: 'destructive', onPress: signOut },
+      Alert.alert(t('profile.logoutConfirmTitle'), t('profile.logoutConfirmMessage'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('settings.logout'), style: 'destructive', onPress: signOut },
       ]);
     }, 250);
   };
@@ -145,19 +145,19 @@ export default function ProfileSlidePanel({ visible, onClose }: Props) {
         <View style={styles.menu}>
           <TouchableOpacity style={styles.menuItem} onPress={handleEditProfile}>
             <Ionicons name="create-outline" size={20} color={Colors.primary} />
-            <Text style={styles.menuLabel}>프로필 편집</Text>
+            <Text style={styles.menuLabel}>{t('profile.editProfile')}</Text>
             <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem} onPress={handleCalendar}>
             <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
-            <Text style={styles.menuLabel}>캘린더</Text>
+            <Text style={styles.menuLabel}>{t('profile.calendar')}</Text>
             <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={20} color={Colors.error} />
-            <Text style={[styles.menuLabel, { color: Colors.error }]}>로그아웃</Text>
+            <Text style={[styles.menuLabel, { color: Colors.error }]}>{t('settings.logout')}</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

@@ -9,6 +9,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
 import { useMessageStore } from '../../stores/messageStore';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
@@ -33,6 +34,7 @@ type ListItem =
 export default function RoomScreen() {
   const { roomId, name: paramName } = useLocalSearchParams<{ roomId: string; name: string }>();
   const router = useRouter();
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   const {
     activeRoom,
@@ -63,7 +65,7 @@ export default function RoomScreen() {
         .filter(Boolean)
         .join(', ')
     ?? paramName
-    ?? '그룹 채팅';
+    ?? t('messages.groupChat');
 
   // Fetch + poll
   useEffect(() => {
@@ -105,30 +107,30 @@ export default function RoomScreen() {
           );
           if (target) {
             Alert.alert(
-              '강퇴',
-              `${target.profile?.displayName}님을 강퇴하시겠습니까?`,
+              t('messages.kick'),
+              t('messages.kickConfirm', { name: target.profile?.displayName }),
               [
-                { text: '취소', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                  text: '강퇴',
+                  text: t('messages.kick'),
                   style: 'destructive',
                   onPress: () => kickMember(roomId, target.userId),
                 },
               ],
             );
           } else {
-            Alert.alert('오류', `"${cmd.targetName}" 멤버를 찾을 수 없습니다`);
+            Alert.alert(t('common.error'), t('messages.memberNotFound', { name: cmd.targetName }));
           }
           return;
         }
         case 'close':
           Alert.alert(
-            '채팅방 종료',
-            '채팅방을 종료하시겠습니까?',
+            t('messages.closeRoom'),
+            t('messages.closeRoomConfirm'),
             [
-              { text: '취소', style: 'cancel' },
+              { text: t('common.cancel'), style: 'cancel' },
               {
-                text: '종료',
+                text: t('messages.closeLabel'),
                 style: 'destructive',
                 onPress: () => closeRoom(roomId),
               },
@@ -153,12 +155,12 @@ export default function RoomScreen() {
     if (!roomId) return;
     const member = activeRoomMembers.find((m) => m.userId === userId);
     Alert.alert(
-      '강퇴',
-      `${member?.profile?.displayName ?? '멤버'}님을 강퇴하시겠습니까?`,
+      t('messages.kick'),
+      t('messages.kickConfirm', { name: member?.profile?.displayName ?? t('community.members') }),
       [
-        { text: '취소', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: '강퇴',
+          text: t('messages.kick'),
           style: 'destructive',
           onPress: () => kickMember(roomId, userId),
         },
@@ -245,7 +247,7 @@ export default function RoomScreen() {
         <MessageInput onSend={handleSend} />
       ) : (
         <View style={styles.closedBar}>
-          <Text style={styles.closedText}>채팅방이 종료되었습니다</Text>
+          <Text style={styles.closedText}>{t('messages.roomClosed')}</Text>
         </View>
       )}
 

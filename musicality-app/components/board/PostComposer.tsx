@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 import * as api from '../../services/communityApi';
@@ -20,7 +21,8 @@ interface Props {
   placeholder?: string;
 }
 
-export default function PostComposer({ onPost, placeholder = '무슨 이야기를 나눌까요?' }: Props) {
+export default function PostComposer({ onPost, placeholder }: Props) {
+  const { t } = useTranslation();
   const [content, setContent] = useState('');
   const [mediaUris, setMediaUris] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
@@ -29,7 +31,7 @@ export default function PostComposer({ onPost, placeholder = '무슨 이야기�
 
   const pickImages = async () => {
     if (mediaUris.length >= 4) {
-      Alert.alert('최대 4장까지 첨부할 수 있습니다');
+      Alert.alert(t('board.maxPhotos'));
       return;
     }
 
@@ -66,17 +68,17 @@ export default function PostComposer({ onPost, placeholder = '무슨 이야기�
             .map((r) => r.value);
           if (succeeded.length > 0) uploadedUrls = succeeded;
           if (succeeded.length < mediaUris.length) {
-            Alert.alert('일부 사진 업로드 실패', `${succeeded.length}/${mediaUris.length}장 업로드됨`);
+            Alert.alert(t('board.someUploadFailed'), t('board.uploadCount', { succeeded: succeeded.length, total: mediaUris.length }));
           }
         } catch {
-          Alert.alert('사진 업로드 실패', '텍스트만 게시합니다');
+          Alert.alert(t('board.photoUploadFailed'), t('board.textOnlyPost'));
         }
       }
       await onPost(content.trim(), uploadedUrls);
       setContent('');
       setMediaUris([]);
     } catch (err: any) {
-      Alert.alert('오류', err.message);
+      Alert.alert(t('common.error'), err.message);
     } finally {
       setPosting(false);
     }
@@ -88,7 +90,7 @@ export default function PostComposer({ onPost, placeholder = '무슨 이야기�
         style={styles.input}
         value={content}
         onChangeText={setContent}
-        placeholder={placeholder}
+        placeholder={placeholder || t('board.composerPlaceholder')}
         placeholderTextColor={Colors.textMuted}
         multiline
         maxLength={2000}
@@ -122,7 +124,7 @@ export default function PostComposer({ onPost, placeholder = '무슨 이야기�
           {posting ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.postBtnText}>게시</Text>
+            <Text style={styles.postBtnText}>{t('board.post')}</Text>
           )}
         </TouchableOpacity>
       </View>

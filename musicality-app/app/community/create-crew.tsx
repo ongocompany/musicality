@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getLocales } from 'expo-localization';
 import { useCommunityStore } from '../../stores/communityStore';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
@@ -40,6 +41,7 @@ function countryToFlag(code: string): string {
 }
 
 export default function CreateCrewScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { createCrew, loading } = useCommunityStore();
 
@@ -72,18 +74,18 @@ export default function CreateCrewScreen() {
       });
 
       if (crewId) {
-        Alert.alert('Crew Created!', `"${name.trim()}" is ready.`, [
-          { text: 'OK', onPress: () => router.back() },
+        Alert.alert(t('community.crewCreated'), t('community.crewReady', { name: name.trim() }), [
+          { text: t('common.ok'), onPress: () => router.back() },
         ]);
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to create crew');
+      Alert.alert(t('common.error'), err.message || t('community.failedCreateCrew'));
     }
   };
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Create Crew' }} />
+      <Stack.Screen options={{ title: t('community.createCrew') }} />
       <View style={styles.container}>
         <ScrollView
           style={styles.scroll}
@@ -94,12 +96,12 @@ export default function CreateCrewScreen() {
         >
           {/* Name */}
           <View style={styles.field}>
-            <Text style={styles.label}>Crew Name *</Text>
+            <Text style={styles.label}>{t('community.crewNameRequired')}</Text>
             <TextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
-              placeholder="e.g. Seoul Bachata Crew"
+              placeholder={t('community.crewNamePlaceholder')}
               placeholderTextColor={Colors.textMuted}
               maxLength={40}
               autoFocus
@@ -109,12 +111,12 @@ export default function CreateCrewScreen() {
 
           {/* Description */}
           <View style={styles.field}>
-            <Text style={styles.label}>Description</Text>
+            <Text style={styles.label}>{t('community.descriptionLabel')}</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={description}
               onChangeText={setDescription}
-              placeholder="What's your crew about?"
+              placeholder={t('community.descriptionPlaceholder')}
               placeholderTextColor={Colors.textMuted}
               maxLength={200}
               multiline
@@ -125,7 +127,7 @@ export default function CreateCrewScreen() {
 
           {/* Crew Type */}
           <View style={styles.field}>
-            <Text style={styles.label}>Crew Type</Text>
+            <Text style={styles.label}>{t('community.crewType')}</Text>
             <View style={styles.toggleRow}>
               <TouchableOpacity
                 style={[styles.toggleButton, crewType === 'open' && styles.toggleActive]}
@@ -133,7 +135,7 @@ export default function CreateCrewScreen() {
                 activeOpacity={0.7}
               >
                 <Ionicons name="globe-outline" size={18} color={crewType === 'open' ? '#FFF' : Colors.textSecondary} />
-                <Text style={[styles.toggleText, crewType === 'open' && styles.toggleTextActive]}>Open</Text>
+                <Text style={[styles.toggleText, crewType === 'open' && styles.toggleTextActive]}>{t('community.crewTypeOpen')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.toggleButton, crewType === 'closed' && styles.toggleActive]}
@@ -141,19 +143,19 @@ export default function CreateCrewScreen() {
                 activeOpacity={0.7}
               >
                 <Ionicons name="lock-closed-outline" size={18} color={crewType === 'closed' ? '#FFF' : Colors.textSecondary} />
-                <Text style={[styles.toggleText, crewType === 'closed' && styles.toggleTextActive]}>Closed</Text>
+                <Text style={[styles.toggleText, crewType === 'closed' && styles.toggleTextActive]}>{t('community.crewTypeClosed')}</Text>
               </TouchableOpacity>
             </View>
             <Text style={styles.hint}>
               {crewType === 'open'
-                ? 'Anyone can join freely'
-                : 'You must approve join requests'}
+                ? t('community.crewTypeOpenHint')
+                : t('community.crewTypeClosedHint')}
             </Text>
           </View>
 
           {/* Dance Style */}
           <View style={styles.field}>
-            <Text style={styles.label}>Dance Style</Text>
+            <Text style={styles.label}>{t('community.danceStyle')}</Text>
             <View style={styles.chipRow}>
               {DANCE_STYLES.map((style) => (
                 <TouchableOpacity
@@ -172,7 +174,7 @@ export default function CreateCrewScreen() {
 
           {/* Region */}
           <View style={styles.field}>
-            <Text style={styles.label}>Region</Text>
+            <Text style={styles.label}>{t('community.region')}</Text>
             <View style={styles.chipRow}>
               <TouchableOpacity
                 style={[styles.chip, region === 'global' && styles.chipActive]}
@@ -195,14 +197,14 @@ export default function CreateCrewScreen() {
             </View>
             <Text style={styles.hint}>
               {region === 'global'
-                ? 'Open to dancers worldwide'
-                : `For dancers in ${region}`}
+                ? t('community.regionGlobalHint')
+                : t('community.regionLocalHint', { region })}
             </Text>
           </View>
 
           {/* Member Limit */}
           <View style={styles.field}>
-            <Text style={styles.label}>Member Limit (2-200)</Text>
+            <Text style={styles.label}>{t('community.memberLimitLabel')}</Text>
             <TextInput
               style={[styles.input, { width: 100 }]}
               value={memberLimit}
@@ -223,7 +225,7 @@ export default function CreateCrewScreen() {
             ) : (
               <>
                 <Ionicons name="add-circle" size={20} color="#FFF" />
-                <Text style={styles.createButtonText}>Create Crew</Text>
+                <Text style={styles.createButtonText}>{t('community.createCrew')}</Text>
               </>
             )}
           </TouchableOpacity>
