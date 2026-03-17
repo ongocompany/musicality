@@ -570,8 +570,8 @@ export function PhraseGrid({
         </View>
       )}
 
-      {/* Phrase / Page indicator */}
-      {currentPhraseInfo && (
+      {/* Phrase / Page indicator — hidden to save vertical space */}
+      {false && currentPhraseInfo && (
         <View style={styles.pageIndicator}>
           <Text style={styles.pageText}>
             {scrollMode

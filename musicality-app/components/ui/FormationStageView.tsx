@@ -876,7 +876,7 @@ export function FormationStageView({
           onPress={() => setShowSizeMenu(!showSizeMenu)}
         >
           <Text style={styles.sizeBtnText}>
-            {stageConfig.gridWidth}×{stageConfig.gridHeight}m
+            {stageConfig.gridWidth}×{stageConfig.gridHeight}
           </Text>
           <Ionicons name="chevron-down" size={12} color={Colors.textSecondary} />
         </Pressable>

@@ -19,10 +19,10 @@ export interface StageConfig {
 export const DEFAULT_STAGE_CONFIG: StageConfig = { gridWidth: 8, gridHeight: 4 };
 
 export const STAGE_PRESETS: { label: string; config: StageConfig }[] = [
-  { label: '6×3m', config: { gridWidth: 6, gridHeight: 3 } },
-  { label: '8×4m', config: { gridWidth: 8, gridHeight: 4 } },
-  { label: '10×5m', config: { gridWidth: 10, gridHeight: 5 } },
-  { label: '12×6m', config: { gridWidth: 12, gridHeight: 6 } },
+  { label: '6×3', config: { gridWidth: 6, gridHeight: 3 } },
+  { label: '8×4', config: { gridWidth: 8, gridHeight: 4 } },
+  { label: '10×5', config: { gridWidth: 10, gridHeight: 5 } },
+  { label: '12×6', config: { gridWidth: 12, gridHeight: 6 } },
 ];
 
 // ─── A single dancer's position at one beat ─────────

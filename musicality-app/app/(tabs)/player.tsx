@@ -2240,7 +2240,7 @@ const styles = StyleSheet.create({
   // ─── Stage preset buttons ──
   stagePresetBtn: {
     paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     borderRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,
@@ -2313,11 +2313,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.xs,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   beatOffsetBtn: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
     borderRadius: 6,
     backgroundColor: Colors.surface,
     borderWidth: 1,
@@ -2329,8 +2329,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   beatOffsetCenter: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 3,
     borderRadius: 6,
     backgroundColor: Colors.surface,
     borderWidth: 1,

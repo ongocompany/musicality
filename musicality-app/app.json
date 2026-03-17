@@ -48,6 +48,12 @@
         "projectId": "e1d7a456-edab-43d8-adbe-9ce0c1fb04a3"
       }
     },
-    "owner": "ongocampany"
+    "owner": "ongocampany",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e1d7a456-edab-43d8-adbe-9ce0c1fb04a3"
+    }
   }
 }

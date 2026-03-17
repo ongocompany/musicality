@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, GestureResponderEvent } from 'react-native';
+import { View, Text, StyleSheet, GestureResponderEvent, Dimensions } from 'react-native';
 import { Phrase } from '../../types/analysis';
 import { getPhraseColor, Colors, FontSize, Spacing } from '../../constants/theme';
 import { WaveformOverlay } from './WaveformOverlay';
@@ -17,7 +17,7 @@ interface SectionTimelineProps {
   loopEnabled?: boolean;
 }
 
-const BAR_HEIGHT = 50;
+const BAR_HEIGHT = Math.round(Dimensions.get('window').height * 0.055);
 
 /**
  * Combined phrase timeline + seek bar.
