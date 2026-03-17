@@ -1802,7 +1802,7 @@ export default function PlayerScreen() {
         opacity: focusAnim,
         overflow: 'hidden',
       }]}>
-        <View style={styles.bottomBarSide}>
+        <View style={[styles.bottomBarSide, { justifyContent: 'flex-end' }]}>
           {currentTrack?.analysisStatus === 'done' && (
             <TouchableOpacity
               onPress={() => setEditMode(editMode === 'note' ? 'none' : 'note')}
@@ -1823,7 +1823,7 @@ export default function PlayerScreen() {
         <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
           <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
         </TouchableOpacity>
-        <View style={styles.bottomBarSide}>
+        <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
           <TouchableOpacity onPress={handleSkipForward}>
             <Ionicons name="play-forward" size={22} color={Colors.text} />
           </TouchableOpacity>

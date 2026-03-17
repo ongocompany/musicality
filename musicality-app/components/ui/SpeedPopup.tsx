@@ -11,7 +11,7 @@ interface SpeedPopupProps {
 
 const MIN_RATE = 0.25;
 const MAX_RATE = 2.0;
-const STEP = 0.05;
+const STEP = 0.01;
 const DIAL_HEIGHT = 240;
 
 /**
@@ -137,7 +137,7 @@ export function SpeedPopup({ currentRate, rates, onSelectRate }: SpeedPopupProps
                 >
                   <Ionicons name="remove" size={20} color={Colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.fineLabel}>0.05x</Text>
+                <Text style={styles.fineLabel}>0.01x</Text>
                 <TouchableOpacity
                   style={styles.fineBtn}
                   onPress={() => {
