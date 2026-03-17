@@ -127,17 +127,41 @@ export function useVideoPlayer() {
     }
   }, []);
 
-  // Cleanup on track change — reset refs + pause + unload
+  // Reload video on track change — unload previous, load new source
+  const prevTrackIdRef = useRef<string | null>(null);
   useEffect(() => {
-    // Reset batch refs on new track
+    // Reset batch refs
     pendingPositionRef.current = null;
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
+
+    const video = videoRef.current;
+    if (!video || !currentTrack) return;
+
+    const isTrackChange = prevTrackIdRef.current !== null && prevTrackIdRef.current !== currentTrack.id;
+    prevTrackIdRef.current = currentTrack.id;
+
+    if (isTrackChange) {
+      // Unload previous and load new source
+      (async () => {
+        try {
+          await video.unloadAsync();
+          await video.loadAsync(
+            { uri: currentTrack.uri },
+            { shouldPlay: false, progressUpdateIntervalMillis: Platform.OS === 'android' ? 200 : 100 },
+          );
+          setPosition(0);
+          setDuration(0);
+          setIsPlaying(false);
+        } catch (e) {
+          // Safe to ignore load errors on rapid switching
+        }
+      })();
+    }
+
     return () => {
-      videoRef.current?.pauseAsync().catch(() => {});
-      videoRef.current?.unloadAsync().catch(() => {});
       pendingPositionRef.current = null;
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current);

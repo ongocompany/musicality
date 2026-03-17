@@ -1245,7 +1245,6 @@ export default function PlayerScreen() {
           <View style={styles.videoSection}>
             <View style={[styles.videoContainer, { aspectRatio: videoAspectRatio }]}>
               <Video
-                key={currentTrack.id}
                 ref={videoPlayer.videoRef}
                 source={{ uri: currentTrack.uri }}
                 style={styles.video}
