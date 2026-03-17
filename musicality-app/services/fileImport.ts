@@ -1,4 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
+import { File, Directory, Paths } from 'expo-file-system/next';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Track, MediaType } from '../types/track';
 
@@ -49,11 +50,25 @@ export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Tra
   const asset = result.assets[0];
   const mediaType = getMediaType(asset.mimeType, asset.name);
 
+  // Copy file from cache to permanent storage (fallback to cache URI if copy fails)
+  let fileUri = asset.uri;
+  try {
+    const mediaDir = new Directory(Paths.document, 'media');
+    if (!mediaDir.exists) mediaDir.create();
+    const destName = `${Date.now()}-${asset.name}`;
+    const sourceFile = new File(asset.uri);
+    sourceFile.copy(new File(mediaDir, destName));
+    fileUri = new File(mediaDir, destName).uri;
+    console.log(`[FileImport] Copied to permanent: ${fileUri.slice(-50)}`);
+  } catch (e: any) {
+    console.warn(`[FileImport] Copy failed, using cache URI: ${e?.message}`);
+  }
+
   // Generate thumbnail for video files
   let thumbnailUri: string | undefined;
   if (mediaType === 'video') {
     try {
-      const thumb = await VideoThumbnails.getThumbnailAsync(asset.uri, { time: 1000 });
+      const thumb = await VideoThumbnails.getThumbnailAsync(fileUri, { time: 1000 });
       thumbnailUri = thumb.uri;
     } catch {}
   }
@@ -61,7 +76,7 @@ export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Tra
   const track: Track = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     title: asset.name.replace(/\.[^/.]+$/, ''),
-    uri: asset.uri,
+    uri: fileUri,
     fileSize: asset.size ?? 0,
     format: getFormat(asset.mimeType, asset.name),
     mediaType,

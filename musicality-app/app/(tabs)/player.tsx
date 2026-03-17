@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, StatusBar, useWindowDimensions, Image, Platform, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Animated, Modal, TextInput, Keyboard, Pressable, StatusBar, useWindowDimensions, Image, Platform, Dimensions, PanResponder } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
@@ -111,6 +111,7 @@ export default function PlayerScreen() {
     setIsSeeking,
     setTrackAnalysisStatus,
     setTrackAnalysis,
+    setTrackPendingJobId,
   } = usePlayerStore();
 
   const videoAspectRatio = usePlayerStore((s) => s.videoAspectRatio);
@@ -217,6 +218,44 @@ export default function PlayerScreen() {
 
   // ─── Fullscreen video mode ───
   const [isFullScreen, setIsFullScreen] = useState(false);
+
+  // Video collapse/expand (swipe gesture)
+  const videoCollapseAnim = useRef(new Animated.Value(1)).current; // 1 = expanded, 0 = collapsed
+  const [videoCollapsed, setVideoCollapsed] = useState(false);
+  const videoMaxHeight = Dimensions.get('window').height * 0.4;
+
+  const collapseVideo = useCallback(() => {
+    setVideoCollapsed(true);
+    Animated.spring(videoCollapseAnim, {
+      toValue: 0,
+      useNativeDriver: false,
+      tension: 80,
+      friction: 12,
+    }).start();
+  }, []);
+
+  const expandVideo = useCallback(() => {
+    setVideoCollapsed(false);
+    Animated.spring(videoCollapseAnim, {
+      toValue: 1,
+      useNativeDriver: false,
+      tension: 80,
+      friction: 12,
+    }).start();
+  }, []);
+
+  const videoSwipeResponder = useMemo(() => {
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 10 && Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy < -30 && !videoCollapsed) {
+          collapseVideo();
+        } else if (gs.dy > 30 && videoCollapsed) {
+          expandVideo();
+        }
+      },
+    });
+  }, [videoCollapsed, collapseVideo, expandVideo]);
 
   const fullscreenVideoRef = useRef<Video>(null);
   const savedPositionRef = useRef(0);
@@ -980,7 +1019,10 @@ export default function PlayerScreen() {
 
     setTrackAnalysisStatus(currentTrack.id, 'analyzing');
     try {
-      const result = await analyzeTrack(currentTrack.uri, currentTrack.title, currentTrack.format);
+      const result = await analyzeTrack(
+        currentTrack.uri, currentTrack.title, currentTrack.format,
+        (jobId) => setTrackPendingJobId(currentTrack.id, jobId),
+      );
       setTrackAnalysis(currentTrack.id, result);
       // Store server phrase boundaries as 'S' edition (beat indices)
       if (result.phraseBoundaries && result.phraseBoundaries.length > 0) {
@@ -996,7 +1038,12 @@ export default function PlayerScreen() {
         setServerEdition(currentTrack.id, boundaryBeatIndices);
       }
     } catch (e: any) {
+      const isBackgroundError = e.name === 'AbortError'
+        || e.message?.includes('aborted')
+        || e.message?.includes('Network request failed');
+      if (isBackgroundError && usePlayerStore.getState().tracks.find(t => t.id === currentTrack.id)?.pendingJobId) return;
       setTrackAnalysisStatus(currentTrack.id, 'error');
+      setTrackPendingJobId(currentTrack.id, undefined);
       Alert.alert(t('player.analysisFailed'), e.message || 'Could not connect to analysis server.');
     }
   };
@@ -1260,23 +1307,50 @@ export default function PlayerScreen() {
         {/* ② Video Player — hide when fullscreen to avoid dual-instance conflict */}
         {isVideo && !isFullScreen && (
           <View style={styles.videoSection}>
-            <View style={[styles.videoContainer, { aspectRatio: videoAspectRatio }]}>
-              <Video
-                ref={videoPlayer.videoRef}
-                source={{ uri: currentTrack.uri }}
-                style={styles.video}
-                resizeMode={ResizeMode.CONTAIN}
-                shouldPlay={false}
-                progressUpdateIntervalMillis={Platform.OS === 'android' ? 200 : 100}
-                onPlaybackStatusUpdate={videoPlayer.onPlaybackStatusUpdate}
-                onReadyForDisplay={videoPlayer.onReadyForDisplay}
-                onLoad={onMainVideoLoad}
-              />
-              {currentTrack.analysisStatus === 'done' && (
-                <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 10, elevation: 10 }} pointerEvents="none">
-                  <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
-                </View>
-              )}
+            <Animated.View
+              style={{
+                maxHeight: videoCollapseAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, videoMaxHeight],
+                }),
+                opacity: videoCollapseAnim,
+                overflow: 'hidden',
+              }}
+              {...videoSwipeResponder.panHandlers}
+            >
+              <View style={[styles.videoContainer, { aspectRatio: videoAspectRatio }]}>
+                <Video
+                  ref={videoPlayer.videoRef}
+                  source={{ uri: currentTrack.uri }}
+                  style={styles.video}
+                  resizeMode={ResizeMode.CONTAIN}
+                  shouldPlay={false}
+                  progressUpdateIntervalMillis={Platform.OS === 'android' ? 200 : 100}
+                  onPlaybackStatusUpdate={videoPlayer.onPlaybackStatusUpdate}
+                  onReadyForDisplay={videoPlayer.onReadyForDisplay}
+                  onLoad={onMainVideoLoad}
+                />
+                {currentTrack.analysisStatus === 'done' && (
+                  <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 10, elevation: 10 }} pointerEvents="none">
+                    <VideoOverlay countInfo={countInfo} hasAnalysis={!!analysis} />
+                  </View>
+                )}
+              </View>
+            </Animated.View>
+            {/* Collapse/expand handle — larger touch area when collapsed */}
+            <View {...(videoCollapsed ? videoSwipeResponder.panHandlers : {})}>
+              <TouchableOpacity
+                style={[styles.videoCollapseHandle, videoCollapsed && styles.videoCollapseHandleExpanded]}
+                onPress={videoCollapsed ? expandVideo : collapseVideo}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={videoCollapsed ? 'chevron-down' : 'chevron-up'}
+                  size={videoCollapsed ? 20 : 16}
+                  color={videoCollapsed ? Colors.primary : Colors.textMuted}
+                />
+                {videoCollapsed && <Text style={{ color: Colors.textMuted, fontSize: 10, marginTop: 1 }}>Video</Text>}
+              </TouchableOpacity>
             </View>
             {currentTrack.analysisStatus === 'done' && (
               <View style={styles.videoCountSection}>
@@ -1645,11 +1719,7 @@ export default function PlayerScreen() {
                 <Ionicons name="close-circle" size={24} color={Colors.error} />
               </TouchableOpacity>
             </View>
-            {loopEnabled && (
-              <Text style={styles.loopStatus}>
-                {t('player.loop')}: {formatTime(loopStart ?? 0)} - {formatTime(loopEnd ?? 0)}
-              </Text>
-            )}
+            {/* Loop status text removed — A/B buttons already show times */}
           </View>
         )}
       </View>
@@ -1973,6 +2043,16 @@ const styles = StyleSheet.create({
 
   // ─── Video ──────────────────────────────────────
   videoSection: { flex: 1, alignItems: 'center' },
+  videoCollapseHandle: {
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  videoCollapseHandleExpanded: {
+    paddingVertical: 8,
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 8,
+  },
   videoContainer: {
     width: '100%',
     maxHeight: Dimensions.get('window').height * 0.4,
@@ -2278,14 +2358,14 @@ const styles = StyleSheet.create({
 
   // ─── Loop (inline A-B controls in scroll area) ──
   loopInlineSection: {
-    marginTop: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
+    marginTop: 2,
+    paddingHorizontal: Spacing.md,
   },
-  loopRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
+  loopRow: { flexDirection: 'row', gap: Spacing.xs, alignItems: 'center' },
   loopButton: {
     flex: 1,
-    paddingVertical: Spacing.sm,
-    borderRadius: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
     backgroundColor: Colors.surface,
     alignItems: 'center',
     borderWidth: 1,

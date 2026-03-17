@@ -83,10 +83,43 @@ async function pollForResult(
  * Upload an audio file to the analysis server and return beat analysis results.
  * Handles both sync (200 cache hit) and async (202 background job) responses.
  */
+/**
+ * Resume polling for a previously started analysis job.
+ * Used when app returns from background with a pending job.
+ */
+export async function resumeAnalysisJob(
+  jobId: string,
+  timeoutMs: number = ANALYSIS_TIMEOUT_MS,
+): Promise<AnalysisResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    // Check if already done before starting poll loop
+    const initial = await fetch(`${API_BASE_URL}/analyze/status/${jobId}`, {
+      signal: controller.signal,
+    });
+    if (initial.ok) {
+      const data = await initial.json();
+      if (data.status === 'done') return mapAnalysisResult(data.result);
+      if (data.status === 'error') throw new Error(data.error || 'Analysis failed on server');
+    }
+    return await pollForResult(jobId, controller.signal);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Upload an audio file to the analysis server and return beat analysis results.
+ * Handles both sync (200 cache hit) and async (202 background job) responses.
+ * onJobId is called immediately when a job_id is received, before polling starts.
+ */
 export async function analyzeTrack(
   uri: string,
   fileName: string,
   format: string,
+  onJobId?: (jobId: string) => void,
 ): Promise<AnalysisResult> {
   // For video files, extract audio via native module; for audio files, send original
   let uploadUri = uri;
@@ -160,8 +193,9 @@ export async function analyzeTrack(
 
     const data = await response.json();
 
-    // 202 Accepted → async job, poll for result
+    // 202 Accepted → async job, save jobId immediately then poll
     if (response.status === 202 && data.job_id) {
+      onJobId?.(data.job_id);
       return await pollForResult(data.job_id, controller.signal);
     }
 

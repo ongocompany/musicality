@@ -28,6 +28,7 @@ interface PlayerState {
   // Analysis
   setTrackAnalysisStatus: (trackId: string, status: AnalysisStatus) => void;
   setTrackAnalysis: (trackId: string, analysis: AnalysisResult) => void;
+  setTrackPendingJobId: (trackId: string, jobId: string | undefined) => void;
 
   // Sync
   setTrackRemoteId: (trackId: string, remoteId: string) => void;
@@ -141,11 +142,21 @@ export const usePlayerStore = create<PlayerState>()(
       setTrackAnalysis: (trackId, analysis) =>
         set((state) => ({
           tracks: state.tracks.map((t) =>
-            t.id === trackId ? { ...t, analysis, analysisStatus: 'done' as AnalysisStatus } : t,
+            t.id === trackId ? { ...t, analysis, analysisStatus: 'done' as AnalysisStatus, pendingJobId: undefined } : t,
           ),
           currentTrack:
             state.currentTrack?.id === trackId
-              ? { ...state.currentTrack, analysis, analysisStatus: 'done' as AnalysisStatus }
+              ? { ...state.currentTrack, analysis, analysisStatus: 'done' as AnalysisStatus, pendingJobId: undefined }
+              : state.currentTrack,
+        })),
+      setTrackPendingJobId: (trackId, jobId) =>
+        set((state) => ({
+          tracks: state.tracks.map((t) =>
+            t.id === trackId ? { ...t, pendingJobId: jobId } : t,
+          ),
+          currentTrack:
+            state.currentTrack?.id === trackId
+              ? { ...state.currentTrack, pendingJobId: jobId }
               : state.currentTrack,
         })),
 
@@ -238,7 +249,7 @@ export const usePlayerStore = create<PlayerState>()(
         if (!state) return;
         let changed = false;
         const fixed = state.tracks.map((t) => {
-          if (t.analysisStatus === 'analyzing') {
+          if (t.analysisStatus === 'analyzing' && !t.pendingJobId) {
             changed = true;
             return { ...t, analysisStatus: 'idle' as AnalysisStatus };
           }

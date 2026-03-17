@@ -25,5 +25,6 @@ export interface Track {
   folderId?: string; // undefined = root (uncategorized)
   analysis?: AnalysisResult;
   analysisStatus: AnalysisStatus;
+  pendingJobId?: string; // server job_id while analysis is in progress
   remoteId?: string; // Supabase player_tracks.id (set after cloud sync)
 }

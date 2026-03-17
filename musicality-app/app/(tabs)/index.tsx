@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Modal, Pressable } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Modal, Pressable, AppState } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { pickMediaFile, parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
-import { analyzeTrack } from '../../services/analysisApi';
+import { analyzeTrack, resumeAnalysisJob } from '../../services/analysisApi';
 import { Colors, Spacing, FontSize, NoteTypeColors } from '../../constants/theme';
 import { Track, MediaType, Folder, SortField } from '../../types/track';
 import { EditionId, TrackEditions } from '../../types/analysis';
@@ -295,7 +295,7 @@ function FolderItem({
 export default function LibraryScreen() {
   const {
     tracks, addTrack, removeTrack, renameTrack,
-    setCurrentTrack, setTrackAnalysisStatus, setTrackAnalysis,
+    setCurrentTrack, setTrackAnalysisStatus, setTrackAnalysis, setTrackPendingJobId,
     folders, createFolder, renameFolder, deleteFolder, moveTracksToFolder,
     sortBy, sortOrder, setSortBy, setSortOrder,
     currentTrack, isPlaying,
@@ -479,29 +479,72 @@ export default function LibraryScreen() {
     ]);
   };
 
+  const applyAnalysisResult = (trackId: string, result: import('../../types/analysis').AnalysisResult) => {
+    setTrackAnalysis(trackId, result);
+    if (result.phraseBoundaries && result.phraseBoundaries.length > 0) {
+      const boundaryBeatIndices = result.phraseBoundaries.map(ts => {
+        let closest = 0;
+        let minDiff = Math.abs(result.beats[0] - ts);
+        for (let i = 1; i < result.beats.length; i++) {
+          const diff = Math.abs(result.beats[i] - ts);
+          if (diff < minDiff) { minDiff = diff; closest = i; }
+        }
+        return closest;
+      });
+      setServerEdition(trackId, boundaryBeatIndices);
+    }
+  };
+
   const runAnalysis = async (track: Track) => {
     setAnalyzeMenuVisible(false);
     setTrackAnalysisStatus(track.id, 'analyzing');
     try {
-      const result = await analyzeTrack(track.uri, track.title, track.format);
-      setTrackAnalysis(track.id, result);
-      if (result.phraseBoundaries && result.phraseBoundaries.length > 0) {
-        const boundaryBeatIndices = result.phraseBoundaries.map(ts => {
-          let closest = 0;
-          let minDiff = Math.abs(result.beats[0] - ts);
-          for (let i = 1; i < result.beats.length; i++) {
-            const diff = Math.abs(result.beats[i] - ts);
-            if (diff < minDiff) { minDiff = diff; closest = i; }
-          }
-          return closest;
-        });
-        setServerEdition(track.id, boundaryBeatIndices);
-      }
+      const result = await analyzeTrack(
+        track.uri, track.title, track.format,
+        (jobId) => setTrackPendingJobId(track.id, jobId),
+      );
+      applyAnalysisResult(track.id, result);
     } catch (e: any) {
+      // If aborted or network lost (app went background), keep analyzing status + jobId for resume
+      const isBackgroundError = e.name === 'AbortError'
+        || e.message?.includes('aborted')
+        || e.message?.includes('Network request failed');
+      if (isBackgroundError && usePlayerStore.getState().tracks.find(t => t.id === track.id)?.pendingJobId) return;
       setTrackAnalysisStatus(track.id, 'error');
+      setTrackPendingJobId(track.id, undefined);
       Alert.alert(t('player.analysisFailed'), e.message || t('library.analysisServerError'));
     }
   };
+
+  // Resume pending analysis jobs when app returns to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (state) => {
+      if (state !== 'active') return;
+      // Wait for network to reconnect after background
+      await new Promise(r => setTimeout(r, 2000));
+      const pending = usePlayerStore.getState().tracks.filter(
+        t => t.analysisStatus === 'analyzing' && t.pendingJobId,
+      );
+      for (const track of pending) {
+        // Retry up to 3 times with 2s delay
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const result = await resumeAnalysisJob(track.pendingJobId!);
+            applyAnalysisResult(track.id, result);
+            break;
+          } catch {
+            if (attempt < 2) {
+              await new Promise(r => setTimeout(r, 2000));
+            } else {
+              setTrackAnalysisStatus(track.id, 'error');
+              setTrackPendingJobId(track.id, undefined);
+            }
+          }
+        }
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // ─── Sort handler ─────────────────────────────────
   const handleSortPress = () => {
