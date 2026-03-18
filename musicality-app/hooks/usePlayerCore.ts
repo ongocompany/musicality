@@ -6,10 +6,11 @@
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { activateKeepAwake, deactivateKeepAwake } from 'expo-keep-awake';
+import { syncAllEditionsForTrack, restoreEditionsFromServer } from '../services/editionSyncService';
 
 import { usePlayerStore } from '../stores/playerStore';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -238,6 +239,33 @@ export function usePlayerCore() {
     else deactivateKeepAwake('playing');
     return () => { deactivateKeepAwake('playing'); };
   }, [isPlaying]);
+
+  // ─── Edition sync: 곡 변경 시 서버 저장 + 새 곡 복원 ───
+  const prevTrackIdForSync = useRef<string | null>(null);
+  useEffect(() => {
+    const prevId = prevTrackIdForSync.current;
+    prevTrackIdForSync.current = currentTrack?.id ?? null;
+
+    // 이전 곡 에디션 서버 저장
+    if (prevId && prevId !== currentTrack?.id) {
+      syncAllEditionsForTrack(prevId).catch(() => {});
+    }
+
+    // 새 곡 에디션 서버에서 복원
+    if (currentTrack?.id && currentTrack.analysis?.fingerprint) {
+      restoreEditionsFromServer(currentTrack.id, currentTrack.analysis.fingerprint).catch(() => {});
+    }
+  }, [currentTrack?.id]);
+
+  // ─── Edition sync: 앱 백그라운드 진입 시 서버 저장 ───
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'background' && currentTrack?.id) {
+        syncAllEditionsForTrack(currentTrack.id).catch(() => {});
+      }
+    });
+    return () => sub.remove();
+  }, [currentTrack?.id]);
 
   // ─── Grid handlers ───
   const handleGridTapBeat = useCallback((globalBeatIndex: number) => {

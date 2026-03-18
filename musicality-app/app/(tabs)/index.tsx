@@ -11,8 +11,8 @@ import { pickMediaFile, parseYouTubeUrl, createYouTubeTrack } from '../../servic
 import { analyzeTrack, resumeAnalysisJob } from '../../services/analysisApi';
 import { Colors, Spacing, FontSize, NoteTypeColors } from '../../constants/theme';
 import { Track, MediaType, Folder, SortField } from '../../types/track';
-import { EditionId, TrackEditions } from '../../types/analysis';
-import { FormationEditionId, TrackFormations } from '../../types/formation';
+import { TrackEditions } from '../../types/analysis';
+import { TrackFormations } from '../../types/formation';
 
 // ─── Helpers ────────────────────────────────────────
 function formatFileSize(bytes: number): string {
@@ -157,15 +157,12 @@ function TrackItem({
 }
 
 function SwipeableTrackItem({
-  track, editions, formations, hasFormation, isSelected, selectMode, isNowPlaying,
+  track, editions, hasFormation, isSelected, selectMode, isNowPlaying,
   onPress, onLongPress, onAnalyze,
-  onSelectEdition, onDeleteEdition,
-  onSelectFormationEdition, onDeleteFormationEdition,
   onToggleSelect,
 }: {
   track: Track;
   editions?: TrackEditions;
-  formations?: TrackFormations;
   hasFormation?: boolean;
   isSelected: boolean;
   selectMode: boolean;
@@ -173,78 +170,11 @@ function SwipeableTrackItem({
   onPress: () => void;
   onLongPress: () => void;
   onAnalyze: () => void;
-  onSelectEdition: (trackId: string, editionId: EditionId) => void;
-  onDeleteEdition: (trackId: string, editionId: EditionId) => void;
-  onSelectFormationEdition: (trackId: string, editionId: FormationEditionId) => void;
-  onDeleteFormationEdition: (trackId: string, editionId: FormationEditionId) => void;
   onToggleSelect: (trackId: string) => void;
 }) {
-  const { t } = useTranslation();
   const swipeableRef = useRef<Swipeable>(null);
-  const hasEditions = editions && (editions.server || editions.userEditions.length > 0);
-  const hasFormationEditions = formations && formations.userEditions.length > 0;
 
-  const renderRightActions = useCallback(() => {
-    if (!hasEditions && !hasFormationEditions) return null;
-
-    // PhraseNote user editions
-    const phraseIds = editions ? (['1', '2', '3'] as EditionId[]).filter(
-      id => editions.userEditions.some(e => e.id === id)
-    ) : [];
-    // Formation user editions
-    const formationIds = formations ? (['1', '2', '3'] as FormationEditionId[]).filter(
-      id => formations.userEditions.some(e => e.id === id)
-    ) : [];
-
-    if (phraseIds.length === 0 && formationIds.length === 0) return null;
-
-    return (
-      <View style={styles.swipeActions}>
-        {/* PhraseNote editions (purple) */}
-        {phraseIds.map((id) => (
-          <TouchableOpacity
-            key={`p${id}`}
-            style={[
-              styles.swipeEditionBtn,
-              { backgroundColor: 'rgba(187, 134, 252, 0.15)', borderColor: NoteTypeColors.phraseNote },
-              editions?.activeEditionId === id && { backgroundColor: 'rgba(187, 134, 252, 0.3)' },
-            ]}
-            onPress={() => { onSelectEdition(track.id, id); swipeableRef.current?.close(); }}
-            onLongPress={() => {
-              Alert.alert(t('library.deletePhraseEdition', { id }), t('library.deletePhraseEditionConfirm'), [
-                { text: t('common.cancel'), style: 'cancel' },
-                { text: t('common.delete'), style: 'destructive', onPress: () => { onDeleteEdition(track.id, id); swipeableRef.current?.close(); } },
-              ]);
-            }}
-          >
-            <Text style={{ fontSize: 10, color: NoteTypeColors.phraseNote, marginBottom: 1 }}>Ⓟ</Text>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: NoteTypeColors.phraseNote }}>{id}</Text>
-          </TouchableOpacity>
-        ))}
-        {/* Formation editions (gold) */}
-        {formationIds.map((id) => (
-          <TouchableOpacity
-            key={`f${id}`}
-            style={[
-              styles.swipeEditionBtn,
-              { backgroundColor: 'rgba(255, 215, 0, 0.15)', borderColor: NoteTypeColors.choreoNote },
-              formations?.activeEditionId === id && { backgroundColor: 'rgba(255, 215, 0, 0.3)' },
-            ]}
-            onPress={() => { onSelectFormationEdition(track.id, id); swipeableRef.current?.close(); }}
-            onLongPress={() => {
-              Alert.alert(t('library.deleteChoreoEdition', { id }), t('library.deleteChoreoEditionConfirm'), [
-                { text: t('common.cancel'), style: 'cancel' },
-                { text: t('common.delete'), style: 'destructive', onPress: () => { onDeleteFormationEdition(track.id, id); swipeableRef.current?.close(); } },
-              ]);
-            }}
-          >
-            <Text style={{ fontSize: 10, color: NoteTypeColors.choreoNote, marginBottom: 1 }}>Ⓒ</Text>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: NoteTypeColors.choreoNote }}>{id}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  }, [editions, formations, track.id, onSelectEdition, onDeleteEdition, onSelectFormationEdition, onDeleteFormationEdition]);
+  // 오른쪽 스와이프 에디션 선택 제거 — 플레이어 내 SlotBar로 이동
 
   // Right swipe → visual indicator (selection triggered on open)
   const renderLeftActions = useCallback(() => (
@@ -265,7 +195,6 @@ function SwipeableTrackItem({
   return (
     <Swipeable
       ref={swipeableRef}
-      renderRightActions={(hasEditions || hasFormationEditions) ? renderRightActions : undefined}
       renderLeftActions={renderLeftActions}
       overshootRight={false}
       overshootLeft={false}
@@ -316,13 +245,9 @@ export default function LibraryScreen() {
     currentTrack, isPlaying,
   } = usePlayerStore();
   const trackEditions = useSettingsStore((s) => s.trackEditions);
-  const setActiveEdition = useSettingsStore((s) => s.setActiveEdition);
-  const deleteUserEdition = useSettingsStore((s) => s.deleteUserEdition);
   const setServerEdition = useSettingsStore((s) => s.setServerEdition);
   const setServerFormation = useSettingsStore((s) => s.setServerFormation);
   const trackFormations = useSettingsStore((s) => s.trackFormations);
-  const setActiveFormationEdition = useSettingsStore((s) => s.setActiveFormationEdition);
-  const deleteFormationEdition = useSettingsStore((s) => s.deleteFormationEdition);
   const danceStyle = useSettingsStore((s) => s.danceStyle);
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -782,7 +707,6 @@ export default function LibraryScreen() {
               <SwipeableTrackItem
                 track={item.track}
                 editions={trackEditions[item.track.id]}
-                formations={trackFormations[item.track.id]}
                 hasFormation={!!trackFormations[item.track.id]?.server?.data?.keyframes?.length
                   || (trackFormations[item.track.id]?.userEditions?.length ?? 0) > 0}
                 isSelected={selectedTracks.has(item.track.id)}
@@ -791,10 +715,6 @@ export default function LibraryScreen() {
                 onPress={() => handlePlay(item.track)}
                 onLongPress={() => handleLongPress(item.track)}
                 onAnalyze={() => handleAnalyzePress(item.track)}
-                onSelectEdition={setActiveEdition}
-                onDeleteEdition={deleteUserEdition}
-                onSelectFormationEdition={setActiveFormationEdition}
-                onDeleteFormationEdition={deleteFormationEdition}
                 onToggleSelect={toggleSelect}
               />
             );
@@ -1161,21 +1081,6 @@ const styles = StyleSheet.create({
   },
 
   // ─── Swipeable Actions ────────────────────────────
-  swipeActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: Spacing.xs,
-    marginBottom: Spacing.sm,
-  },
-  swipeEditionBtn: {
-    width: 40,
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-    marginLeft: 3,
-  },
-  swipeEditionServer: { backgroundColor: 'rgba(255, 193, 7, 0.25)' },
   swipeEditionUser: { backgroundColor: 'rgba(156, 39, 176, 0.25)' },
   swipeEditionActive: { borderWidth: 2, borderColor: Colors.text },
   swipeEditionText: { fontSize: 18, fontWeight: '800' },
