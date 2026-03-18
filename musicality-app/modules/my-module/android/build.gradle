@@ -1,0 +1,10 @@
+apply plugin: 'expo-module-gradle-plugin'
+
+android {
+  namespace "expo.modules.audioextractor"
+
+  defaultConfig {
+    versionName "1.0.0"
+    versionCode 1
+  }
+}
