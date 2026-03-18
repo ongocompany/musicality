@@ -1149,16 +1149,9 @@ export default function PlayerScreen() {
 
   // ─── Route to refactored screens ───
   if (!isVisual && currentTrack.analysisStatus === 'done') {
-    switch (playerMode.mode) {
-      case 'grid-view':
-        return <AudioViewScreen playerCore={playerCore} playerMode={playerMode} />;
-      case 'grid-edit':
-        return <AudioGridEditScreen playerCore={playerCore} playerMode={playerMode} />;
-      case 'form-view':
-        return <AudioFormViewScreen playerCore={playerCore} playerMode={playerMode} />;
-      case 'form-edit':
-        return <AudioFormEditScreen playerCore={playerCore} playerMode={playerMode} />;
-    }
+    return playerMode.isFormation
+      ? <AudioFormEditScreen playerCore={playerCore} playerMode={playerMode} />
+      : <AudioGridEditScreen playerCore={playerCore} playerMode={playerMode} />;
   }
 
   // ─── Route to video screen (통합 — 분석 여부 무관) ───
@@ -1859,8 +1852,7 @@ export default function PlayerScreen() {
               onPress={() => {
                 setEditMode(editMode === 'note' ? 'none' : 'note');
                 // Sync with new mode system: toggle grid-edit
-                if (editMode === 'note') playerMode.onGridTap();
-                else playerMode.onGridLongPress();
+                playerMode.onGridPress();
               }}
               style={styles.editModeToggle}
             >

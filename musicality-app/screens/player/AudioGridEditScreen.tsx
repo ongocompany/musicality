@@ -11,14 +11,15 @@ import { useTranslation } from 'react-i18next';
 import { usePlayerCore } from '../../hooks/usePlayerCore';
 import { usePlayerMode } from '../../hooks/usePlayerMode';
 import { useFocusMode } from '../../hooks/useFocusMode';
+import { useSlotSelector } from '../../hooks/useSlotSelector';
 
 import { PhraseGrid } from '../../components/ui/PhraseGrid';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
-import { ModeSegment } from '../../components/player/ModeSegment';
 import { MarqueeTitle } from '../../components/player/MarqueeTitle';
 import { CountDisplay } from '../../components/player/CountDisplay';
 import { SettingsModal } from '../../components/player/SettingsModal';
+import { SlotBar } from '../../components/player/SlotBar';
 
 import { Colors, Spacing, getPhraseColor, blendColors } from '../../constants/theme';
 
@@ -38,6 +39,7 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
   const { t } = useTranslation();
   const [settingsVisible, setSettingsVisible] = useState(false);
   const focus = useFocusMode();
+  const slot = useSlotSelector('phrase');
 
   const {
     currentTrack, isPlaying, position, duration, playbackRate,
@@ -74,10 +76,10 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
           <Ionicons name="musical-notes" size={18} color={Colors.primary} style={{ marginRight: Spacing.xs }} />
           <MarqueeTitle text={currentTrack.title} style={styles.headerTitle} />
           <View style={styles.headerMeta}>
-            <View style={styles.slotBadge}>
-              <Text style={styles.slotText}>S</Text>
-              <View style={styles.autoDot} />
-            </View>
+            <TouchableOpacity style={[styles.slotBadge, { borderColor: slot.slotColor + '80' }]} onPress={slot.toggleSlotBar}>
+              <Text style={[styles.slotText, { color: slot.slotColor }]}>{slot.slotLabel}</Text>
+              {!slot.isReadOnly && <View style={[styles.autoDot, { backgroundColor: slot.slotColor }]} />}
+            </TouchableOpacity>
             {displayBpm > 0 && (
               <View style={styles.bpmBadge}>
                 <Text style={styles.bpmText}>{displayBpm} BPM</Text>
@@ -89,10 +91,23 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
           </View>
         </View>
 
-        {/* ② Count (small) + Grid (editable) */}
+        {/* ② Slot bar (펼침/접힘) */}
+        {slot.slotBarVisible && (
+          <SlotBar
+            mode="phrase"
+            activeSlot={slot.activeSlot}
+            hasServerEdition={slot.hasServerEdition}
+            userSlotCount={slot.userSlotCount}
+            importedNotes={slot.trackImportedNotes}
+            onSelectSlot={slot.selectSlot}
+            onClose={slot.toggleSlotBar}
+          />
+        )}
+
+        {/* ③ Count + Grid (editable) */}
         {currentTrack.analysisStatus === 'done' && (
           <View style={styles.countSection} {...focus.focusSwipeResponder.panHandlers}>
-            <CountDisplay count={countInfo?.count ?? '--'} color={countColor} size="small" />
+            <CountDisplay count={countInfo?.count ?? '--'} color={countColor} size="large" />
 
             <View style={{ flex: 1, width: '100%' }}>
               <PhraseGrid
@@ -165,14 +180,9 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
         opacity: focus.focusAnim, overflow: 'hidden',
       }]}>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-end' }]}>
-          <ModeSegment
-            gridState={playerMode.gridSegState}
-            formState={playerMode.formSegState}
-            onGridTap={playerMode.onGridTap}
-            onGridLongPress={playerMode.onGridLongPress}
-            onFormTap={playerMode.onFormTap}
-            onFormLongPress={playerMode.onFormLongPress}
-          />
+          <TouchableOpacity onPress={playerMode.onGridPress} style={[styles.modeBtn, playerMode.isGrid && styles.modeBtnActive]}>
+            <Ionicons name="grid-outline" size={18} color={playerMode.isGrid ? Colors.primary : Colors.textMuted} />
+          </TouchableOpacity>
           <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
           <TouchableOpacity onPress={handleSkipBack} onLongPress={() => seekTo(0)} delayLongPress={400}>
             <Ionicons name="play-back" size={22} color={Colors.text} />
@@ -190,6 +200,9 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
               name={cueEnabled ? 'volume-high' : 'volume-mute'} size={20}
               color={cueEnabled ? Colors.accent : Colors.textMuted}
             />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={playerMode.onFormPress} style={[styles.modeBtn, playerMode.isFormation && styles.modeBtnActive]}>
+            <Ionicons name="people-outline" size={18} color={playerMode.isFormation ? Colors.primary : Colors.textMuted} />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleUndo} disabled={!canUndo} style={{ opacity: canUndo ? 1 : 0.3 }}>
             <Ionicons name="arrow-undo" size={20} color={Colors.primary} />
@@ -281,6 +294,14 @@ const styles = StyleSheet.create({
     width: 48, height: 48, borderRadius: 24,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
     marginHorizontal: Spacing.md,
+  },
+  modeBtn: {
+    width: 32, height: 32, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  modeBtnActive: {
+    backgroundColor: 'rgba(187,134,252,0.2)',
   },
   focusPlayButton: {
     position: 'absolute', bottom: 12, right: 12,

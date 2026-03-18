@@ -27,10 +27,9 @@ export function SettingsModal({
   const { t } = useTranslation();
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => {}}>
-          <View style={styles.handle} />
           <Text style={styles.title}>{t('player.trackSettings', '트랙 설정')}</Text>
 
           {/* Beat offset */}
@@ -108,29 +107,22 @@ export function SettingsModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sheet: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 16,
-    maxHeight: '70%',
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    backgroundColor: Colors.border,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 20,
+    width: '85%',
   },
   title: {
     fontSize: 14,
     fontWeight: '700',
     color: Colors.text,
     marginBottom: 12,
+    textAlign: 'center',
   },
   item: {
     flexDirection: 'row',

@@ -12,15 +12,16 @@ import { usePlayerCore } from '../../hooks/usePlayerCore';
 import { usePlayerMode } from '../../hooks/usePlayerMode';
 import { useFormationEditor } from '../../hooks/useFormationEditor';
 import { useFocusMode } from '../../hooks/useFocusMode';
+import { useSlotSelector } from '../../hooks/useSlotSelector';
 
 import { PhraseGrid } from '../../components/ui/PhraseGrid';
 import { FormationStageView } from '../../components/ui/FormationStageView';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
-import { ModeSegment } from '../../components/player/ModeSegment';
 import { MarqueeTitle } from '../../components/player/MarqueeTitle';
 import { SettingsModal } from '../../components/player/SettingsModal';
 import { FormationSetupModal } from '../../components/player/FormationSetupModal';
+import { SlotBar } from '../../components/player/SlotBar';
 
 import { useSettingsStore } from '../../stores/settingsStore';
 import { Colors, Spacing } from '../../constants/theme';
@@ -37,6 +38,7 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [setupVisible, setSetupVisible] = useState(false);
   const focus = useFocusMode();
+  const slot = useSlotSelector('formation');
   const setDraftFormation = useSettingsStore((s) => s.setDraftFormation);
 
   const {
@@ -80,10 +82,10 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
           <Ionicons name="musical-notes" size={18} color={Colors.primary} style={{ marginRight: Spacing.xs }} />
           <MarqueeTitle text={currentTrack.title} style={styles.headerTitle} />
           <View style={styles.headerMeta}>
-            <View style={styles.slotBadge}>
-              <Text style={styles.slotText}>S</Text>
-              <View style={styles.autoDot} />
-            </View>
+            <TouchableOpacity style={[styles.slotBadge, { borderColor: slot.slotColor + '80' }]} onPress={slot.toggleSlotBar}>
+              <Text style={[styles.slotText, { color: slot.slotColor }]}>{slot.slotLabel}</Text>
+              {!slot.isReadOnly && <View style={[styles.autoDot, { backgroundColor: slot.slotColor }]} />}
+            </TouchableOpacity>
             {displayBpm > 0 && (
               <View style={styles.bpmBadge}>
                 <Text style={styles.bpmText}>{displayBpm} BPM</Text>
@@ -95,7 +97,20 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
           </View>
         </View>
 
-        {/* ② Stage (고정 높이) */}
+        {/* ② Slot bar */}
+        {slot.slotBarVisible && (
+          <SlotBar
+            mode="formation"
+            activeSlot={slot.activeSlot}
+            hasServerEdition={slot.hasServerEdition}
+            userSlotCount={slot.userSlotCount}
+            importedNotes={slot.trackImportedNotes}
+            onSelectSlot={slot.selectSlot}
+            onClose={slot.toggleSlotBar}
+          />
+        )}
+
+        {/* ③ Stage (고정 높이) */}
         {currentTrack.analysisStatus === 'done' && hasFormation && (
           <View style={styles.stageWrapper}>
             <FormationStageView
@@ -199,14 +214,9 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
         opacity: focus.focusAnim, overflow: 'hidden',
       }]}>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-end' }]}>
-          <ModeSegment
-            gridState={playerMode.gridSegState}
-            formState={playerMode.formSegState}
-            onGridTap={playerMode.onGridTap}
-            onGridLongPress={playerMode.onGridLongPress}
-            onFormTap={playerMode.onFormTap}
-            onFormLongPress={playerMode.onFormLongPress}
-          />
+          <TouchableOpacity onPress={playerMode.onGridPress} style={[styles.modeBtn, playerMode.isGrid && styles.modeBtnActive]}>
+            <Ionicons name="grid-outline" size={18} color={playerMode.isGrid ? Colors.primary : Colors.textMuted} />
+          </TouchableOpacity>
           <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
           <TouchableOpacity onPress={handleSkipBack} onLongPress={() => seekTo(0)} delayLongPress={400}>
             <Ionicons name="play-back" size={22} color={Colors.text} />
@@ -224,6 +234,9 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
               name={cueEnabled ? 'volume-high' : 'volume-mute'} size={20}
               color={cueEnabled ? Colors.accent : Colors.textMuted}
             />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={playerMode.onFormPress} style={[styles.modeBtn, playerMode.isFormation && styles.modeBtnActive]}>
+            <Ionicons name="people-outline" size={18} color={playerMode.isFormation ? Colors.primary : Colors.textMuted} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={formation.handleFormationUndo}
@@ -337,5 +350,13 @@ const styles = StyleSheet.create({
     width: 48, height: 48, borderRadius: 24,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
     marginHorizontal: Spacing.md,
+  },
+  modeBtn: {
+    width: 32, height: 32, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  modeBtnActive: {
+    backgroundColor: 'rgba(187,134,252,0.2)',
   },
 });
