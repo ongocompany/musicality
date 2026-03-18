@@ -148,13 +148,13 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
               beats={effectiveBeats}
               isPlaying={isPlaying}
               onTapBeat={handleGridTapBeat}
-              onReArrangePhrase={slot.isReadOnly ? () => {} : handleReArrangePhrase}
-              onSplitPhraseHere={slot.isReadOnly ? () => {} : handleSplitPhraseHere}
+              onReArrangePhrase={slot.isReadOnly ? () => { slot.tryEdit(); } : handleReArrangePhrase}
+              onSplitPhraseHere={slot.isReadOnly ? () => { slot.tryEdit(); } : handleSplitPhraseHere}
               onSetLoopPoint={handleSetLoopPoint}
               onClearLoop={clearLoop}
               onSeekAndPlay={handleSeekAndPlay}
               onSeekOnly={handleSeekOnly}
-              onMergeWithPrevious={slot.isReadOnly ? () => {} : handleMergeWithPrevious}
+              onMergeWithPrevious={slot.isReadOnly ? () => { slot.tryEdit(); } : handleMergeWithPrevious}
               loopStart={loopStart}
               loopEnd={loopEnd}
               scrollMode={gridScrollMode}
@@ -269,6 +269,7 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
             setBeatTimeOffset(currentTrack.id, 0);
             playerCore.clearDraft(currentTrack.id);
             formation.clearFormationDraft(currentTrack.id);
+            slot.resetSlotToServer();
           }
         }}
       />
@@ -296,11 +297,12 @@ const styles = StyleSheet.create({
   headerMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   slotBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
     borderWidth: 1.5, borderColor: 'rgba(187,134,252,0.5)',
     backgroundColor: 'rgba(187,134,252,0.08)',
+    minWidth: 32, justifyContent: 'center',
   },
-  slotText: { fontSize: 10, fontWeight: '800', color: Colors.primary },
+  slotText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
   autoDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.success },
   bpmBadge: {
     paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,

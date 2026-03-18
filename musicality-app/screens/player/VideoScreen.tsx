@@ -20,7 +20,6 @@ import { PhraseGrid } from '../../components/ui/PhraseGrid';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
-import { ModeSegment } from '../../components/player/ModeSegment';
 import { MarqueeTitle } from '../../components/player/MarqueeTitle';
 import { SettingsModal } from '../../components/player/SettingsModal';
 
@@ -381,15 +380,9 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
           {/* Bottom bar */}
           <View style={styles.bottomBar}>
             <View style={[styles.bottomBarSide, { justifyContent: 'flex-end' }]}>
-              <ModeSegment
-                gridState={playerMode.gridSegState}
-                formState={playerMode.formSegState}
-                onGridTap={playerMode.onGridTap}
-                onGridLongPress={playerMode.onGridLongPress}
-                onFormTap={playerMode.onFormTap}
-                onFormLongPress={playerMode.onFormLongPress}
-                formDisabled={true}
-              />
+              <View style={styles.modeBtn}>
+                <Ionicons name="grid-outline" size={18} color={Colors.primary} />
+              </View>
               <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
               <TouchableOpacity onPress={() => { handleSkipBack(); showControls(); }} onLongPress={() => seekTo(0)} delayLongPress={400}>
                 <Ionicons name="play-back" size={22} color={Colors.text} />
@@ -573,5 +566,10 @@ const styles = StyleSheet.create({
     width: 48, height: 48, borderRadius: 24,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
     marginHorizontal: Spacing.md,
+  },
+  modeBtn: {
+    width: 32, height: 32, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(187,134,252,0.2)',
   },
 });

@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { Alert } from 'react-native';
 import { useSettingsStore } from '../stores/settingsStore';
 import { usePlayerStore } from '../stores/playerStore';
 import { Colors } from '../constants/theme';
@@ -53,11 +54,13 @@ export function useSlotSelector(mode: SlotMode) {
 
   const activeSlot = useMemo((): string => {
     if (activeImported) return `imported-${activeImported.id}`;
-    if (mode === 'phrase') return editions?.activeEditionId ?? 'S';
+    if (mode === 'phrase') return editions?.activeEditionId ?? '1';
     return formations?.activeEditionId ?? '1';
   }, [mode, editions?.activeEditionId, formations?.activeEditionId, activeImported]);
 
-  const isReadOnly = activeSlot === 'S' || activeSlot.startsWith('imported-');
+  const isServerSlot = activeSlot === 'S';
+  const isImported = activeSlot.startsWith('imported-');
+  const isReadOnly = isServerSlot || isImported;
 
   // ─── 슬롯 바 표시/숨김 ───
   const [slotBarVisible, setSlotBarVisible] = useState(false);
@@ -168,6 +171,84 @@ export function useSlotSelector(mode: SlotMode) {
     };
   }, [currentDraft]);
 
+  // ─── 진입 시 자동 슬롯 전환 ───
+  // 개인 에디션 있으면 → 슬롯 1 선택
+  // 개인 에디션 없으면 → R 데이터로 1/2/3 생성 → 슬롯 1 선택
+  const autoSwitchedRef = useRef(false);
+  useEffect(() => {
+    if (!trackId || autoSwitchedRef.current) return;
+
+    if (userSlotCount > 0 && isServerSlot) {
+      // 개인 에디션 있는데 R 선택 → 1로 전환
+      autoSwitchedRef.current = true;
+      selectSlot('1');
+    } else if (userSlotCount === 0 && isServerSlot) {
+      // 개인 에디션 없음 → R 데이터로 1/2/3 생성
+      autoSwitchedRef.current = true;
+      createSlotsFromServer();
+    }
+  }, [trackId, userSlotCount, isServerSlot]);
+
+  useEffect(() => {
+    autoSwitchedRef.current = false;
+  }, [trackId]);
+
+  // R 데이터를 1/2/3 슬롯에 복제
+  const createSlotsFromServer = useCallback(() => {
+    if (!trackId) return;
+    const slots = ['1', '2', '3'] as const;
+    if (mode === 'phrase') {
+      const serverBoundaries = editions?.server?.boundaries ?? [];
+      for (const s of slots) {
+        setEditionBoundaries(trackId, s as EditionId, [...serverBoundaries]);
+      }
+      setActiveEdition(trackId, '1' as EditionId);
+    } else {
+      const serverData = formations?.server?.data;
+      if (serverData) {
+        for (const s of slots) {
+          setFormationEdition(trackId, s as FormationEditionId, JSON.parse(JSON.stringify(serverData)));
+        }
+      }
+      setActiveFormationEdition(trackId, '1' as FormationEditionId);
+    }
+  }, [trackId, mode, editions, formations, setEditionBoundaries, setFormationEdition, setActiveEdition, setActiveFormationEdition]);
+
+  // ─── R 슬롯에서 편집 시도 시 처리 ───
+  const tryEdit = useCallback((): boolean => {
+    if (!isReadOnly) return true; // 편집 가능
+
+    if (isImported) {
+      Alert.alert('읽기 전용', '커뮤니티 에디션은 수정할 수 없습니다.');
+      return false;
+    }
+
+    if (isServerSlot) {
+      // R에서 편집 시도 → 자동으로 슬롯 생성 + 전환
+      createSlotsFromServer();
+      return false; // 이번 액션은 취소, 다음부터 편집 가능
+    }
+
+    return false;
+  }, [isReadOnly, isImported, isServerSlot, userSlotCount, selectSlot]);
+
+  // ─── 초기화: 현재 슬롯을 R 데이터로 복원 ───
+  const resetSlotToServer = useCallback(() => {
+    if (!trackId || isReadOnly) return;
+    const slotId = activeSlot;
+    if (slotId === 'S' || slotId.startsWith('imported')) return;
+
+    if (mode === 'phrase') {
+      const serverBoundaries = editions?.server?.boundaries ?? [];
+      setEditionBoundaries(trackId, slotId as EditionId, [...serverBoundaries]);
+    } else {
+      const serverData = formations?.server?.data;
+      if (serverData) {
+        setFormationEdition(trackId, slotId as FormationEditionId, JSON.parse(JSON.stringify(serverData)));
+      }
+    }
+  }, [trackId, activeSlot, isReadOnly, mode, editions, formations, setEditionBoundaries, setFormationEdition]);
+
   return {
     // 상태
     slotBarVisible,
@@ -182,6 +263,8 @@ export function useSlotSelector(mode: SlotMode) {
     // 액션
     toggleSlotBar,
     selectSlot,
+    tryEdit,
+    resetSlotToServer,
   };
 }
 
