@@ -158,7 +158,7 @@ export function PhraseGrid({
   const cellSize = useMemo(() => {
     if (containerWidth <= 0) return 0;
     const margins = COLS * CELL_GAP;
-    const available = containerWidth - ROW_LABEL_WIDTH - margins;
+    const available = containerWidth - ROW_LABEL_WIDTH - 22 - margins;
     return Math.max(Math.floor(available / COLS), MIN_CELL_SIZE);
   }, [containerWidth]);
 

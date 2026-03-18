@@ -20,6 +20,12 @@ import { useVideoPlayer } from '../../hooks/useVideoPlayer';
 import { useYouTubePlayer } from '../../hooks/useYouTubePlayer';
 import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
+import { usePlayerCore } from '../../hooks/usePlayerCore';
+import { usePlayerMode } from '../../hooks/usePlayerMode';
+import { AudioViewScreen } from '../../screens/player/AudioViewScreen';
+import { AudioGridEditScreen } from '../../screens/player/AudioGridEditScreen';
+import { AudioFormViewScreen } from '../../screens/player/AudioFormViewScreen';
+import { AudioFormEditScreen } from '../../screens/player/AudioFormEditScreen';
 import { buildPhraseNoteFile, exportPhraseNote, pickPhraseNoteFile, findMatchingTrack, validatePhraseNote } from '../../services/phraseNoteService';
 import { ImportedPhraseNote } from '../../types/phraseNote';
 import { FormationData, StageConfig, createDefaultDancers, STAGE_PRESETS } from '../../types/formation';
@@ -111,6 +117,8 @@ function PulsingR({ size = 14 }: { size?: number }) {
 }
 
 export default function PlayerScreen() {
+  const playerCore = usePlayerCore();
+  const playerMode = usePlayerMode();
   const { t } = useTranslation();
   const {
     currentTrack,
@@ -1138,6 +1146,20 @@ export default function PlayerScreen() {
     );
   }
 
+  // ─── NEW: Route to refactored screens for audio modes ───
+  if (!isVisual && currentTrack.analysisStatus === 'done') {
+    switch (playerMode.mode) {
+      case 'grid-view':
+        return <AudioViewScreen playerCore={playerCore} playerMode={playerMode} />;
+      case 'grid-edit':
+        return <AudioGridEditScreen playerCore={playerCore} playerMode={playerMode} />;
+      case 'form-view':
+        return <AudioFormViewScreen playerCore={playerCore} playerMode={playerMode} />;
+      case 'form-edit':
+        return <AudioFormEditScreen playerCore={playerCore} playerMode={playerMode} />;
+    }
+  }
+
   // ─── Header icon based on media type ───────────────
   const headerIcon = isYouTube ? 'logo-youtube' : isVideo ? 'videocam' : 'musical-notes';
   const headerIconColor = isYouTube ? '#FF0000' : Colors.primary;
@@ -1828,7 +1850,12 @@ export default function PlayerScreen() {
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-end' }]}>
           {currentTrack?.analysisStatus === 'done' && (
             <TouchableOpacity
-              onPress={() => setEditMode(editMode === 'note' ? 'none' : 'note')}
+              onPress={() => {
+                setEditMode(editMode === 'note' ? 'none' : 'note');
+                // Sync with new mode system: toggle grid-edit
+                if (editMode === 'note') playerMode.onGridTap();
+                else playerMode.onGridLongPress();
+              }}
               style={styles.editModeToggle}
             >
               <Ionicons
