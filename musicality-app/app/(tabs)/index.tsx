@@ -438,6 +438,21 @@ export default function LibraryScreen() {
   const runAnalysis = async (track: Track) => {
     setAnalyzeMenuVisible(false);
     setTrackAnalysisStatus(track.id, 'analyzing');
+
+    // 1차: 온디바이스 분석
+    try {
+      console.log('[Analysis] Trying on-device analysis...');
+      const { analyzeOnDevice, toAnalysisResult } = require('../../services/onDeviceAnalyzer');
+      const onDeviceResult = await analyzeOnDevice(track.uri, track.format);
+      const result = toAnalysisResult(onDeviceResult);
+      applyAnalysisResult(track.id, result);
+      console.log(`[Analysis] On-device success: BPM=${result.bpm}, ${onDeviceResult.analysisTimeMs}ms`);
+      return;
+    } catch (onDeviceErr: any) {
+      console.warn('[Analysis] On-device failed, falling back to server:', onDeviceErr.message);
+    }
+
+    // 2차: 서버 fallback
     try {
       const result = await analyzeTrack(
         track.uri, track.title, track.format,
@@ -445,7 +460,6 @@ export default function LibraryScreen() {
       );
       applyAnalysisResult(track.id, result);
     } catch (e: any) {
-      // If aborted or network lost (app went background), keep analyzing status + jobId for resume
       const isBackgroundError = e.name === 'AbortError'
         || e.message?.includes('aborted')
         || e.message?.includes('Network request failed');
