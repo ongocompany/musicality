@@ -201,6 +201,8 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
                 onChangeState={youtubePlayer.onStateChange}
                 webViewProps={{
                   allowsInlineMediaPlayback: true,
+                  nestedScrollEnabled: false,
+                  overScrollMode: 'never',
                   injectedJavaScript: `
                     (function(){
                       document.addEventListener('message', function(e) {
@@ -545,15 +547,18 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 0, left: 0, right: 0,
     alignItems: 'center', paddingVertical: 8,
     backgroundColor: 'rgba(18,18,18,0.6)',
+    zIndex: 100, elevation: 100,
   },
   controlsOverlay: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: 'rgba(18,18,18,0.92)',
     borderTopWidth: 1, borderTopColor: Colors.surface,
+    zIndex: 100, elevation: 100,
   },
   controlsStatic: {
     borderTopWidth: 1, borderTopColor: Colors.surface,
     backgroundColor: Colors.background,
+    zIndex: 100, elevation: 100,
   },
   seekSection: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   bottomBar: {
