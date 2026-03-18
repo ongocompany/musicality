@@ -224,6 +224,9 @@ export function FormationStageView({
   // onTogglePlay prop used for fullscreen play/pause
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragStartNormRef = useRef<{ x: number; y: number } | null>(null);
+  const dragPendingRef = useRef<{ dx: number; dy: number } | null>(null);
+  const dragRafRef = useRef<number | null>(null);
 
   // Crew members for assignment
   const myCrewIds = useCommunityStore((s) => s.myCrewIds);
@@ -370,6 +373,7 @@ export function FormationStageView({
         const dancer = findClosestDancer(normX, normY);
         if (dancer) {
           setDragDancerId(dancer);
+          dragStartNormRef.current = { x: normX, y: normY };
           // Start long-press timer
           longPressTimerRef.current = setTimeout(() => {
             handleLongPressDancer(dancer);
@@ -385,9 +389,9 @@ export function FormationStageView({
           }
         }
       },
-      onPanResponderMove: (evt) => {
-        // Cancel long-press on move
-        if (longPressTimerRef.current) {
+      onPanResponderMove: (evt, gs) => {
+        // Cancel long-press only if moved significantly (Android finger jitter tolerance)
+        if (longPressTimerRef.current && (Math.abs(gs.dx) > 8 || Math.abs(gs.dy) > 8)) {
           clearTimeout(longPressTimerRef.current);
           longPressTimerRef.current = null;
         }
@@ -416,24 +420,51 @@ export function FormationStageView({
           return;
         }
 
-        // Dancer drag
-        if (!dragDancerId || !currentPositions) return;
-        const clampedNormX = Math.max(0.02, Math.min(0.98, normX));
-        const clampedNormY = Math.max(-backstageHeight / stageHeight, Math.min(0.98, normY));
+        // Dancer drag (multi-select: move all selected dancers by delta)
+        if (!dragDancerId || !currentPositions || !dragStartNormRef.current) return;
+        const dx = normX - dragStartNormRef.current.x;
+        const dy = normY - dragStartNormRef.current.y;
+        dragStartNormRef.current = { x: normX, y: normY };
 
-        const newPositions = currentPositions.map((p) =>
-          p.dancerId === dragDancerId ? { ...p, x: clampedNormX, y: clampedNormY } : p,
-        );
+        // Accumulate delta and batch via rAF for smooth dragging
+        if (dragPendingRef.current) {
+          dragPendingRef.current.dx += dx;
+          dragPendingRef.current.dy += dy;
+        } else {
+          dragPendingRef.current = { dx, dy };
+        }
 
-        const keyframe: FormationKeyframe = {
-          beatIndex: currentBeatIndex,
-          positions: newPositions.map((p) => ({
-            dancerId: p.dancerId,
-            x: Math.round(p.x * 1000) / 1000,
-            y: Math.round(p.y * 1000) / 1000,
-          })),
-        };
-        onUpdate(setKeyframe(formationData, keyframe));
+        if (!dragRafRef.current) {
+          dragRafRef.current = requestAnimationFrame(() => {
+            dragRafRef.current = null;
+            const pending = dragPendingRef.current;
+            if (!pending || !currentPositions) return;
+            dragPendingRef.current = null;
+
+            const movingIds = selectedDancerIds.has(dragDancerId)
+              ? selectedDancerIds
+              : new Set([dragDancerId]);
+
+            const newPositions = currentPositions.map((p) => {
+              if (!movingIds.has(p.dancerId)) return p;
+              return {
+                ...p,
+                x: Math.max(0.02, Math.min(0.98, p.x + pending.dx)),
+                y: Math.max(-backstageHeight / stageHeight, Math.min(0.98, p.y + pending.dy)),
+              };
+            });
+
+            const keyframe: FormationKeyframe = {
+              beatIndex: currentBeatIndex,
+              positions: newPositions.map((p) => ({
+                dancerId: p.dancerId,
+                x: Math.round(p.x * 1000) / 1000,
+                y: Math.round(p.y * 1000) / 1000,
+              })),
+            };
+            onUpdate(setKeyframe(formationData, keyframe));
+          });
+        }
       },
       onPanResponderRelease: (evt) => {
         // Selection rectangle release → select dancers inside
@@ -477,11 +508,17 @@ export function FormationStageView({
           }
         }
         setDragDancerId(null);
+        dragStartNormRef.current = null;
+        dragPendingRef.current = null;
+        if (dragRafRef.current) {
+          cancelAnimationFrame(dragRafRef.current);
+          dragRafRef.current = null;
+        }
         selectionStartRef.current = null;
         setSelectionRect(null);
       },
     });
-  }, [isEditing, dragDancerId, currentPositions, currentBeatIndex, formationData, stageWidth, stageHeight, backstageHeight, onUpdate, findClosestDancer, isFlipped]);
+  }, [isEditing, dragDancerId, currentPositions, currentBeatIndex, formationData, stageWidth, stageHeight, backstageHeight, onUpdate, findClosestDancer, isFlipped, selectedDancerIds]);
 
   // ─── Long press handler ─────────────────────────────
   const handleLongPressDancer = useCallback(

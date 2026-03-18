@@ -93,6 +93,23 @@ function MarqueeTitle({ text, style }: { text: string; style: any }) {
   );
 }
 
+function PulsingR({ size = 14 }: { size?: number }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.2, duration: 800, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+  return (
+    <Animated.Text style={{ fontSize: size, fontWeight: '900', color: Colors.primary, opacity }}>R</Animated.Text>
+  );
+}
+
 export default function PlayerScreen() {
   const { t } = useTranslation();
   const {
@@ -1063,7 +1080,14 @@ export default function PlayerScreen() {
 
   const handleAnalyzePress = () => {
     if (!currentTrack || currentTrack.analysisStatus === 'analyzing') return;
-    setAnalyzeMenuVisible(true);
+    if (currentTrack.analysisStatus === 'done') {
+      Alert.alert(t('player.reanalyze'), '', [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.ok'), onPress: () => runAnalysis() },
+      ]);
+    } else {
+      runAnalysis();
+    }
   };
 
   const runAnalysis = async () => {
@@ -1169,26 +1193,24 @@ export default function PlayerScreen() {
             )}
             {!isYouTube && currentTrack.analysisStatus === 'done' && (
               <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyzePress}>
-                <Image source={require('../../assets/ritmo-r-icon.png')} style={{ width: 16, height: 16, opacity: 0.5 }} />
+                <Text style={{ fontSize: 14, fontWeight: '900', color: Colors.primary, opacity: 0.5 }}>R</Text>
               </TouchableOpacity>
             )}
             {!isYouTube && (!currentTrack.analysisStatus || currentTrack.analysisStatus === 'idle' || currentTrack.analysisStatus === 'error') && (
               <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyzePress}>
-                <Image source={require('../../assets/ritmo-r-icon.png')} style={{ width: 16, height: 16 }} />
-                <Text style={styles.analyzeBtnText}>{t('player.analyze')}</Text>
+                <Text style={{ fontSize: 14, fontWeight: '900', color: Colors.primary }}>R</Text>
               </TouchableOpacity>
+            )}
+            {!isYouTube && currentTrack.analysisStatus === 'analyzing' && (
+              <View style={styles.analyzeBtn}>
+                <PulsingR size={14} />
+              </View>
             )}
             {!isYouTube && !activeFormationData && (
               <TouchableOpacity style={styles.analyzeBtn} onPress={() => setFormationSetupVisible(true)}>
                 <Ionicons name="people-outline" size={16} color={Colors.text} />
                 <Text style={styles.analyzeBtnText}>{t('player.formation')}</Text>
               </TouchableOpacity>
-            )}
-            {currentTrack.analysisStatus === 'analyzing' && (
-              <View style={styles.analyzingRow}>
-                <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={styles.analyzingText}>...</Text>
-              </View>
             )}
           </View>
         </View>
@@ -1493,7 +1515,7 @@ export default function PlayerScreen() {
                 onMergeWithPrevious={handleMergeWithPrevious}
                 loopStart={loopStart}
                 loopEnd={loopEnd}
-                rows={activeFormationData && editMode === 'formation' ? 5 : undefined}
+                rows={activeFormationData && editMode === 'formation' ? (focusMode ? 5 : 3) : undefined}
                 scrollMode={gridScrollMode}
                 cellNotes={currentCellNotes}
                 onSetCellNote={handleSetCellNote}
@@ -1507,9 +1529,9 @@ export default function PlayerScreen() {
               />
             </View>
 
-            {/* ChoreoNote Draft Save/Discard (inside countSection) */}
+            {/* ChoreoNote Draft Save/Discard (inside countSection, right below grid) */}
             {currentTrack && draftFormation[currentTrack.id] && editMode === 'formation' && (
-              <View style={[styles.draftActions, { marginTop: 10 }]}>
+              <View style={[styles.draftActions, { marginTop: 4 }]}>
                 <TouchableOpacity
                   style={[styles.draftSaveButton, { borderColor: 'rgba(255, 215, 0, 0.4)', backgroundColor: 'rgba(255, 215, 0, 0.15)', paddingVertical: 4, paddingHorizontal: 12 }]}
                   onPress={() => {
@@ -1562,6 +1584,7 @@ export default function PlayerScreen() {
                 </TouchableOpacity>
               </View>
             )}
+
           </View>
         )}
 

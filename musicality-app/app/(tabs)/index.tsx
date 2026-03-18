@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Modal, Pressable, AppState } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Modal, Pressable, AppState, Animated } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -29,18 +29,29 @@ const MEDIA_TABS: { key: MediaTab; icon: string }[] = [
 ];
 
 // ─── Sub-components ─────────────────────────────────
+function PulsingR({ size = 18 }: { size?: number }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.2, duration: 800, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+  return (
+    <Animated.Text style={{ fontSize: size, fontWeight: '900', color: Colors.primary, opacity }}>R</Animated.Text>
+  );
+}
+
 function AnalysisBadge({ track }: { track: Track }) {
   switch (track.analysisStatus) {
     case 'done':
       return (
         <View style={[styles.badge, styles.badgeDone]}>
           <Text style={styles.badgeText}>{track.analysis?.bpm ? `${Math.round(track.analysis.bpm)} BPM` : 'Analyzed'}</Text>
-        </View>
-      );
-    case 'analyzing':
-      return (
-        <View style={[styles.badge, styles.badgeAnalyzing]}>
-          <ActivityIndicator size="small" color={Colors.warning} />
         </View>
       );
     case 'error':
@@ -128,9 +139,13 @@ function TrackItem({
         {!selectMode && (
           isNowPlaying ? (
             <Ionicons name="volume-high" size={20} color={Colors.primary} />
+          ) : track.mediaType !== 'youtube' && track.analysisStatus === 'analyzing' ? (
+            <View style={styles.analyzeButton}>
+              <PulsingR size={18} />
+            </View>
           ) : track.mediaType !== 'youtube' && (track.analysisStatus === 'idle' || track.analysisStatus === 'error') ? (
             <TouchableOpacity style={styles.analyzeButton} onPress={onAnalyze}>
-              <Image source={require('../../assets/ritmo-r-icon.png')} style={{ width: 22, height: 22 }} />
+              <Text style={{ fontSize: 18, fontWeight: '900', color: Colors.primary }}>R</Text>
             </TouchableOpacity>
           ) : (
             <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
