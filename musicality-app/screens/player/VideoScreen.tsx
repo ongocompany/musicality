@@ -14,7 +14,9 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 
 import { usePlayerCore } from '../../hooks/usePlayerCore';
 import { usePlayerMode } from '../../hooks/usePlayerMode';
+import { useFocusMode } from '../../hooks/useFocusMode';
 import { usePlayerStore } from '../../stores/playerStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 import { PhraseGrid } from '../../components/ui/PhraseGrid';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
@@ -77,39 +79,8 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
 
   const hasDoneAnalysis = currentTrack?.analysisStatus === 'done';
 
-  // ─── Controls auto-hide (분석 완료 시에만) ───
-  const [controlsVisible, setControlsVisible] = useState(true);
-  const controlsAnim = useRef(new Animated.Value(1)).current;
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const scheduleHide = useCallback(() => {
-    if (!hasDoneAnalysis) return; // 미분석 시 항상 표시
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = setTimeout(() => {
-      Animated.timing(controlsAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
-        setControlsVisible(false);
-      });
-    }, CONTROLS_AUTO_HIDE_MS);
-  }, [controlsAnim, hasDoneAnalysis]);
-
-  const showControls = useCallback(() => {
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    setControlsVisible(true);
-    Animated.timing(controlsAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-    scheduleHide();
-  }, [controlsAnim, scheduleHide]);
-
-  const toggleControls = useCallback(() => {
-    if (!hasDoneAnalysis) return; // 미분석 시 토글 없음
-    if (controlsVisible) {
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-      Animated.timing(controlsAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
-        setControlsVisible(false);
-      });
-    } else {
-      showControls();
-    }
-  }, [controlsVisible, controlsAnim, showControls, hasDoneAnalysis]);
+  // ─── Controls: 오디오와 동일 (슬라이드 + 핸들) ───
+  const focus = useFocusMode(hasDoneAnalysis ? CONTROLS_AUTO_HIDE_MS : undefined);
 
   // 네이티브 비디오: 미분석 상태로 진입 시 자동 분석 시작
   useEffect(() => {
@@ -345,71 +316,78 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
         )}
       </View>
 
-      {/* ④-A 컨트롤 숨김 상태: 풀업 핸들 */}
-      {!controlsVisible && hasDoneAnalysis && (
-        <TouchableOpacity style={styles.pullUpHandle} onPress={showControls} activeOpacity={0.7}>
-          <Ionicons name="chevron-up" size={18} color={Colors.textMuted} />
-        </TouchableOpacity>
-      )}
+      {/* ④ Focus handle */}
+      <TouchableOpacity
+        style={[styles.focusHandle, focus.focusMode && styles.focusHandleActive]}
+        onPress={focus.focusMode ? focus.exitFocusMode : focus.enterFocusMode}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name={focus.focusMode ? 'chevron-up' : 'chevron-down'}
+          size={focus.focusMode ? 20 : 16}
+          color={focus.focusMode ? Colors.primary : Colors.textMuted}
+        />
+      </TouchableOpacity>
 
-      {/* ④-B Controls — 분석 완료: 오버레이 자동숨김 / 미분석: 일반 배치 */}
-      {controlsVisible && (
-        <Animated.View style={[
-          hasDoneAnalysis ? styles.controlsOverlay : styles.controlsStatic,
-          hasDoneAnalysis ? { opacity: controlsAnim } : { opacity: 1 },
-        ]}>
-          {/* Seek (분석 완료 시에만) */}
-          {hasDoneAnalysis && (
-            <View style={styles.seekSection}>
-              {phraseMap && analysis && (
-                <SectionTimeline
-                  phrases={phraseMap.phrases}
-                  duration={duration > 0 ? duration / 1000 : analysis.duration}
-                  currentTimeMs={position}
-                  waveformPeaks={analysis.waveformPeaks}
-                  onSeek={(ms) => { seekTo(ms); showControls(); }}
-                  onSeekStart={() => playerCore.setIsSeeking(true)}
-                  onSeekEnd={() => playerCore.setIsSeeking(false)}
-                  loopStart={loopStart}
-                  loopEnd={loopEnd}
-                  loopEnabled={loopEnabled}
-                />
-              )}
-            </View>
-          )}
-          {/* Bottom bar */}
-          <View style={styles.bottomBar}>
-            <View style={[styles.bottomBarSide, { justifyContent: 'flex-end' }]}>
-              <View style={styles.modeBtn}>
-                <Ionicons name="grid-outline" size={18} color={Colors.primary} />
-              </View>
-              <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
-              <TouchableOpacity onPress={() => { handleSkipBack(); showControls(); }} onLongPress={() => seekTo(0)} delayLongPress={400}>
-                <Ionicons name="play-back" size={22} color={Colors.text} />
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity style={styles.playButton} onPress={() => { togglePlay(); showControls(); }}>
-              <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
-            </TouchableOpacity>
-            <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
-              <TouchableOpacity onPress={() => { handleSkipForward(); showControls(); }}>
-                <Ionicons name="play-forward" size={22} color={Colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={toggleCue}>
-                <Ionicons
-                  name={cueEnabled ? 'volume-high' : 'volume-mute'} size={20}
-                  color={cueEnabled ? Colors.accent : Colors.textMuted}
-                />
-              </TouchableOpacity>
-              {hasDoneAnalysis && (
-                <TouchableOpacity onPress={handleUndo} disabled={!canUndo} style={{ opacity: canUndo ? 1 : 0.3 }}>
-                  <Ionicons name="arrow-undo" size={20} color={Colors.primary} />
-                </TouchableOpacity>
-              )}
-            </View>
+      {/* ⑤ Seek — hidden in focus mode */}
+      <Animated.View style={{
+        maxHeight: focus.focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 500] }),
+        opacity: focus.focusAnim, overflow: 'hidden',
+      }}>
+        {hasDoneAnalysis && (
+          <View style={styles.seekSection}>
+            {phraseMap && analysis && (
+              <SectionTimeline
+                phrases={phraseMap.phrases}
+                duration={duration > 0 ? duration / 1000 : analysis.duration}
+                currentTimeMs={position}
+                waveformPeaks={analysis.waveformPeaks}
+                onSeek={seekTo}
+                onSeekStart={() => playerCore.setIsSeeking(true)}
+                onSeekEnd={() => playerCore.setIsSeeking(false)}
+                loopStart={loopStart}
+                loopEnd={loopEnd}
+                loopEnabled={loopEnabled}
+              />
+            )}
           </View>
-        </Animated.View>
-      )}
+        )}
+      </Animated.View>
+
+      {/* ⑥ Bottom bar — hidden in focus mode */}
+      <Animated.View style={[styles.bottomBar, {
+        maxHeight: focus.focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 60] }),
+        opacity: focus.focusAnim, overflow: 'hidden',
+      }]}>
+        <View style={[styles.bottomBarSide, { justifyContent: 'flex-end' }]}>
+          <View style={styles.modeBtn}>
+            <Ionicons name="grid-outline" size={18} color={Colors.primary} />
+          </View>
+          <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
+          <TouchableOpacity onPress={handleSkipBack} onLongPress={() => seekTo(0)} delayLongPress={400}>
+            <Ionicons name="play-back" size={22} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
+          <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
+        </TouchableOpacity>
+        <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
+          <TouchableOpacity onPress={handleSkipForward}>
+            <Ionicons name="play-forward" size={22} color={Colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleCue}>
+            <Ionicons
+              name={cueEnabled ? 'volume-high' : 'volume-mute'} size={20}
+              color={cueEnabled ? Colors.accent : Colors.textMuted}
+            />
+          </TouchableOpacity>
+          {hasDoneAnalysis && (
+            <TouchableOpacity onPress={handleUndo} disabled={!canUndo} style={{ opacity: canUndo ? 1 : 0.3 }}>
+              <Ionicons name="arrow-undo" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </Animated.View>
 
       {/* ⚙️ Settings modal */}
       <SettingsModal
@@ -536,23 +514,11 @@ const styles = StyleSheet.create({
   analyzingText: { color: Colors.textMuted, fontSize: 14 },
 
   // ─── Controls overlay ───
-  pullUpHandle: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    alignItems: 'center', paddingVertical: 8,
-    backgroundColor: 'rgba(18,18,18,0.6)',
-    zIndex: 100, elevation: 100,
+  focusHandle: {
+    alignItems: 'center', paddingVertical: 4,
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
-  controlsOverlay: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(18,18,18,0.92)',
-    borderTopWidth: 1, borderTopColor: Colors.surface,
-    zIndex: 100, elevation: 100,
-  },
-  controlsStatic: {
-    borderTopWidth: 1, borderTopColor: Colors.surface,
-    backgroundColor: Colors.background,
-    zIndex: 100, elevation: 100,
-  },
+  focusHandleActive: { backgroundColor: 'rgba(187,134,252,0.1)' },
   seekSection: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   bottomBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

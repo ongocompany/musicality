@@ -7,12 +7,21 @@ import { Animated, PanResponder } from 'react-native';
 import { useNavigation } from 'expo-router';
 import { Colors } from '../constants/theme';
 
-export function useFocusMode() {
+export function useFocusMode(autoHideMs?: number) {
   const navigation = useNavigation();
   const focusAnim = useRef(new Animated.Value(1)).current; // 1=normal, 0=focused
   const [focusMode, setFocusMode] = useState(false);
+  const autoHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearAutoHide = useCallback(() => {
+    if (autoHideTimerRef.current) {
+      clearTimeout(autoHideTimerRef.current);
+      autoHideTimerRef.current = null;
+    }
+  }, []);
 
   const enterFocusMode = useCallback(() => {
+    clearAutoHide();
     setFocusMode(true);
     Animated.spring(focusAnim, {
       toValue: 0,
@@ -21,7 +30,7 @@ export function useFocusMode() {
       friction: 12,
     }).start();
     navigation.getParent()?.setOptions({ tabBarStyle: { display: 'none' } });
-  }, [navigation]);
+  }, [navigation, clearAutoHide]);
 
   const exitFocusMode = useCallback(() => {
     setFocusMode(false);
@@ -34,7 +43,12 @@ export function useFocusMode() {
     navigation.getParent()?.setOptions({
       tabBarStyle: { backgroundColor: Colors.surface, borderTopColor: Colors.border },
     });
-  }, [navigation]);
+    // 자동사라짐 설정 시 타이머 시작
+    if (autoHideMs && autoHideMs > 0) {
+      clearAutoHide();
+      autoHideTimerRef.current = setTimeout(() => enterFocusMode(), autoHideMs);
+    }
+  }, [navigation, autoHideMs, clearAutoHide, enterFocusMode]);
 
   const focusSwipeResponder = useMemo(() => {
     return PanResponder.create({
@@ -49,11 +63,12 @@ export function useFocusMode() {
   // Restore tab bar on unmount
   useEffect(() => {
     return () => {
+      clearAutoHide();
       navigation.getParent()?.setOptions({
         tabBarStyle: { backgroundColor: Colors.surface, borderTopColor: Colors.border },
       });
     };
-  }, [navigation]);
+  }, [navigation, clearAutoHide]);
 
   return {
     focusMode, focusAnim,
