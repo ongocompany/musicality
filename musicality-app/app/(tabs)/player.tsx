@@ -26,6 +26,7 @@ import { AudioViewScreen } from '../../screens/player/AudioViewScreen';
 import { AudioGridEditScreen } from '../../screens/player/AudioGridEditScreen';
 import { AudioFormViewScreen } from '../../screens/player/AudioFormViewScreen';
 import { AudioFormEditScreen } from '../../screens/player/AudioFormEditScreen';
+import { VideoScreen } from '../../screens/player/VideoScreen';
 import { buildPhraseNoteFile, exportPhraseNote, pickPhraseNoteFile, findMatchingTrack, validatePhraseNote } from '../../services/phraseNoteService';
 import { ImportedPhraseNote } from '../../types/phraseNote';
 import { FormationData, StageConfig, createDefaultDancers, STAGE_PRESETS } from '../../types/formation';
@@ -1146,7 +1147,7 @@ export default function PlayerScreen() {
     );
   }
 
-  // ─── NEW: Route to refactored screens for audio modes ───
+  // ─── Route to refactored screens ───
   if (!isVisual && currentTrack.analysisStatus === 'done') {
     switch (playerMode.mode) {
       case 'grid-view':
@@ -1158,6 +1159,11 @@ export default function PlayerScreen() {
       case 'form-edit':
         return <AudioFormEditScreen playerCore={playerCore} playerMode={playerMode} />;
     }
+  }
+
+  // ─── Route to video screen (통합 — 분석 여부 무관) ───
+  if (isVisual) {
+    return <VideoScreen playerCore={playerCore} playerMode={playerMode} />;
   }
 
   // ─── Header icon based on media type ───────────────

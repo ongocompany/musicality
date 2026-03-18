@@ -1,9 +1,9 @@
 /**
  * AudioFormEditScreen — 👥 롱프레스 (Form Edit)
- * 헤더(S● + ⚙️) + 스테이지(드래그) + [🎯 배치] + PhraseGrid(편집) + 컨트롤바(↩)
+ * 헤더(S● + ⚙️) + 스테이지(드래그) + PhraseGrid(편집) + 컨트롤바(↩)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -20,7 +20,9 @@ import { SpeedPopup } from '../../components/ui/SpeedPopup';
 import { ModeSegment } from '../../components/player/ModeSegment';
 import { MarqueeTitle } from '../../components/player/MarqueeTitle';
 import { SettingsModal } from '../../components/player/SettingsModal';
+import { FormationSetupModal } from '../../components/player/FormationSetupModal';
 
+import { useSettingsStore } from '../../stores/settingsStore';
 import { Colors, Spacing } from '../../constants/theme';
 
 const RATES = [0.5, 0.75, 1.0, 1.25, 1.5];
@@ -33,7 +35,9 @@ interface AudioFormEditScreenProps {
 export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScreenProps) {
   const { t } = useTranslation();
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [setupVisible, setSetupVisible] = useState(false);
   const focus = useFocusMode();
+  const setDraftFormation = useSettingsStore((s) => s.setDraftFormation);
 
   const {
     currentTrack, isPlaying, position, duration, playbackRate,
@@ -55,7 +59,16 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
     effectiveBeats, countInfo, isPlaying, position, seekTo, editMode: 'formation',
   });
 
-  if (!currentTrack || !formation.activeFormationData) return null;
+  const hasFormation = !!formation.activeFormationData;
+
+  // Edit 모드 진입 시 포메이션 없으면 바로 생성 모달 열기
+  useEffect(() => {
+    if (!hasFormation && currentTrack) {
+      setSetupVisible(true);
+    }
+  }, []); // 최초 마운트 시 1회만
+
+  if (!currentTrack) return null;
 
   const displayBpm = bpmOverride ?? currentBpm ?? (analysis?.bpm ? Math.round(analysis.bpm) : 0);
 
@@ -82,11 +95,11 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
           </View>
         </View>
 
-        {/* ② Stage (editable) + toolbar + Grid */}
-        {currentTrack.analysisStatus === 'done' && (
-          <View style={styles.countSection} {...focus.focusSwipeResponder.panHandlers}>
+        {/* ② Stage (고정 높이) */}
+        {currentTrack.analysisStatus === 'done' && hasFormation && (
+          <View style={styles.stageWrapper}>
             <FormationStageView
-              formationData={formation.activeFormationData}
+              formationData={formation.activeFormationData!}
               currentBeatIndex={isPlaying ? formation.fractionalBeatIndex : formation.formationEditBeatIndex}
               totalBeats={effectiveBeats.length}
               stageConfig={formation.stageConfig}
@@ -97,37 +110,49 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
               onStageConfigChange={formation.handleStageConfigChange}
               onTogglePlay={togglePlay}
             />
+          </View>
+        )}
+        {currentTrack.analysisStatus === 'done' && !hasFormation && (
+          <View style={styles.emptyFormation}>
+            <Ionicons name="people-outline" size={48} color={Colors.textMuted} />
+            <Text style={styles.emptyText}>{t('player.noFormation', { defaultValue: '포메이션이 없습니다' })}</Text>
+            <TouchableOpacity style={styles.createFormBtn} onPress={() => setSetupVisible(true)}>
+              <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+              <Text style={styles.createFormBtnText}>{t('player.startFormation', { defaultValue: '포메이션 만들기' })}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-            <View style={{ flex: 1, width: '100%' }}>
-              <PhraseGrid
-                countInfo={countInfo}
-                phraseMap={phraseMap ?? null}
-                hasAnalysis={!!analysis}
-                beats={effectiveBeats}
-                isPlaying={isPlaying}
-                onTapBeat={handleGridTapBeat}
-                onReArrangePhrase={handleReArrangePhrase}
-                onSplitPhraseHere={handleSplitPhraseHere}
-                onSetLoopPoint={handleSetLoopPoint}
-                onClearLoop={clearLoop}
-                onSeekAndPlay={handleSeekAndPlay}
-                onSeekOnly={handleSeekOnly}
-                onMergeWithPrevious={handleMergeWithPrevious}
-                loopStart={loopStart}
-                loopEnd={loopEnd}
-                rows={focus.focusMode ? 5 : 3}
-                scrollMode={gridScrollMode}
-                cellNotes={currentCellNotes}
-                onSetCellNote={handleSetCellNote}
-                onClearCellNote={handleClearCellNote}
-                currentBeatNote={currentBeatNote}
-                formationData={formation.activeFormationData}
-                onEditFormation={formation.handleEditFormation}
-                onCopyPrevKeyframe={formation.handleCopyPrevKeyframe}
-                onNewFormation={formation.handleNewFormation}
-                editMode="formation"
-              />
-            </View>
+        {/* ③ Grid (나머지 공간) */}
+        {currentTrack.analysisStatus === 'done' && (
+          <View style={styles.gridWrapper}>
+            <PhraseGrid
+              countInfo={countInfo}
+              phraseMap={phraseMap ?? null}
+              hasAnalysis={!!analysis}
+              beats={effectiveBeats}
+              isPlaying={isPlaying}
+              onTapBeat={handleGridTapBeat}
+              onReArrangePhrase={handleReArrangePhrase}
+              onSplitPhraseHere={handleSplitPhraseHere}
+              onSetLoopPoint={handleSetLoopPoint}
+              onClearLoop={clearLoop}
+              onSeekAndPlay={handleSeekAndPlay}
+              onSeekOnly={handleSeekOnly}
+              onMergeWithPrevious={handleMergeWithPrevious}
+              loopStart={loopStart}
+              loopEnd={loopEnd}
+              scrollMode={gridScrollMode}
+              cellNotes={currentCellNotes}
+              onSetCellNote={handleSetCellNote}
+              onClearCellNote={handleClearCellNote}
+              currentBeatNote={currentBeatNote}
+              formationData={formation.activeFormationData}
+              onEditFormation={formation.handleEditFormation}
+              onCopyPrevKeyframe={formation.handleCopyPrevKeyframe}
+              onNewFormation={formation.handleNewFormation}
+              editMode="formation"
+            />
           </View>
         )}
 
@@ -232,6 +257,15 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
           }
         }}
       />
+
+      {/* Formation setup modal */}
+      <FormationSetupModal
+        visible={setupVisible}
+        onClose={() => setSetupVisible(false)}
+        onCreated={(data) => {
+          if (currentTrack) setDraftFormation(currentTrack.id, data);
+        }}
+      />
     </View>
   );
 }
@@ -263,7 +297,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center', justifyContent: 'center',
   },
-  countSection: { flex: 1, alignItems: 'center' },
+  stageWrapper: {
+    height: 310,
+    flexShrink: 0,
+    overflow: 'hidden',
+  },
+  gridWrapper: {
+    flex: 1,      // 스테이지 아래 남은 공간 전부 차지
+    width: '100%',
+    minHeight: 80, // 최소 그리드 높이 보장
+  },
+  emptyFormation: {
+    alignItems: 'center', justifyContent: 'center',
+    height: 240, gap: 12,
+  },
+  emptyText: { fontSize: 14, color: Colors.textMuted },
+  createFormBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
+    backgroundColor: 'rgba(187,134,252,0.15)',
+  },
+  createFormBtnText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
   seekSection: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   focusHandle: {
     alignItems: 'center', paddingVertical: 4,

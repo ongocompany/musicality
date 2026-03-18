@@ -4,6 +4,7 @@
  * 댄서가 비트에 따라 자동 이동하는 것을 감상
  */
 
+import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +20,9 @@ import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
 import { ModeSegment } from '../../components/player/ModeSegment';
 import { MarqueeTitle } from '../../components/player/MarqueeTitle';
+import { FormationSetupModal } from '../../components/player/FormationSetupModal';
 
+import { useSettingsStore } from '../../stores/settingsStore';
 import { Colors, Spacing } from '../../constants/theme';
 
 const RATES = [0.5, 0.75, 1.0, 1.25, 1.5];
@@ -32,6 +35,8 @@ interface AudioFormViewScreenProps {
 export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScreenProps) {
   const { t } = useTranslation();
   const focus = useFocusMode();
+  const [setupVisible, setSetupVisible] = useState(false);
+  const setDraftFormation = useSettingsStore((s) => s.setDraftFormation);
 
   const {
     currentTrack, isPlaying, position, duration, playbackRate,
@@ -50,7 +55,9 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
     effectiveBeats, countInfo, isPlaying, position, seekTo, editMode: 'none',
   });
 
-  if (!currentTrack || !formation.activeFormationData) return null;
+  if (!currentTrack) return null;
+
+  const hasFormation = !!formation.activeFormationData;
 
   return (
     <View style={styles.container}>
@@ -66,21 +73,34 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
           )}
         </View>
 
-        {/* ② Stage (view-only animation) + Grid */}
+        {/* ② Stage + Grid OR empty state */}
         {currentTrack.analysisStatus === 'done' && (
           <View style={styles.countSection} {...focus.focusSwipeResponder.panHandlers}>
-            <FormationStageView
-              formationData={formation.activeFormationData}
-              currentBeatIndex={formation.fractionalBeatIndex}
-              totalBeats={effectiveBeats.length}
-              stageConfig={formation.stageConfig}
-              isPlaying={isPlaying}
-              isEditing={false}
-              onUpdate={() => {}}
-              onBeatChange={() => {}}
-              onStageConfigChange={() => {}}
-              onTogglePlay={togglePlay}
-            />
+            {hasFormation ? (
+              <View style={{ maxHeight: 220 }}>
+                <FormationStageView
+                  formationData={formation.activeFormationData!}
+                  currentBeatIndex={formation.fractionalBeatIndex}
+                  totalBeats={effectiveBeats.length}
+                  stageConfig={formation.stageConfig}
+                  isPlaying={isPlaying}
+                  isEditing={false}
+                  onUpdate={() => {}}
+                  onBeatChange={() => {}}
+                  onStageConfigChange={() => {}}
+                  onTogglePlay={togglePlay}
+                />
+              </View>
+            ) : (
+              <View style={styles.emptyFormation}>
+                <Ionicons name="people-outline" size={48} color={Colors.textMuted} />
+                <Text style={styles.emptyText}>{t('player.noFormation', { defaultValue: '포메이션이 없습니다' })}</Text>
+                <TouchableOpacity style={styles.createBtn} onPress={() => setSetupVisible(true)}>
+                  <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+                  <Text style={styles.createBtnText}>{t('player.startFormation', { defaultValue: '포메이션 만들기' })}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             <View style={{ flex: 1, width: '100%' }}>
               <PhraseGrid
@@ -180,6 +200,15 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
           </TouchableOpacity>
         </View>
       </Animated.View>
+
+      {/* Formation setup modal */}
+      <FormationSetupModal
+        visible={setupVisible}
+        onClose={() => setSetupVisible(false)}
+        onCreated={(data) => {
+          if (currentTrack) setDraftFormation(currentTrack.id, data);
+        }}
+      />
     </View>
   );
 }
@@ -198,6 +227,17 @@ const styles = StyleSheet.create({
   },
   bpmText: { fontSize: 10, fontWeight: '700', color: Colors.primary },
   countSection: { flex: 1, alignItems: 'center' },
+  emptyFormation: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 32, gap: 12,
+  },
+  emptyText: { fontSize: 14, color: Colors.textMuted },
+  createBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
+    backgroundColor: 'rgba(187,134,252,0.15)',
+  },
+  createBtnText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
   seekSection: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   focusHandle: {
     alignItems: 'center', paddingVertical: 4,
