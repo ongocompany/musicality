@@ -204,7 +204,7 @@ export function VideoGridEditScreen({ playerCore, playerMode }: VideoGridEditScr
               onMergeWithPrevious={handleMergeWithPrevious}
               loopStart={loopStart}
               loopEnd={loopEnd}
-              scrollMode={gridScrollMode}
+              scrollMode={true}
               cellNotes={currentCellNotes}
               onSetCellNote={handleSetCellNote}
               onClearCellNote={handleClearCellNote}

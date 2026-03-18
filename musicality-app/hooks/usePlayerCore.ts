@@ -21,7 +21,6 @@ import { useYouTubePlayer } from './useYouTubePlayer';
 import { useCuePlayer } from './useCuePlayer';
 
 import { analyzeTrack } from '../services/analysisApi';
-import { analyzeOnDevice, toAnalysisResult } from '../services/onDeviceAnalyzer';
 import { buildPhraseNoteFile, exportPhraseNote, pickPhraseNoteFile, findMatchingTrack } from '../services/phraseNoteService';
 import { ImportedPhraseNote } from '../types/phraseNote';
 import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, CountInfo } from '../utils/beatCounter';
@@ -402,24 +401,11 @@ export function usePlayerCore() {
     }
   }, [currentTrack, isYouTube, tapBpm, duration, position, analysis, setTrackAnalysis, setDownbeatOffset]);
 
-  // ─── Analysis trigger (온디바이스 우선, 서버 fallback) ───
+  // ─── Analysis trigger (서버 분석) ───
   const runAnalysis = useCallback(async () => {
     if (!currentTrack) return;
     setTrackAnalysisStatus(currentTrack.id, 'analyzing');
 
-    // ── 1차: 온디바이스 분석 시도 ──
-    try {
-      console.log('[Analysis] Trying on-device analysis...');
-      const onDeviceResult = await analyzeOnDevice(currentTrack.uri, currentTrack.format);
-      const result = toAnalysisResult(onDeviceResult);
-      setTrackAnalysis(currentTrack.id, result);
-      console.log(`[Analysis] On-device success: BPM=${result.bpm}, beats=${result.beats.length}, ${onDeviceResult.analysisTimeMs}ms`);
-      return;
-    } catch (onDeviceErr: any) {
-      console.warn('[Analysis] On-device failed, falling back to server:', onDeviceErr.message);
-    }
-
-    // ── 2차: 서버 분석 fallback ──
     try {
       const result = await analyzeTrack(
         currentTrack.uri, currentTrack.title, currentTrack.format,

@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { Audio, AVPlaybackStatus } from 'expo-av';
 import { usePlayerStore } from '../stores/playerStore';
+import { ensureFileAvailable } from '../services/fileImport';
 
 export function useAudioPlayer() {
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -29,13 +30,25 @@ export function useAudioPlayer() {
       }
       if (!currentTrack || currentTrack.mediaType === 'video' || currentTrack.mediaType === 'youtube') return;
 
+      // Ensure file exists (auto-recover from cloud if evicted)
+      const validUri = await ensureFileAvailable(currentTrack);
+      if (!validUri) {
+        console.warn(`[AudioPlayer] File unrecoverable: ${currentTrack.uri.slice(-50)}`);
+        return;
+      }
+      // Update track URI if recovered to a new path
+      if (validUri !== currentTrack.uri) {
+        usePlayerStore.getState().updateTrackData(currentTrack.id, { uri: validUri });
+      }
+      const playUri = validUri;
+
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
       });
 
       const { sound } = await Audio.Sound.createAsync(
-        { uri: currentTrack.uri },
+        { uri: playUri },
         { shouldPlay: false, rate: playbackRate, progressUpdateIntervalMillis: 100 },
         onPlaybackStatusUpdate,
       );

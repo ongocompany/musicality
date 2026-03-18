@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
@@ -37,7 +37,8 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
   const { t } = useTranslation();
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [setupVisible, setSetupVisible] = useState(false);
-  const focus = useFocusMode();
+  const autoHideMs = useSettingsStore((s) => s.autoHideMs);
+  const focus = useFocusMode(autoHideMs > 0 ? autoHideMs : undefined);
   const slot = useSlotSelector('formation');
   const setDraftFormation = useSettingsStore((s) => s.setDraftFormation);
 
@@ -157,7 +158,7 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
               onMergeWithPrevious={slot.isReadOnly ? () => { slot.tryEdit(); } : handleMergeWithPrevious}
               loopStart={loopStart}
               loopEnd={loopEnd}
-              scrollMode={gridScrollMode}
+              scrollMode={true}
               cellNotes={currentCellNotes}
               onSetCellNote={slot.isReadOnly ? undefined : handleSetCellNote}
               onClearCellNote={slot.isReadOnly ? undefined : handleClearCellNote}
@@ -185,10 +186,7 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
         </TouchableOpacity>
 
         {/* ③ Seek — hidden in focus mode */}
-        <Animated.View style={{
-          maxHeight: focus.focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 500] }),
-          opacity: focus.focusAnim, overflow: 'hidden',
-        }}>
+        {!focus.focusMode && (
           <View style={styles.seekSection}>
             {phraseMap && analysis && (
               <SectionTimeline
@@ -205,14 +203,11 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
               />
             )}
           </View>
-        </Animated.View>
+        )}
       </View>
 
       {/* ④ Bottom bar — with undo */}
-      <Animated.View style={[styles.bottomBar, {
-        maxHeight: focus.focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 60] }),
-        opacity: focus.focusAnim, overflow: 'hidden',
-      }]}>
+      {!focus.focusMode && (<View style={styles.bottomBar}>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-end' }]}>
           <TouchableOpacity onPress={playerMode.onGridPress} style={[styles.modeBtn, playerMode.isGrid && styles.modeBtnActive]}>
             <Ionicons name="grid-outline" size={18} color={playerMode.isGrid ? Colors.primary : Colors.textMuted} />
@@ -248,7 +243,7 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
             </TouchableOpacity>
           )}
         </View>
-      </Animated.View>
+      </View>)}
 
       {/* ⚙️ Settings modal */}
       <SettingsModal

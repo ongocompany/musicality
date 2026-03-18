@@ -121,6 +121,10 @@ interface SettingsState {
   stageConfig: StageConfig;
   setStageConfig: (config: Partial<StageConfig>) => void;
 
+  // Auto-hide controls delay (ms), 0 = disabled
+  autoHideMs: number;
+  setAutoHideMs: (ms: number) => void;
+
   // Onboarding tutorial
   hasSeenOnboarding: boolean;
   setHasSeenOnboarding: (seen: boolean) => void;
@@ -565,6 +569,10 @@ export const useSettingsStore = create<SettingsState>()(
           stageConfig: { ...state.stageConfig, ...config },
         })),
 
+      // ─── Auto-hide controls ────────────────────────────
+      autoHideMs: 3000,
+      setAutoHideMs: (ms) => set({ autoHideMs: Math.max(0, ms) }),
+
       // ─── Onboarding ──────────────────────────────────
       hasSeenOnboarding: false,
       setHasSeenOnboarding: (seen) => set({ hasSeenOnboarding: seen }),
@@ -637,6 +645,7 @@ export const useSettingsStore = create<SettingsState>()(
         importedNotes: state.importedNotes,
         trackFormations: state.trackFormations,
         stageConfig: state.stageConfig,
+        autoHideMs: state.autoHideMs,
       }),
     },
   ),

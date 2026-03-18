@@ -214,7 +214,7 @@ export function VideoViewScreen({ playerCore, playerMode }: VideoViewScreenProps
                 onClearLoop={clearLoop}
                 loopStart={loopStart}
                 loopEnd={loopEnd}
-                scrollMode={gridScrollMode}
+                scrollMode={true}
                 cellNotes={currentCellNotes}
                 currentBeatNote={currentBeatNote}
                 editMode="none"

@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback } from 'react';
 import { Platform, InteractionManager } from 'react-native';
 import { Video, AVPlaybackStatus, VideoReadyForDisplayEvent } from 'expo-av';
 import { usePlayerStore } from '../stores/playerStore';
+import { ensureFileAvailable } from '../services/fileImport';
 
 /**
  * Video playback hook — mirrors useAudioPlayer API.
@@ -123,9 +124,18 @@ export function useVideoPlayer() {
       // Unload previous and load new source
       (async () => {
         try {
+          // Ensure file exists (auto-recover from cloud if evicted)
+          const validUri = await ensureFileAvailable(currentTrack);
+          if (!validUri) {
+            console.warn(`[VideoPlayer] File unrecoverable: ${currentTrack.uri.slice(-50)}`);
+            return;
+          }
+          if (validUri !== currentTrack.uri) {
+            usePlayerStore.getState().updateTrackData(currentTrack.id, { uri: validUri });
+          }
           await video.unloadAsync();
           await video.loadAsync(
-            { uri: currentTrack.uri },
+            { uri: validUri },
             { shouldPlay: false, progressUpdateIntervalMillis: Platform.OS === 'android' ? 200 : 100 },
           );
           setPosition(0);

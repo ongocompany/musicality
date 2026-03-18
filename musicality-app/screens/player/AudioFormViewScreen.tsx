@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
@@ -34,7 +34,8 @@ interface AudioFormViewScreenProps {
 
 export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScreenProps) {
   const { t } = useTranslation();
-  const focus = useFocusMode();
+  const autoHideMs = useSettingsStore((s) => s.autoHideMs);
+  const focus = useFocusMode(autoHideMs > 0 ? autoHideMs : undefined);
   const [setupVisible, setSetupVisible] = useState(false);
   const setDraftFormation = useSettingsStore((s) => s.setDraftFormation);
 
@@ -119,7 +120,7 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
                 onMergeWithPrevious={handleMergeWithPrevious}
                 loopStart={loopStart}
                 loopEnd={loopEnd}
-                scrollMode={gridScrollMode}
+                scrollMode={true}
                 cellNotes={currentCellNotes}
                 currentBeatNote={currentBeatNote}
                 formationData={formation.activeFormationData}
@@ -143,10 +144,7 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
         </TouchableOpacity>
 
         {/* ③ Seek — hidden in focus mode */}
-        <Animated.View style={{
-          maxHeight: focus.focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 500] }),
-          opacity: focus.focusAnim, overflow: 'hidden',
-        }}>
+        {!focus.focusMode && (
           <View style={styles.seekSection}>
             {phraseMap && analysis && (
               <SectionTimeline
@@ -163,14 +161,11 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
               />
             )}
           </View>
-        </Animated.View>
+        )}
       </View>
 
       {/* ④ Bottom bar */}
-      <Animated.View style={[styles.bottomBar, {
-        maxHeight: focus.focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 60] }),
-        opacity: focus.focusAnim, overflow: 'hidden',
-      }]}>
+      {!focus.focusMode && (<View style={styles.bottomBar}>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-end' }]}>
           <ModeSegment
             gridState={playerMode.gridSegState}
@@ -199,7 +194,7 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
             />
           </TouchableOpacity>
         </View>
-      </Animated.View>
+      </View>)}
 
       {/* Formation setup modal */}
       <FormationSetupModal

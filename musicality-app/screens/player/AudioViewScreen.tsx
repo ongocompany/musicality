@@ -5,13 +5,14 @@
  */
 
 import { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
 import { usePlayerCore } from '../../hooks/usePlayerCore';
 import { usePlayerMode } from '../../hooks/usePlayerMode';
 import { useFocusMode } from '../../hooks/useFocusMode';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 import { PhraseGrid } from '../../components/ui/PhraseGrid';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
@@ -51,7 +52,9 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
     handleReArrangePhrase, handleSplitPhraseHere, handleMergeWithPrevious,
   } = playerCore;
 
-  const focus = useFocusMode();
+  const autoHideMs = useSettingsStore((s) => s.autoHideMs);
+  const hasDoneAnalysis = currentTrack?.analysisStatus === 'done';
+  const focus = useFocusMode(hasDoneAnalysis && autoHideMs > 0 ? autoHideMs : undefined);
 
   if (!currentTrack) return null;
 
@@ -102,7 +105,7 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
                 onMergeWithPrevious={handleMergeWithPrevious}
                 loopStart={loopStart}
                 loopEnd={loopEnd}
-                scrollMode={gridScrollMode}
+                scrollMode={true}
                 cellNotes={currentCellNotes}
                 currentBeatNote={currentBeatNote}
                 editMode="none"
@@ -125,11 +128,7 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
         </TouchableOpacity>
 
         {/* ③ Seek + Controls — hidden in focus mode */}
-        <Animated.View style={{
-          maxHeight: focus.focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 500] }),
-          opacity: focus.focusAnim,
-          overflow: 'hidden',
-        }}>
+        {!focus.focusMode && (
           <View style={styles.seekSection}>
             {phraseMap && phraseMap.phrases.length > 0 && analysis && (
               <SectionTimeline
@@ -152,15 +151,11 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
               </View>
             )}
           </View>
-        </Animated.View>
+        )}
       </View>
 
       {/* ④ Bottom control bar */}
-      <Animated.View style={[styles.bottomBar, {
-        maxHeight: focus.focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 60] }),
-        opacity: focus.focusAnim,
-        overflow: 'hidden',
-      }]}>
+      {!focus.focusMode && (<View style={styles.bottomBar}>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-end' }]}>
           <ModeSegment
             gridState={playerMode.gridSegState}
@@ -190,7 +185,7 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
             />
           </TouchableOpacity>
         </View>
-      </Animated.View>
+      </View>)}
 
       {/* Focus mode mini controls */}
       {focus.focusMode && (

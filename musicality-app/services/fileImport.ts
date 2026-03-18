@@ -1,5 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Directory, Paths } from 'expo-file-system/next';
+import { getInfoAsync } from 'expo-file-system/legacy';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Track, MediaType } from '../types/track';
 
@@ -19,6 +20,17 @@ const FORMAT_MAP: Record<string, string> = {
 };
 
 const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'avi', 'm4v']);
+
+/** Poll until a cloud-downloaded file appears locally (max timeoutMs) */
+async function waitForFile(uri: string, timeoutMs: number): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const info = await getInfoAsync(uri);
+    if (info.exists && (info.size ?? 0) > 0) return;
+    await new Promise(r => setTimeout(r, 500));
+  }
+  throw new Error(`File not available after ${timeoutMs / 1000}s (cloud download may have failed)`);
+}
 
 function getFormat(mimeType: string | undefined, name: string): string {
   if (mimeType && FORMAT_MAP[mimeType]) return FORMAT_MAP[mimeType];
@@ -50,19 +62,27 @@ export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Tra
   const asset = result.assets[0];
   const mediaType = getMediaType(asset.mimeType, asset.name);
 
-  // Copy file from cache to permanent storage (fallback to cache URI if copy fails)
+  // Wait for cloud file to become available (iCloud/Google Drive on-demand downloads)
   let fileUri = asset.uri;
   try {
-    const mediaDir = new Directory(Paths.document, 'media');
-    if (!mediaDir.exists) mediaDir.create();
-    const destName = `${Date.now()}-${asset.name}`;
-    const sourceFile = new File(asset.uri);
-    sourceFile.copy(new File(mediaDir, destName));
-    fileUri = new File(mediaDir, destName).uri;
-    console.log(`[FileImport] Copied to permanent: ${fileUri.slice(-50)}`);
+    const info = await getInfoAsync(asset.uri);
+    if (!info.exists) {
+      console.log(`[FileImport] Cloud file not yet local, waiting...`);
+      await waitForFile(asset.uri, 30000);
+    }
   } catch (e: any) {
-    console.warn(`[FileImport] Copy failed, using cache URI: ${e?.message}`);
+    console.warn(`[FileImport] File check failed: ${e?.message}`);
   }
+
+  // Copy file to permanent storage (must succeed — cache URI gets evicted by OS)
+  const mediaDir = new Directory(Paths.document, 'media');
+  if (!mediaDir.exists) mediaDir.create();
+  const destName = `${Date.now()}-${asset.name}`;
+  const destFile = new File(mediaDir, destName);
+  const sourceFile = new File(asset.uri);
+  sourceFile.copy(destFile);
+  fileUri = destFile.uri;
+  console.log(`[FileImport] Copied to permanent: ${fileUri.slice(-50)}`);
 
   // Generate thumbnail for video files
   let thumbnailUri: string | undefined;
@@ -77,6 +97,7 @@ export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Tra
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     title: asset.name.replace(/\.[^/.]+$/, ''),
     uri: fileUri,
+    sourceUri: asset.uri !== fileUri ? asset.uri : undefined,
     fileSize: asset.size ?? 0,
     format: getFormat(asset.mimeType, asset.name),
     mediaType,
@@ -133,6 +154,44 @@ export function createYouTubeTrack(videoId: string, title?: string): Track {
     importedAt: Date.now(),
     analysisStatus: 'idle',
   };
+}
+
+/**
+ * Ensure a track's file exists locally. If the local copy was evicted,
+ * attempt to re-copy from the original source URI.
+ * Returns the valid URI, or null if unrecoverable.
+ */
+export async function ensureFileAvailable(track: Track): Promise<string | null> {
+  // YouTube doesn't have local files
+  if (track.mediaType === 'youtube') return track.uri;
+
+  // Check if current URI exists
+  try {
+    const info = await getInfoAsync(track.uri);
+    if (info.exists && (info.size ?? 0) > 0) return track.uri;
+  } catch {}
+
+  console.log(`[FileImport] Local file missing, attempting recovery: ${track.uri.slice(-50)}`);
+
+  // Try re-copying from original source
+  if (track.sourceUri) {
+    try {
+      // Wait for cloud file if needed
+      await waitForFile(track.sourceUri, 15000);
+      const mediaDir = new Directory(Paths.document, 'media');
+      if (!mediaDir.exists) mediaDir.create();
+      const destName = `${Date.now()}-${track.title}.${track.format}`;
+      const sourceFile = new File(track.sourceUri);
+      const destFile = new File(mediaDir, destName);
+      sourceFile.copy(destFile);
+      console.log(`[FileImport] Recovered from source: ${destFile.uri.slice(-50)}`);
+      return destFile.uri;
+    } catch (e: any) {
+      console.warn(`[FileImport] Recovery from source failed: ${e?.message}`);
+    }
+  }
+
+  return null;
 }
 
 /** @deprecated Use pickMediaFile instead */

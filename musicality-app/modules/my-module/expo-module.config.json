@@ -1,7 +1,8 @@
 {
   "platforms": ["apple", "android"],
   "apple": {
-    "modules": ["AudioExtractorModule"]
+    "modules": ["AudioExtractorModule"],
+    "podspecPath": "./my-module.podspec"
   },
   "android": {
     "modules": ["expo.modules.audioextractor.AudioExtractorModule"]

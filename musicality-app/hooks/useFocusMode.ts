@@ -1,15 +1,26 @@
 /**
  * useFocusMode — 하단 컨트롤 숨기고 그리드 극대화
+ * LayoutAnimation for smooth native-thread layout changes during video playback
  */
 
 import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
-import { Animated, PanResponder } from 'react-native';
+import { LayoutAnimation, Platform, UIManager, PanResponder } from 'react-native';
 import { useNavigation } from 'expo-router';
 import { Colors } from '../constants/theme';
 
+// Android requires this flag for LayoutAnimation
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const ANIM_CONFIG = LayoutAnimation.create(
+  250,
+  LayoutAnimation.Types.easeInEaseOut,
+  LayoutAnimation.Properties.opacity,
+);
+
 export function useFocusMode(autoHideMs?: number) {
   const navigation = useNavigation();
-  const focusAnim = useRef(new Animated.Value(1)).current; // 1=normal, 0=focused
   const [focusMode, setFocusMode] = useState(false);
   const autoHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -22,28 +33,17 @@ export function useFocusMode(autoHideMs?: number) {
 
   const enterFocusMode = useCallback(() => {
     clearAutoHide();
+    LayoutAnimation.configureNext(ANIM_CONFIG);
     setFocusMode(true);
-    Animated.spring(focusAnim, {
-      toValue: 0,
-      useNativeDriver: false,
-      tension: 80,
-      friction: 12,
-    }).start();
     navigation.getParent()?.setOptions({ tabBarStyle: { display: 'none' } });
   }, [navigation, clearAutoHide]);
 
   const exitFocusMode = useCallback(() => {
+    LayoutAnimation.configureNext(ANIM_CONFIG);
     setFocusMode(false);
-    Animated.spring(focusAnim, {
-      toValue: 1,
-      useNativeDriver: false,
-      tension: 80,
-      friction: 12,
-    }).start();
     navigation.getParent()?.setOptions({
       tabBarStyle: { backgroundColor: Colors.surface, borderTopColor: Colors.border },
     });
-    // 자동사라짐 설정 시 타이머 시작
     if (autoHideMs && autoHideMs > 0) {
       clearAutoHide();
       autoHideTimerRef.current = setTimeout(() => enterFocusMode(), autoHideMs);
@@ -70,9 +70,17 @@ export function useFocusMode(autoHideMs?: number) {
     };
   }, [navigation, clearAutoHide]);
 
+  const scheduleAutoHide = useCallback(() => {
+    if (autoHideMs && autoHideMs > 0) {
+      clearAutoHide();
+      autoHideTimerRef.current = setTimeout(() => enterFocusMode(), autoHideMs);
+    }
+  }, [autoHideMs, clearAutoHide, enterFocusMode]);
+
   return {
-    focusMode, focusAnim,
+    focusMode,
     enterFocusMode, exitFocusMode,
+    scheduleAutoHide,
     focusSwipeResponder,
   };
 }

@@ -33,7 +33,7 @@ const VIDEO_MAX_HEIGHT = Dimensions.get('window').height * 0.55;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const YT_HEIGHT_LANDSCAPE = Math.round(SCREEN_WIDTH * 9 / 16); // 16:9 → ~200px
 const YT_MAX_HEIGHT = Math.round(SCREEN_HEIGHT * 0.55);        // 화면 55% 제한
-const CONTROLS_AUTO_HIDE_MS = 3000;
+// CONTROLS_AUTO_HIDE_MS removed — now uses settingsStore.autoHideMs
 
 interface VideoScreenProps {
   playerCore: ReturnType<typeof usePlayerCore>;
@@ -80,7 +80,8 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
   const hasDoneAnalysis = currentTrack?.analysisStatus === 'done';
 
   // ─── Controls: 오디오와 동일 (슬라이드 + 핸들) ───
-  const focus = useFocusMode(hasDoneAnalysis ? CONTROLS_AUTO_HIDE_MS : undefined);
+  const autoHideMs = useSettingsStore((s) => s.autoHideMs);
+  const focus = useFocusMode(hasDoneAnalysis && autoHideMs > 0 ? autoHideMs : undefined);
 
   // 네이티브 비디오: 미분석 상태로 진입 시 자동 분석 시작
   useEffect(() => {
@@ -90,8 +91,7 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
   }, [isVideo, currentTrack?.id]);
 
   useEffect(() => {
-    if (hasDoneAnalysis) scheduleHide();
-    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
+    if (hasDoneAnalysis) focus.scheduleAutoHide();
   }, [hasDoneAnalysis]);
 
   // ─── Video collapse/expand ───
@@ -253,17 +253,17 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
               hasAnalysis={!!analysis}
               beats={effectiveBeats}
               isPlaying={isPlaying}
-              onTapBeat={(idx) => { handleGridTapBeat(idx); showControls(); }}
+              onTapBeat={(idx) => { handleGridTapBeat(idx); focus.scheduleAutoHide(); }}
               onReArrangePhrase={handleReArrangePhrase}
               onSplitPhraseHere={handleSplitPhraseHere}
               onSetLoopPoint={handleSetLoopPoint}
               onClearLoop={clearLoop}
-              onSeekAndPlay={(ms) => { handleSeekAndPlay(ms); showControls(); }}
-              onSeekOnly={(ms) => { handleSeekOnly(ms); showControls(); }}
+              onSeekAndPlay={(ms) => { handleSeekAndPlay(ms); focus.scheduleAutoHide(); }}
+              onSeekOnly={(ms) => { handleSeekOnly(ms); focus.scheduleAutoHide(); }}
               onMergeWithPrevious={handleMergeWithPrevious}
               loopStart={loopStart}
               loopEnd={loopEnd}
-              scrollMode={gridScrollMode}
+              scrollMode={true}
               cellNotes={currentCellNotes}
               onSetCellNote={handleSetCellNote}
               onClearCellNote={handleClearCellNote}
@@ -330,39 +330,28 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
       </TouchableOpacity>
 
       {/* ⑤ Seek — hidden in focus mode */}
-      <Animated.View style={{
-        maxHeight: focus.focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 500] }),
-        opacity: focus.focusAnim, overflow: 'hidden',
-      }}>
-        {hasDoneAnalysis && (
-          <View style={styles.seekSection}>
-            {phraseMap && analysis && (
-              <SectionTimeline
-                phrases={phraseMap.phrases}
-                duration={duration > 0 ? duration / 1000 : analysis.duration}
-                currentTimeMs={position}
-                waveformPeaks={analysis.waveformPeaks}
-                onSeek={seekTo}
-                onSeekStart={() => playerCore.setIsSeeking(true)}
-                onSeekEnd={() => playerCore.setIsSeeking(false)}
-                loopStart={loopStart}
-                loopEnd={loopEnd}
-                loopEnabled={loopEnabled}
-              />
-            )}
-          </View>
-        )}
-      </Animated.View>
+      {!focus.focusMode && hasDoneAnalysis && (
+        <View style={styles.seekSection}>
+          {phraseMap && analysis && (
+            <SectionTimeline
+              phrases={phraseMap.phrases}
+              duration={duration > 0 ? duration / 1000 : analysis.duration}
+              currentTimeMs={position}
+              waveformPeaks={analysis.waveformPeaks}
+              onSeek={seekTo}
+              onSeekStart={() => playerCore.setIsSeeking(true)}
+              onSeekEnd={() => playerCore.setIsSeeking(false)}
+              loopStart={loopStart}
+              loopEnd={loopEnd}
+              loopEnabled={loopEnabled}
+            />
+          )}
+        </View>
+      )}
 
       {/* ⑥ Bottom bar — hidden in focus mode */}
-      <Animated.View style={[styles.bottomBar, {
-        maxHeight: focus.focusAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 60] }),
-        opacity: focus.focusAnim, overflow: 'hidden',
-      }]}>
+      {!focus.focusMode && (<View style={styles.bottomBar}>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-end' }]}>
-          <View style={styles.modeBtn}>
-            <Ionicons name="grid-outline" size={18} color={Colors.primary} />
-          </View>
           <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
           <TouchableOpacity onPress={handleSkipBack} onLongPress={() => seekTo(0)} delayLongPress={400}>
             <Ionicons name="play-back" size={22} color={Colors.text} />
@@ -387,7 +376,7 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
             </TouchableOpacity>
           )}
         </View>
-      </Animated.View>
+      </View>)}
 
       {/* ⚙️ Settings modal */}
       <SettingsModal

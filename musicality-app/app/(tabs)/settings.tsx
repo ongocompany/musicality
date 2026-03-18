@@ -25,6 +25,7 @@ export default function SettingsScreen() {
     phraseDetectionMode, setPhraseDetectionMode,
     defaultBeatsPerPhrase, setDefaultBeatsPerPhrase,
     language, setLanguage,
+    autoHideMs, setAutoHideMs,
   } = useSettingsStore();
   const { user, guestMode, signOut } = useAuthStore();
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
@@ -184,6 +185,32 @@ export default function SettingsScreen() {
         </View>
         <Text style={styles.lookAheadHint}>
           {t('settings.lookAheadHint')}
+        </Text>
+
+        {/* Auto-hide controls */}
+        <View style={[styles.row, { marginTop: Spacing.sm }]}>
+          <Ionicons name="eye-off-outline" size={20} color={Colors.textSecondary} />
+          <Text style={styles.label}>{t('settings.autoHide', { defaultValue: '컨트롤 자동숨김' })}</Text>
+          <View style={styles.lookAheadControls}>
+            <TouchableOpacity
+              style={styles.lookAheadBtn}
+              onPress={() => setAutoHideMs(autoHideMs <= 0 ? 0 : autoHideMs - 1000)}
+            >
+              <Ionicons name="remove" size={18} color={Colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.lookAheadValue}>
+              {autoHideMs <= 0 ? t('common.off', { defaultValue: 'OFF' }) : `${autoHideMs / 1000}s`}
+            </Text>
+            <TouchableOpacity
+              style={styles.lookAheadBtn}
+              onPress={() => setAutoHideMs(autoHideMs + 1000)}
+            >
+              <Ionicons name="add" size={18} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <Text style={styles.lookAheadHint}>
+          {t('settings.autoHideHint', { defaultValue: '재생 중 하단 컨트롤바를 자동으로 숨깁니다' })}
         </Text>
       </View>
 

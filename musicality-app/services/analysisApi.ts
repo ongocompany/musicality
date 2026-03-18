@@ -50,10 +50,12 @@ async function pollForResult(
   jobId: string,
   signal: AbortSignal,
 ): Promise<AnalysisResult> {
+  let pollCount = 0;
   while (!signal.aborted) {
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
 
     if (signal.aborted) break;
+    pollCount++;
 
     const response = await fetch(`${API_BASE_URL}/analyze/status/${jobId}`, {
       signal,
@@ -66,10 +68,12 @@ async function pollForResult(
     const data = await response.json();
 
     if (data.status === 'done') {
+      console.log(`[Analysis] Poll #${pollCount}: done`);
       return mapAnalysisResult(data.result);
     }
 
     if (data.status === 'error') {
+      console.error(`[Analysis] Poll #${pollCount}: server error — ${data.error}`);
       throw new Error(data.error || 'Analysis failed on server');
     }
 
@@ -168,7 +172,8 @@ export async function analyzeTrack(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT_MS);
 
-  console.log(`[Upload] Sending ${uploadFormat} to ${API_BASE_URL}/analyze (uri: ${uploadUri.slice(-50)})`);
+  const t0 = Date.now();
+  console.log(`[Analysis] Uploading ${uploadFormat} to ${API_BASE_URL}/analyze (${uploadUri.slice(-50)})`);
 
   try {
     const response = await fetch(`${API_BASE_URL}/analyze`, {
@@ -176,6 +181,9 @@ export async function analyzeTrack(
       body: formData,
       signal: controller.signal,
     });
+
+    const uploadMs = Date.now() - t0;
+    console.log(`[Analysis] Upload done in ${(uploadMs / 1000).toFixed(1)}s — HTTP ${response.status}`);
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
@@ -195,12 +203,19 @@ export async function analyzeTrack(
 
     // 202 Accepted → async job, save jobId immediately then poll
     if (response.status === 202 && data.job_id) {
+      console.log(`[Analysis] Job queued: ${data.job_id}, polling...`);
       onJobId?.(data.job_id);
-      return await pollForResult(data.job_id, controller.signal);
+      const result = await pollForResult(data.job_id, controller.signal);
+      const totalMs = Date.now() - t0;
+      console.log(`[Analysis] Complete: BPM=${result.bpm}, beats=${result.beats.length}, confidence=${result.confidence}, total=${(totalMs / 1000).toFixed(1)}s (upload=${(uploadMs / 1000).toFixed(1)}s)`);
+      return result;
     }
 
     // 200 OK → cache hit, result is directly in response
-    return mapAnalysisResult(data);
+    const result = mapAnalysisResult(data);
+    const totalMs = Date.now() - t0;
+    console.log(`[Analysis] Cache hit: BPM=${result.bpm}, beats=${result.beats.length}, total=${(totalMs / 1000).toFixed(1)}s`);
+    return result;
   } finally {
     clearTimeout(timeout);
   }
