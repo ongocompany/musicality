@@ -119,10 +119,10 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
               totalBeats={effectiveBeats.length}
               stageConfig={formation.stageConfig}
               isPlaying={isPlaying}
-              isEditing={true}
-              onUpdate={formation.handleFormationUpdate}
+              isEditing={!slot.isReadOnly}
+              onUpdate={slot.isReadOnly ? () => {} : formation.handleFormationUpdate}
               onBeatChange={formation.handleFormationBeatChange}
-              onStageConfigChange={formation.handleStageConfigChange}
+              onStageConfigChange={slot.isReadOnly ? () => {} : formation.handleStageConfigChange}
               onTogglePlay={togglePlay}
             />
           </View>
@@ -148,25 +148,25 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
               beats={effectiveBeats}
               isPlaying={isPlaying}
               onTapBeat={handleGridTapBeat}
-              onReArrangePhrase={handleReArrangePhrase}
-              onSplitPhraseHere={handleSplitPhraseHere}
+              onReArrangePhrase={slot.isReadOnly ? () => {} : handleReArrangePhrase}
+              onSplitPhraseHere={slot.isReadOnly ? () => {} : handleSplitPhraseHere}
               onSetLoopPoint={handleSetLoopPoint}
               onClearLoop={clearLoop}
               onSeekAndPlay={handleSeekAndPlay}
               onSeekOnly={handleSeekOnly}
-              onMergeWithPrevious={handleMergeWithPrevious}
+              onMergeWithPrevious={slot.isReadOnly ? () => {} : handleMergeWithPrevious}
               loopStart={loopStart}
               loopEnd={loopEnd}
               scrollMode={gridScrollMode}
               cellNotes={currentCellNotes}
-              onSetCellNote={handleSetCellNote}
-              onClearCellNote={handleClearCellNote}
+              onSetCellNote={slot.isReadOnly ? undefined : handleSetCellNote}
+              onClearCellNote={slot.isReadOnly ? undefined : handleClearCellNote}
               currentBeatNote={currentBeatNote}
               formationData={formation.activeFormationData}
-              onEditFormation={formation.handleEditFormation}
-              onCopyPrevKeyframe={formation.handleCopyPrevKeyframe}
-              onNewFormation={formation.handleNewFormation}
-              editMode="formation"
+              onEditFormation={slot.isReadOnly ? undefined : formation.handleEditFormation}
+              onCopyPrevKeyframe={slot.isReadOnly ? undefined : formation.handleCopyPrevKeyframe}
+              onNewFormation={slot.isReadOnly ? undefined : formation.handleNewFormation}
+              editMode={slot.isReadOnly ? 'none' : 'formation'}
             />
           </View>
         )}
@@ -238,13 +238,15 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
           <TouchableOpacity onPress={playerMode.onFormPress} style={[styles.modeBtn, playerMode.isFormation && styles.modeBtnActive]}>
             <Ionicons name="people-outline" size={18} color={playerMode.isFormation ? Colors.primary : Colors.textMuted} />
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={formation.handleFormationUndo}
-            disabled={!formation.canUndoFormation}
-            style={{ opacity: formation.canUndoFormation ? 1 : 0.3 }}
-          >
-            <Ionicons name="arrow-undo" size={20} color={Colors.primary} />
-          </TouchableOpacity>
+          {!slot.isReadOnly && (
+            <TouchableOpacity
+              onPress={formation.handleFormationUndo}
+              disabled={!formation.canUndoFormation}
+              style={{ opacity: formation.canUndoFormation ? 1 : 0.3 }}
+            >
+              <Ionicons name="arrow-undo" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          )}
         </View>
       </Animated.View>
 

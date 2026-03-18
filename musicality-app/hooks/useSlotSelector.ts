@@ -129,6 +129,45 @@ export function useSlotSelector(mode: SlotMode) {
 
   const slotColor = mode === 'phrase' ? Colors.primary : '#FFB300';
 
+  // ─── 자동저장: draft 변경 → 활성 슬롯에 디바운스 저장 ───
+  const draftBoundaries = useSettingsStore((s) => s.draftBoundaries);
+  const draftFormation = useSettingsStore((s) => s.draftFormation);
+  const setEditionBoundaries = useSettingsStore((s) => s.setEditionBoundaries);
+  const setFormationEdition = useSettingsStore((s) => s.setFormationEdition);
+
+  const currentDraft = trackId
+    ? (mode === 'phrase' ? draftBoundaries[trackId] : draftFormation[trackId])
+    : undefined;
+
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFirstDraftRef = useRef(true);
+
+  useEffect(() => {
+    // 첫 렌더 스킵
+    if (isFirstDraftRef.current) {
+      isFirstDraftRef.current = false;
+      return;
+    }
+    if (!trackId || isReadOnly || !currentDraft) return;
+
+    // 유저 슬롯 (1/2/3)에만 자동저장
+    const slotId = activeSlot as EditionId;
+    if (slotId === 'S' || slotId.startsWith('imported')) return;
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (mode === 'phrase' && Array.isArray(currentDraft)) {
+        setEditionBoundaries(trackId, slotId, currentDraft as number[]);
+      } else if (mode === 'formation' && currentDraft && !Array.isArray(currentDraft)) {
+        setFormationEdition(trackId, slotId as FormationEditionId, currentDraft as any);
+      }
+    }, 500);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [currentDraft]);
+
   return {
     // 상태
     slotBarVisible,

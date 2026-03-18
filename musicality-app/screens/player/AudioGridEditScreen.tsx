@@ -117,21 +117,21 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
                 beats={effectiveBeats}
                 isPlaying={isPlaying}
                 onTapBeat={handleGridTapBeat}
-                onReArrangePhrase={handleReArrangePhrase}
-                onSplitPhraseHere={handleSplitPhraseHere}
+                onReArrangePhrase={slot.isReadOnly ? () => {} : handleReArrangePhrase}
+                onSplitPhraseHere={slot.isReadOnly ? () => {} : handleSplitPhraseHere}
                 onSetLoopPoint={handleSetLoopPoint}
                 onClearLoop={clearLoop}
                 onSeekAndPlay={handleSeekAndPlay}
                 onSeekOnly={handleSeekOnly}
-                onMergeWithPrevious={handleMergeWithPrevious}
+                onMergeWithPrevious={slot.isReadOnly ? () => {} : handleMergeWithPrevious}
                 loopStart={loopStart}
                 loopEnd={loopEnd}
                 scrollMode={gridScrollMode}
                 cellNotes={currentCellNotes}
-                onSetCellNote={handleSetCellNote}
-                onClearCellNote={handleClearCellNote}
+                onSetCellNote={slot.isReadOnly ? undefined : handleSetCellNote}
+                onClearCellNote={slot.isReadOnly ? undefined : handleClearCellNote}
                 currentBeatNote={currentBeatNote}
-                editMode="note"
+                editMode={slot.isReadOnly ? 'none' : 'note'}
               />
             </View>
           </View>
@@ -204,9 +204,11 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
           <TouchableOpacity onPress={playerMode.onFormPress} style={[styles.modeBtn, playerMode.isFormation && styles.modeBtnActive]}>
             <Ionicons name="people-outline" size={18} color={playerMode.isFormation ? Colors.primary : Colors.textMuted} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleUndo} disabled={!canUndo} style={{ opacity: canUndo ? 1 : 0.3 }}>
-            <Ionicons name="arrow-undo" size={20} color={Colors.primary} />
-          </TouchableOpacity>
+          {!slot.isReadOnly && (
+            <TouchableOpacity onPress={handleUndo} disabled={!canUndo} style={{ opacity: canUndo ? 1 : 0.3 }}>
+              <Ionicons name="arrow-undo" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          )}
         </View>
       </Animated.View>
 
