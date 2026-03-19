@@ -102,6 +102,7 @@ export default function UserProfileScreen() {
       params: {
         userId: viewingProfile.id,
         name: viewingProfile.displayName,
+        avatarUrl: viewingProfile.avatarUrl ?? '',
       },
     });
   };

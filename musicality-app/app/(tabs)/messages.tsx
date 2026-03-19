@@ -68,6 +68,7 @@ export default function MessagesScreen() {
         params: {
           userId: item.otherUserId,
           name: item.otherProfile?.displayName ?? '',
+          avatarUrl: item.otherProfile?.avatarUrl ?? '',
         },
       });
     } else if (item.type === 'room' && item.room) {

@@ -24,7 +24,7 @@ import type { DirectMessage } from '../../types/message';
 const POLL_INTERVAL = 10_000;
 
 export default function ConversationScreen() {
-  const { userId, name } = useLocalSearchParams<{ userId: string; name: string }>();
+  const { userId, name, avatarUrl } = useLocalSearchParams<{ userId: string; name: string; avatarUrl?: string }>();
   const router = useRouter();
   const { user } = useAuthStore();
   const { activeConversation, fetchConversation, sendDM, markDMRead } = useMessageStore();
@@ -109,6 +109,12 @@ export default function ConversationScreen() {
         content={item.msg.content}
         createdAt={item.msg.createdAt}
         isOwn={item.msg.senderId === myId}
+        senderProfile={item.msg.senderId !== myId ? {
+          id: userId ?? '',
+          displayName: name ?? '',
+          avatarUrl: avatarUrl || null,
+        } as any : undefined}
+        showSender={item.msg.senderId !== myId}
       />
     );
   };
@@ -116,8 +122,8 @@ export default function ConversationScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* Header */}
       <View style={styles.header}>
