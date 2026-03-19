@@ -3,6 +3,130 @@
 
 import { Section, Phrase, PhraseMap } from '../types/analysis';
 
+// ─── BPM Zone detection ─────────────────────────────
+// Detects tempo zones (stable BPM regions) and beat-less gaps
+
+export interface BpmZone {
+  startBeatIndex: number;
+  endBeatIndex: number;     // exclusive
+  bpm: number;              // rounded BPM for this zone
+  startTime: number;        // seconds
+  endTime: number;          // seconds
+}
+
+/**
+ * Analyze beats array and split into stable BPM zones.
+ * Detects tempo changes (step-wise, not gradual) and beat-less gaps.
+ * Gap threshold: if beat interval > 2x median interval → "no beat" zone.
+ */
+export function detectBpmZones(beats: number[]): BpmZone[] {
+  if (beats.length < 4) return [];
+
+  // Compute all intervals
+  const intervals: number[] = [];
+  for (let i = 1; i < beats.length; i++) {
+    intervals.push(beats[i] - beats[i - 1]);
+  }
+
+  // Median interval (for gap detection)
+  const sorted = [...intervals].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const gapThreshold = median * 2.5; // 2.5x median = probably no beat
+
+  const zones: BpmZone[] = [];
+  let zoneStart = 0;
+  let zoneIntervals: number[] = [];
+
+  for (let i = 0; i < intervals.length; i++) {
+    const interval = intervals[i];
+
+    if (interval > gapThreshold) {
+      // Flush current zone
+      if (zoneIntervals.length >= 2) {
+        const avgInterval = zoneIntervals.reduce((a, b) => a + b, 0) / zoneIntervals.length;
+        zones.push({
+          startBeatIndex: zoneStart,
+          endBeatIndex: i + 1,
+          bpm: Math.round(60 / avgInterval),
+          startTime: beats[zoneStart],
+          endTime: beats[i],
+        });
+      }
+      // Gap zone (no beat) — BPM 0
+      zones.push({
+        startBeatIndex: i,
+        endBeatIndex: i + 1,
+        bpm: 0,
+        startTime: beats[i],
+        endTime: beats[i + 1],
+      });
+      zoneStart = i + 1;
+      zoneIntervals = [];
+      continue;
+    }
+
+    // Check for BPM step change (> 15% difference from zone average)
+    if (zoneIntervals.length >= 4) {
+      const avgInterval = zoneIntervals.reduce((a, b) => a + b, 0) / zoneIntervals.length;
+      const diff = Math.abs(interval - avgInterval) / avgInterval;
+      if (diff > 0.15) {
+        // Flush zone and start new one
+        zones.push({
+          startBeatIndex: zoneStart,
+          endBeatIndex: i + 1,
+          bpm: Math.round(60 / avgInterval),
+          startTime: beats[zoneStart],
+          endTime: beats[i],
+        });
+        zoneStart = i;
+        zoneIntervals = [interval];
+        continue;
+      }
+    }
+
+    zoneIntervals.push(interval);
+  }
+
+  // Flush last zone
+  if (zoneIntervals.length >= 2) {
+    const avgInterval = zoneIntervals.reduce((a, b) => a + b, 0) / zoneIntervals.length;
+    zones.push({
+      startBeatIndex: zoneStart,
+      endBeatIndex: beats.length,
+      bpm: Math.round(60 / avgInterval),
+      startTime: beats[zoneStart],
+      endTime: beats[beats.length - 1],
+    });
+  }
+
+  return zones;
+}
+
+/**
+ * Get the BPM zone for a given beat index.
+ * Returns null if in a gap (no beat) zone.
+ */
+export function getBpmAtBeat(beatIndex: number, zones: BpmZone[]): number | null {
+  for (const zone of zones) {
+    if (beatIndex >= zone.startBeatIndex && beatIndex < zone.endBeatIndex) {
+      return zone.bpm === 0 ? null : zone.bpm;
+    }
+  }
+  return null;
+}
+
+/**
+ * Check if a beat index is in a "no beat" gap zone.
+ */
+export function isInBeatGap(beatIndex: number, zones: BpmZone[]): boolean {
+  for (const zone of zones) {
+    if (beatIndex >= zone.startBeatIndex && beatIndex < zone.endBeatIndex) {
+      return zone.bpm === 0;
+    }
+  }
+  return false;
+}
+
 export type DanceStyle = 'bachata' | 'salsa-on1' | 'salsa-on2';
 export type BeatType = 'step' | 'tap' | 'pause';
 

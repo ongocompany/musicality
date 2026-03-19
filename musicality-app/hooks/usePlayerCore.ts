@@ -24,7 +24,7 @@ import { useCuePlayer } from './useCuePlayer';
 import { analyzeTrack } from '../services/analysisApi';
 import { buildPhraseNoteFile, exportPhraseNote, pickPhraseNoteFile, findMatchingTrack } from '../services/phraseNoteService';
 import { ImportedPhraseNote } from '../types/phraseNote';
-import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, CountInfo } from '../utils/beatCounter';
+import { getPhraseCountInfo, computeReferenceIndex, findNearestBeatIndex, CountInfo, detectBpmZones, getBpmAtBeat, isInBeatGap, BpmZone } from '../utils/beatCounter';
 import { detectPhrasesRuleBased, detectPhrasesFromUserMark, phrasesFromBoundaries, phrasesFromBeatIndices } from '../utils/phraseDetector';
 import { generateSyntheticAnalysis } from '../utils/beatGenerator';
 
@@ -206,6 +206,11 @@ export function usePlayerCore() {
     return dbs.map(b => Math.max(0, b + offsetSec));
   }, [effectiveAnalysisData, analysis, beatTimeOffset]);
 
+  // ─── BPM Zones (detect tempo changes + beat gaps) — computed before countInfo ───
+  const bpmZones = useMemo(() => {
+    return detectBpmZones(effectiveBeats);
+  }, [effectiveBeats]);
+
   // ─── Count info (stable reference) ───
   const prevCountRef = useRef<CountInfo | null>(null);
   const countInfo = useMemo(() => {
@@ -214,20 +219,36 @@ export function usePlayerCore() {
     const raw = effBeats
       ? getPhraseCountInfo(position + lookAheadMs, effBeats, effectiveDownbeats, effOffset, danceStyle, phraseMap)
       : null;
+
+    // If in a beat-less gap, override count to -1 (screens show '--')
+    if (raw && isInBeatGap(raw.beatIndex, bpmZones)) {
+      const gapInfo = { ...raw, count: -1 };
+      prevCountRef.current = gapInfo;
+      return gapInfo;
+    }
+
     const prev = prevCountRef.current;
     if (prev && raw && prev.beatIndex === raw.beatIndex && prev.phraseIndex === raw.phraseIndex) {
       return prev;
     }
     prevCountRef.current = raw;
     return raw;
-  }, [position, lookAheadMs, effectiveBeats, effectiveDownbeats, offsetBeatIndex, effectiveAnalysisData, danceStyle, phraseMap]);
+  }, [position, lookAheadMs, effectiveBeats, effectiveDownbeats, offsetBeatIndex, effectiveAnalysisData, danceStyle, phraseMap, bpmZones]);
 
-  // ─── Current BPM (stable: use analyzed or override, not real-time interval) ───
+  // ─── Current BPM (zone-based: stable per section, detects tempo changes) ───
   const currentBpm = useMemo(() => {
     if (bpmOverride) return bpmOverride;
-    if (analysis?.bpm) return Math.round(analysis.bpm);
-    return null;
-  }, [analysis?.bpm, bpmOverride]);
+    if (!countInfo || countInfo.beatIndex < 0) {
+      return analysis?.bpm ? Math.round(analysis.bpm) : null;
+    }
+    return getBpmAtBeat(countInfo.beatIndex, bpmZones);
+  }, [bpmOverride, countInfo?.beatIndex, bpmZones, analysis?.bpm]);
+
+  // ─── Is current position in a beat-less gap? ───
+  const isInGap = useMemo(() => {
+    if (!countInfo || countInfo.beatIndex < 0) return false;
+    return isInBeatGap(countInfo.beatIndex, bpmZones);
+  }, [countInfo?.beatIndex, bpmZones]);
 
   // ─── Keep screen awake ───
   useEffect(() => {
@@ -566,7 +587,7 @@ export function usePlayerCore() {
     // State
     currentTrack, isPlaying, position, duration, playbackRate,
     isVideo, isYouTube, isVisual,
-    analysis, countInfo, phraseMap, effectiveBeats, effectiveDownbeats, currentBpm,
+    analysis, countInfo, phraseMap, effectiveBeats, effectiveDownbeats, currentBpm, isInGap, bpmZones,
     beatTimeOffset, bpmOverride,
     loopStart, loopEnd, loopEnabled,
     gridScrollMode, danceStyle, cueEnabled,

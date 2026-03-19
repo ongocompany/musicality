@@ -31,7 +31,7 @@ export function CountDisplay({ count, color, size = 'large' }: CountDisplayProps
         },
       ]}
     >
-      {count}
+      {count === -1 ? '--' : count}
     </Animated.Text>
   );
 }
