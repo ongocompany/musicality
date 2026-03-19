@@ -64,19 +64,23 @@ export function startSyncManager(): void {
   appStateSubscription = AppState.addEventListener('change', handleAppState);
 
   // Watch local store changes (debounced push with dirty tracking)
+  // Use selector to only subscribe to tracks changes, NOT position/playback state
   let prevTracksRef = usePlayerStore.getState().tracks;
-  playerUnsubscribe = usePlayerStore.subscribe((state) => {
-    if (isPulling) return; // don't dirty-mark during pull
-    if (state.tracks !== prevTracksRef) {
-      const prev = new Map(prevTracksRef.map(t => [t.id, t]));
-      for (const t of state.tracks) {
-        const old = prev.get(t.id);
-        if (!old || old !== t) dirtyTrackIds.add(t.id);
+  playerUnsubscribe = usePlayerStore.subscribe(
+    (state) => state.tracks,
+    (tracks) => {
+      if (isPulling) return;
+      if (tracks !== prevTracksRef) {
+        const prev = new Map(prevTracksRef.map(t => [t.id, t]));
+        for (const t of tracks) {
+          const old = prev.get(t.id);
+          if (!old || old !== t) dirtyTrackIds.add(t.id);
+        }
+        prevTracksRef = tracks;
+        if (dirtyTrackIds.size > 0) schedulePush();
       }
-      prevTracksRef = state.tracks;
-      if (dirtyTrackIds.size > 0) schedulePush();
-    }
-  });
+    },
+  );
 
   let prevEditionsRef = useSettingsStore.getState().trackEditions;
   let prevFormationsRef = useSettingsStore.getState().trackFormations;

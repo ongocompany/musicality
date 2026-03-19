@@ -49,7 +49,7 @@ export function useAudioPlayer() {
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: playUri },
-        { shouldPlay: false, rate: playbackRate, progressUpdateIntervalMillis: 250 },
+        { shouldPlay: false, rate: playbackRate, progressUpdateIntervalMillis: 100 },
         onPlaybackStatusUpdate,
       );
 

@@ -32,24 +32,14 @@ export function usePlayerCore() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  // ─── Player Store (split selectors to reduce re-renders) ───
-  const currentTrack = usePlayerStore((s) => s.currentTrack);
-  const isPlaying = usePlayerStore((s) => s.isPlaying);
-  const position = usePlayerStore((s) => s.position);
-  const duration = usePlayerStore((s) => s.duration);
-  const playbackRate = usePlayerStore((s) => s.playbackRate);
-  const loopEnabled = usePlayerStore((s) => s.loopEnabled);
-  const loopStart = usePlayerStore((s) => s.loopStart);
-  const loopEnd = usePlayerStore((s) => s.loopEnd);
-  const setPlaybackRate = usePlayerStore((s) => s.setPlaybackRate);
-  const setLoopStart = usePlayerStore((s) => s.setLoopStart);
-  const setLoopEnd = usePlayerStore((s) => s.setLoopEnd);
-  const clearLoop = usePlayerStore((s) => s.clearLoop);
-  const setIsSeeking = usePlayerStore((s) => s.setIsSeeking);
-  const setTrackAnalysisStatus = usePlayerStore((s) => s.setTrackAnalysisStatus);
-  const setTrackAnalysis = usePlayerStore((s) => s.setTrackAnalysis);
-  const setTrackPendingJobId = usePlayerStore((s) => s.setTrackPendingJobId);
-  const updateTrackData = usePlayerStore((s) => s.updateTrackData);
+  // ─── Player Store ───
+  const {
+    currentTrack, isPlaying, position, duration, playbackRate,
+    setPlaybackRate, loopEnabled, loopStart, loopEnd,
+    setLoopStart, setLoopEnd, clearLoop, setIsSeeking,
+    setTrackAnalysisStatus, setTrackAnalysis, setTrackPendingJobId,
+    updateTrackData,
+  } = usePlayerStore();
   const tracks = usePlayerStore((s) => s.tracks);
 
   // ─── Media type flags ───
