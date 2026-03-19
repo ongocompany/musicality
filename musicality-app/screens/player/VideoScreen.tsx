@@ -97,25 +97,30 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
     if (hasDoneAnalysis) focus.scheduleAutoHide();
   }, [hasDoneAnalysis]);
 
-  // ─── Video collapse/expand ───
-  const videoCollapseAnim = useRef(new Animated.Value(1)).current;
-  const [videoCollapsed, setVideoCollapsed] = useState(false);
+  // ─── Video size: drag handle to resize (proportion maintained) ───
+  const VIDEO_MIN_HEIGHT = 80;
+  const defaultHeight = VIDEO_MAX_HEIGHT * 0.6;
+  const [videoHeight, setVideoHeight] = useState(defaultHeight);
+  const videoHeightRef = useRef(defaultHeight);
+  const videoCollapsed = videoHeight <= VIDEO_MIN_HEIGHT;
 
-  const collapseVideo = useCallback(() => {
-    setVideoCollapsed(true);
-    Animated.spring(videoCollapseAnim, { toValue: 0, useNativeDriver: false }).start();
-  }, [videoCollapseAnim]);
-
-  const expandVideo = useCallback(() => {
-    setVideoCollapsed(false);
-    Animated.spring(videoCollapseAnim, { toValue: 1, useNativeDriver: false }).start();
-  }, [videoCollapseAnim]);
-
-  const videoSwipeResponder = useRef(PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 15,
+  const videoResizeResponder = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 8,
+    onPanResponderGrant: () => {
+      videoHeightRef.current = videoHeight;
+    },
+    onPanResponderMove: (_, gs) => {
+      // Drag up (negative dy) = bigger, drag down (positive dy) = smaller
+      const newHeight = Math.max(0, Math.min(VIDEO_MAX_HEIGHT, videoHeightRef.current + gs.dy));
+      setVideoHeight(newHeight);
+    },
     onPanResponderRelease: (_, gs) => {
-      if (gs.dy < -30 && !videoCollapsed) collapseVideo();
-      else if (gs.dy > 30 && videoCollapsed) expandVideo();
+      const newHeight = videoHeightRef.current + gs.dy;
+      if (newHeight < VIDEO_MIN_HEIGHT) {
+        setVideoHeight(0);
+      } else {
+        setVideoHeight(Math.min(VIDEO_MAX_HEIGHT, Math.max(VIDEO_MIN_HEIGHT, newHeight)));
+      }
     },
   })).current;
 
@@ -217,20 +222,12 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
         {/* ② Native Video Player */}
         {isVideo && (
           <View style={styles.videoSection}>
-            <Animated.View
-              style={{
-                maxHeight: videoCollapseAnim.interpolate({
-                  inputRange: [0, 1], outputRange: [0, VIDEO_MAX_HEIGHT],
-                }),
-                opacity: videoCollapseAnim, overflow: 'hidden',
-              }}
-              {...videoSwipeResponder.panHandlers}
-            >
-              <View style={[styles.videoContainer, { aspectRatio: videoAspectRatio }]}>
+            {videoHeight > 0 && (
+              <View style={{ height: videoHeight, width: SCREEN_WIDTH, backgroundColor: '#000' }}>
                 <Video
                   ref={videoPlayer.videoRef}
                   source={{ uri: currentTrack.uri }}
-                  style={styles.video}
+                  style={{ width: SCREEN_WIDTH, height: videoHeight }}
                   resizeMode={ResizeMode.CONTAIN}
                   shouldPlay={false}
                   progressUpdateIntervalMillis={Platform.OS === 'android' ? 200 : 100}
@@ -243,20 +240,12 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
                   </View>
                 )}
               </View>
-            </Animated.View>
-            {/* Collapse/expand handle */}
-            <View {...(videoCollapsed ? videoSwipeResponder.panHandlers : {})}>
-              <TouchableOpacity
-                style={[styles.collapseHandle, videoCollapsed && styles.collapseHandleExpanded]}
-                onPress={videoCollapsed ? expandVideo : collapseVideo}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={videoCollapsed ? 'chevron-down' : 'chevron-up'}
-                  size={videoCollapsed ? 20 : 16}
-                  color={videoCollapsed ? Colors.primary : Colors.textMuted}
-                />
-              </TouchableOpacity>
+            )}
+            {/* Drag handle to resize video */}
+            <View {...videoResizeResponder.panHandlers}>
+              <View style={[styles.collapseHandle, videoCollapsed && styles.collapseHandleExpanded]}>
+                <View style={styles.dragBar} />
+              </View>
             </View>
           </View>
         )}
@@ -455,16 +444,21 @@ const styles = StyleSheet.create({
   },
   videoContainer: {
     width: '100%', backgroundColor: '#000',
-    maxHeight: VIDEO_MAX_HEIGHT,
   },
   video: { width: '100%', height: '100%' },
   collapseHandle: {
-    alignItems: 'center', paddingVertical: 4,
+    alignItems: 'center', paddingVertical: 8,
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
   collapseHandleExpanded: {
     paddingVertical: 12,
     backgroundColor: 'rgba(187,134,252,0.1)',
+  },
+  dragBar: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.textMuted,
   },
 
   // ─── TapTempo ───

@@ -62,12 +62,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Check initial URL (app launched from share)
-    Linking.getInitialURL().then(url => {
-      if (url) handleDeepLink({ url });
-    });
-
-    // Listen for URL while app is running
+    // Listen for URL while app is already running (not initial launch)
     const sub = Linking.addEventListener('url', handleDeepLink);
     return () => sub.remove();
   }, []);
