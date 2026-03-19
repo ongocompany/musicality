@@ -12,6 +12,99 @@ public class AudioExtractorModule: Module {
     AsyncFunction("extractMetadata") { (uri: String) -> [String: Any?] in
       return Self.extractMetadata(uri: uri)
     }
+
+    // MARK: - Security-scoped bookmark (persistent cloud file access)
+
+    AsyncFunction("createBookmark") { (uri: String) -> String? in
+      return Self.createBookmark(uri: uri)
+    }
+
+    AsyncFunction("resolveBookmark") { (bookmarkBase64: String) -> String? in
+      return Self.resolveBookmark(bookmarkBase64: bookmarkBase64)
+    }
+
+    AsyncFunction("copyWithSecurityScope") { (sourceUri: String, destUri: String) -> Bool in
+      return Self.copyWithSecurityScope(sourceUri: sourceUri, destUri: destUri)
+    }
+  }
+
+  // MARK: - Security-scoped bookmark
+
+  /// Create a persistent bookmark from a security-scoped URL (from document picker)
+  private static func createBookmark(uri: String) -> String? {
+    guard let url = Self.resolveURL(uri) else { return nil }
+
+    // Start accessing security-scoped resource
+    let didStart = url.startAccessingSecurityScopedResource()
+    defer { if didStart { url.stopAccessingSecurityScopedResource() } }
+
+    do {
+      let bookmarkData = try url.bookmarkData(
+        options: .minimalBookmark,
+        includingResourceValuesForKeys: nil,
+        relativeTo: nil
+      )
+      return bookmarkData.base64EncodedString()
+    } catch {
+      print("[Bookmark] Failed to create: \(error.localizedDescription)")
+      return nil
+    }
+  }
+
+  /// Resolve a bookmark back to a URL and start security-scoped access
+  private static func resolveBookmark(bookmarkBase64: String) -> String? {
+    guard let bookmarkData = Data(base64Encoded: bookmarkBase64) else { return nil }
+
+    do {
+      var isStale = false
+      let url = try URL(
+        resolvingBookmarkData: bookmarkData,
+        options: [],
+        relativeTo: nil,
+        bookmarkDataIsStale: &isStale
+      )
+
+      // Start accessing — caller must eventually stop
+      let didStart = url.startAccessingSecurityScopedResource()
+      if !didStart {
+        print("[Bookmark] Could not start accessing security-scoped resource")
+        return nil
+      }
+
+      return url.absoluteString
+    } catch {
+      print("[Bookmark] Failed to resolve: \(error.localizedDescription)")
+      return nil
+    }
+  }
+
+  /// Copy a file using security-scoped access (for cloud files)
+  private static func copyWithSecurityScope(sourceUri: String, destUri: String) -> Bool {
+    guard let srcURL = Self.resolveURL(sourceUri),
+          let dstURL = Self.resolveURL(destUri) else { return false }
+
+    let didStart = srcURL.startAccessingSecurityScopedResource()
+    defer { if didStart { srcURL.stopAccessingSecurityScopedResource() } }
+
+    do {
+      if FileManager.default.fileExists(atPath: dstURL.path) {
+        try FileManager.default.removeItem(at: dstURL)
+      }
+      try FileManager.default.copyItem(at: srcURL, to: dstURL)
+      // Verify copy
+      let attrs = try FileManager.default.attributesOfItem(atPath: dstURL.path)
+      let size = attrs[.size] as? Int64 ?? 0
+      return size > 0
+    } catch {
+      print("[Bookmark] Copy failed: \(error.localizedDescription)")
+      return false
+    }
+  }
+
+  private static func resolveURL(_ uri: String) -> URL? {
+    if uri.hasPrefix("file://") { return URL(string: uri) }
+    if uri.hasPrefix("/") { return URL(fileURLWithPath: uri) }
+    return URL(string: uri)
   }
 
   // MARK: - Metadata extraction

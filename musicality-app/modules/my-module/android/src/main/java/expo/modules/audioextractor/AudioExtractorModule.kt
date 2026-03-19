@@ -3,11 +3,13 @@ package expo.modules.audioextractor
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.Promise
+import android.content.Intent
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
@@ -37,6 +39,45 @@ class AudioExtractorModule : Module() {
           promise.resolve(result)
         } catch (e: Exception) {
           promise.resolve(emptyMap<String, Any?>())
+        }
+      }.start()
+    }
+
+    // Persistable URI permission for cloud files (Google Drive, etc.)
+    AsyncFunction("takePersistablePermission") { uri: String, promise: Promise ->
+      try {
+        val context = appContext.reactContext ?: throw Exception("No context")
+        val contentUri = Uri.parse(uri)
+        context.contentResolver.takePersistableUriPermission(
+          contentUri,
+          Intent.FLAG_GRANT_READ_URI_PERMISSION
+        )
+        promise.resolve(true)
+      } catch (e: Exception) {
+        // Not all URIs support persistable permissions — that's OK
+        promise.resolve(false)
+      }
+    }
+
+    AsyncFunction("copyFromContentUri") { contentUri: String, destPath: String, promise: Promise ->
+      Thread {
+        try {
+          val context = appContext.reactContext ?: throw Exception("No context")
+          val uri = Uri.parse(contentUri)
+          val destFile = File(destPath)
+          context.contentResolver.openInputStream(uri)?.use { input ->
+            FileOutputStream(destFile).use { output ->
+              input.copyTo(output)
+            }
+          } ?: throw Exception("Cannot open content URI")
+          // Verify
+          if (destFile.exists() && destFile.length() > 0) {
+            promise.resolve(true)
+          } else {
+            promise.resolve(false)
+          }
+        } catch (e: Exception) {
+          promise.resolve(false)
         }
       }.start()
     }

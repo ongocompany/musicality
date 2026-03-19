@@ -3,6 +3,7 @@ import { File, Directory, Paths } from 'expo-file-system/next';
 import { getInfoAsync } from 'expo-file-system/legacy';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Track, MediaType } from '../types/track';
+import { createFileBookmark, resolveFileBookmark, copyFromCloudUri } from '../modules/my-module';
 
 const AUDIO_TYPES = ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/flac', 'audio/mp4', 'audio/x-m4a', 'audio/aac'];
 const ALL_MEDIA_TYPES = [...AUDIO_TYPES, 'video/*'];
@@ -149,6 +150,20 @@ async function processAsset(asset: DocumentPicker.DocumentPickerAsset): Promise<
     ? (artist ? `${artist} - ${metaTitle}` : metaTitle)
     : asset.name.replace(/\.[^/.]+$/, '');
 
+  // Create persistent bookmark for cloud file re-access
+  let fileBookmark: string | undefined;
+  if (asset.uri !== fileUri) {
+    try {
+      const bookmark = await createFileBookmark(asset.uri);
+      if (bookmark) {
+        fileBookmark = bookmark;
+        console.log(`[FileImport] Bookmark created for: ${asset.name}`);
+      }
+    } catch (e: any) {
+      console.warn(`[FileImport] Bookmark creation failed: ${e?.message}`);
+    }
+  }
+
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     title: displayTitle,
@@ -156,6 +171,7 @@ async function processAsset(asset: DocumentPicker.DocumentPickerAsset): Promise<
     album,
     uri: fileUri,
     sourceUri: asset.uri !== fileUri ? asset.uri : undefined,
+    fileBookmark,
     fileSize: asset.size ?? 0,
     format: getFormat(asset.mimeType, asset.name),
     mediaType,
@@ -272,15 +288,55 @@ export async function ensureFileAvailable(track: Track): Promise<string | null> 
         console.warn(`[FileImport] Cloud download timed out: ${track.uri.slice(-50)}`);
       }
     } else {
-      // File doesn't exist at all — no point waiting, return immediately
       console.log(`[FileImport] File not found: ${track.uri.slice(-60)}`);
-      return null;
     }
   } catch (e: any) {
     console.log(`[FileImport] File check error: ${e?.message}`);
-    return null;
   }
 
+  // ─── Recovery via bookmark (cloud file re-access) ───
+  if (track.fileBookmark) {
+    console.log(`[FileImport] Attempting bookmark recovery...`);
+    try {
+      const resolvedUri = await resolveFileBookmark(track.fileBookmark);
+      if (resolvedUri) {
+        // Re-copy from cloud to permanent storage
+        const mediaDir = new Directory(Paths.document, 'media');
+        if (!mediaDir.exists) mediaDir.create();
+        const safeTitle = (track.title || 'track').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const destPath = `${mediaDir.uri}/${Date.now()}-${safeTitle}.${track.format}`.replace('file://', '');
+        const copied = await copyFromCloudUri(resolvedUri, destPath);
+        if (copied) {
+          const newUri = `file://${destPath}`;
+          console.log(`[FileImport] Bookmark recovery success: ${newUri.slice(-50)}`);
+          return newUri;
+        }
+      }
+    } catch (e: any) {
+      console.warn(`[FileImport] Bookmark recovery failed: ${e?.message}`);
+    }
+  }
+
+  // ─── Fallback: try sourceUri directly ───
+  if (track.sourceUri) {
+    console.log(`[FileImport] Trying sourceUri fallback: ${track.sourceUri.slice(-50)}`);
+    try {
+      const mediaDir = new Directory(Paths.document, 'media');
+      if (!mediaDir.exists) mediaDir.create();
+      const safeTitle = (track.title || 'track').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const destPath = `${mediaDir.uri}/${Date.now()}-${safeTitle}.${track.format}`.replace('file://', '');
+      const copied = await copyFromCloudUri(track.sourceUri, destPath);
+      if (copied) {
+        const newUri = `file://${destPath}`;
+        console.log(`[FileImport] SourceUri recovery success: ${newUri.slice(-50)}`);
+        return newUri;
+      }
+    } catch (e: any) {
+      console.warn(`[FileImport] SourceUri recovery failed: ${e?.message}`);
+    }
+  }
+
+  console.warn(`[FileImport] All recovery methods failed for: ${track.title}`);
   return null;
 }
 
