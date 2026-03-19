@@ -8,9 +8,10 @@ import acoustid
 from madmom.features.beats import RNNBeatProcessor, DBNBeatTrackingProcessor
 from madmom.features.downbeats import RNNDownBeatProcessor, DBNDownBeatTrackingProcessor
 
-from models.schemas import AnalysisResult, TrackMetadata
+from models.schemas import AnalysisResult
 from services.structure_analyzer import analyze_structure, analyze_structure_with_phrases
-from services.metadata_lookup import lookup_metadata
+# Metadata lookup disabled — AcoustID/MusicBrainz rarely matches Latin dance remixes
+# from services.metadata_lookup import lookup_metadata
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".m4v"}
 
@@ -131,15 +132,8 @@ def _do_analysis(audio_path: str) -> AnalysisResult:
     except Exception:
         pass  # graceful degradation — fingerprint is optional
 
-    # 9. Metadata lookup (AcoustID -> MusicBrainz -> Cover Art Archive)
+    # 9. Metadata lookup disabled — rarely matches Latin dance remixes, wastes API calls
     metadata = None
-    if fingerprint:
-        try:
-            meta_dict = lookup_metadata(fingerprint, duration)
-            if meta_dict:
-                metadata = TrackMetadata(**meta_dict)
-        except Exception:
-            pass  # graceful degradation — metadata is optional
 
     return AnalysisResult(
         bpm=round(tempo, 1),

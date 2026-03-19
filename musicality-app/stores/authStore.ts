@@ -6,7 +6,8 @@ import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { startSyncManager, stopSyncManager } from '../services/syncManager';
+// Cloud sync disabled — library is local-only with export/import
+// import { startSyncManager, stopSyncManager } from '../services/syncManager';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -45,18 +46,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           session,
           user: session?.user ?? null,
         });
-        // Start sync on login, stop on logout
-        if (session?.user && !prevUser) {
-          startSyncManager();
-        } else if (!session?.user && prevUser) {
-          stopSyncManager();
-        }
+        // Cloud sync disabled — library is local-only
       });
 
-      // Start sync if already logged in
-      if (session?.user) {
-        startSyncManager();
-      }
+      // Cloud sync disabled — library is local-only
     } catch (error) {
       console.error('Auth init error:', error);
       set({ loading: false });
@@ -141,7 +134,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     try {
-      stopSyncManager();
       await supabase.auth.signOut();
       // Reset all stores to prevent cross-account data leaks
       const { useCommunityStore } = require('./communityStore');

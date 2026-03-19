@@ -420,21 +420,7 @@ export function usePlayerCore() {
       );
       setTrackAnalysis(currentTrack.id, result);
 
-      // Auto-tag: apply metadata from AcoustID/MusicBrainz if track lacks ID3 info
-      if (result.metadata) {
-        const updates: Record<string, any> = {};
-        if (result.metadata.artist && !currentTrack.artist) updates.artist = result.metadata.artist;
-        if (result.metadata.title && !currentTrack.title?.includes(' - ')) {
-          // Only update title if it looks like a filename (no artist separator)
-          // Don't overwrite user-renamed titles
-        }
-        if (result.metadata.album && !currentTrack.album) updates.album = result.metadata.album;
-        if (result.metadata.albumArtUrl && !currentTrack.thumbnailUri) updates.thumbnailUri = result.metadata.albumArtUrl;
-        if (Object.keys(updates).length > 0) {
-          console.log('[AutoTag] Applying metadata:', updates);
-          updateTrackData(currentTrack.id, updates);
-        }
-      }
+      // Auto-tag disabled — AcoustID/MusicBrainz metadata lookup removed from server
 
       if (result.phraseBoundaries && result.phraseBoundaries.length > 0) {
         const boundaryBeatIndices = result.phraseBoundaries.map(ts => {

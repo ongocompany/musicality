@@ -7,8 +7,10 @@ import { Colors, Spacing, FontSize } from '../../constants/theme';
 import { checkServerHealth } from '../../services/analysisApi';
 import { API_BASE_URL } from '../../constants/config';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { usePlayerStore } from '../../stores/playerStore';
 import { useAuthStore } from '../../stores/authStore';
 import { LANGUAGES, LanguageCode } from '../../i18n';
+import { exportLibraryBackup, importLibraryBackup, LibraryBackup } from '../../services/libraryBackupService';
 
 const LOOK_AHEAD_STEP = 25; // ms per tap
 
@@ -212,6 +214,137 @@ export default function SettingsScreen() {
         </View>
         <Text style={styles.lookAheadHint}>
           {t('settings.autoHideHint', { defaultValue: '재생 중 하단 컨트롤바를 자동으로 숨깁니다' })}
+        </Text>
+      </View>
+
+      {/* Library Management */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('settings.libraryManagement', { defaultValue: '라이브러리 관리' })}</Text>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={async () => {
+            try {
+              const playerState = usePlayerStore.getState();
+              const settingsState = useSettingsStore.getState();
+              const backup: LibraryBackup = {
+                version: 1,
+                createdAt: Date.now(),
+                player: {
+                  tracks: playerState.tracks,
+                  folders: playerState.folders,
+                  sortBy: playerState.sortBy,
+                  sortOrder: playerState.sortOrder,
+                },
+                settings: {
+                  downbeatOffsets: settingsState.downbeatOffsets,
+                  beatTimeOffsets: settingsState.beatTimeOffsets,
+                  bpmOverrides: settingsState.bpmOverrides,
+                  phraseMarks: settingsState.phraseMarks,
+                  trackEditions: settingsState.trackEditions,
+                  cellNotes: settingsState.cellNotes,
+                  importedNotes: settingsState.importedNotes,
+                  trackFormations: settingsState.trackFormations,
+                  stageConfig: settingsState.stageConfig,
+                },
+              };
+              await exportLibraryBackup(backup);
+            } catch (e: any) {
+              Alert.alert(t('common.error'), e?.message || 'Export failed');
+            }
+          }}
+        >
+          <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
+          <Text style={[styles.label, { color: Colors.primary }]}>
+            {t('settings.exportLibrary', { defaultValue: '라이브러리 백업 (내보내기)' })}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={async () => {
+            Alert.alert(
+              t('settings.importLibrary', { defaultValue: '라이브러리 복원' }),
+              t('settings.importLibraryConfirm', { defaultValue: '현재 라이브러리 설정이 백업 파일의 내용으로 덮어씌워집니다. 계속하시겠습니까?' }),
+              [
+                { text: t('common.cancel'), style: 'cancel' },
+                {
+                  text: t('settings.restore', { defaultValue: '복원' }),
+                  onPress: async () => {
+                    try {
+                      const backup = await importLibraryBackup();
+                      if (!backup) return;
+                      // Restore player state (bulk replace)
+                      usePlayerStore.setState({
+                        tracks: backup.player.tracks,
+                        folders: backup.player.folders || [],
+                        sortBy: backup.player.sortBy as any,
+                        sortOrder: backup.player.sortOrder as any,
+                      });
+                      // Restore settings (bulk set via Zustand setState)
+                      useSettingsStore.setState({
+                        ...backup.settings,
+                      });
+                      Alert.alert(
+                        t('common.done', { defaultValue: '완료' }),
+                        t('settings.importSuccess', { defaultValue: `${backup.player.tracks.length}곡이 복원되었습니다.` }),
+                      );
+                    } catch (e: any) {
+                      Alert.alert(t('common.error'), e?.message || 'Import failed');
+                    }
+                  },
+                },
+              ],
+            );
+          }}
+        >
+          <Ionicons name="cloud-download-outline" size={20} color={Colors.primary} />
+          <Text style={[styles.label, { color: Colors.primary }]}>
+            {t('settings.importLibrary', { defaultValue: '라이브러리 복원 (가져오기)' })}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.row, { marginTop: Spacing.md }]}
+          onPress={() => {
+            const trackCount = usePlayerStore.getState().tracks.length;
+            const folderCount = usePlayerStore.getState().folders.length;
+            Alert.alert(
+              t('settings.resetLibrary', { defaultValue: '라이브러리 초기화' }),
+              t('settings.resetLibraryConfirm', {
+                defaultValue: `트랙 ${trackCount}곡, 폴더 ${folderCount}개가 모두 삭제됩니다. 계속하시겠습니까?`,
+                trackCount,
+                folderCount,
+              }),
+              [
+                { text: t('common.cancel'), style: 'cancel' },
+                {
+                  text: t('common.reset', { defaultValue: '초기화' }),
+                  style: 'destructive',
+                  onPress: async () => {
+                    await AsyncStorage.removeItem('musicality-tracks');
+                    usePlayerStore.setState({
+                      tracks: [],
+                      folders: [],
+                      currentTrack: null,
+                      isPlaying: false,
+                      position: 0,
+                      duration: 0,
+                    });
+                    Alert.alert(
+                      t('common.done', { defaultValue: '완료' }),
+                      t('settings.resetLibraryDone', { defaultValue: '라이브러리가 초기화되었습니다.' }),
+                    );
+                  },
+                },
+              ],
+            );
+          }}
+        >
+          <Ionicons name="trash-outline" size={20} color={Colors.error} />
+          <Text style={[styles.label, { color: Colors.error }]}>
+            {t('settings.resetLibrary', { defaultValue: '라이브러리 초기화' })}
+          </Text>
+        </TouchableOpacity>
+        <Text style={styles.lookAheadHint}>
+          {t('settings.libraryHint', { defaultValue: '기기 변경 시 백업 파일(.ritmo-backup)로 라이브러리를 이전할 수 있습니다' })}
         </Text>
       </View>
 

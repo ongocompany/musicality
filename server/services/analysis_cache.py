@@ -33,13 +33,16 @@ def compute_file_hash(file_path: str) -> str:
 
 
 def _get_supabase():
-    """Get Supabase client (lazy import to avoid startup issues)."""
-    from supabase import create_client
+    """Get Supabase client with short timeout (lazy import to avoid startup issues)."""
+    from supabase import create_client, ClientOptions
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
     if not url or not key:
         return None
-    return create_client(url, key)
+    # 5s timeout to prevent Supabase outages from blocking the analysis server
+    # (default is 120s which can hang the entire uvicorn worker)
+    opts = ClientOptions(postgrest_client_timeout=5)
+    return create_client(url, key, options=opts)
 
 
 def _row_to_result(row: dict, file_hash: str = "") -> AnalysisResult:
@@ -232,7 +235,7 @@ def lookup_cache_by_fingerprint(fingerprint: str, duration: float) -> Optional[A
 
 def store_in_cache(file_hash: str, file_size: int, result: AnalysisResult) -> None:
     """
-    Store analysis result in cache. Upserts on file_hash conflict.
+    Store analysis result in cache. Insert-or-skip (no upsert to avoid DB locks).
     Fire-and-forget — errors are logged but never raised.
     """
     try:
@@ -269,10 +272,20 @@ def store_in_cache(file_hash: str, file_size: int, result: AnalysisResult) -> No
             "metadata": result.metadata.model_dump() if result.metadata else None,
         }
 
-        client.table("analysis_cache").upsert(
-            row, on_conflict="file_hash"
-        ).execute()
+        # Check if already cached (avoid upsert which can lock DB with hash indexes)
+        existing = (
+            client.table("analysis_cache")
+            .select("id")
+            .eq("file_hash", file_hash)
+            .eq("analyzer_version", CURRENT_ANALYZER_VERSION)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            logger.info(f"Cache already exists for hash={file_hash[:12]}, skipping")
+            return
 
+        client.table("analysis_cache").insert(row).execute()
         logger.info(f"Cached analysis for hash={file_hash[:12]}...")
 
     except Exception as e:
