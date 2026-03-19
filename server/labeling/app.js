@@ -61,6 +61,7 @@ function setupLogin() {
   const loginError = $('#login-error');
   const usernameInput = $('#login-username');
   const passwordInput = $('#login-password');
+  console.log('[Login] setupLogin called, btn:', loginBtn, 'input:', usernameInput);
 
   // Check saved session
   const saved = sessionStorage.getItem('labeler_id');
@@ -71,16 +72,29 @@ function setupLogin() {
   }
 
   async function doLogin() {
+    console.log('[Login] doLogin called');
     const username = usernameInput.value.trim();
     const password = passwordInput.value.trim();
-    if (!username || !password) return;
+    console.log('[Login] username:', username, 'password length:', password.length);
+    if (!username || !password) {
+      loginError.textContent = 'Please enter username and password';
+      loginError.classList.remove('hidden');
+      return;
+    }
+
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Logging in...';
 
     try {
-      const res = await fetch(`${API_BASE}/labels/login`, {
+      const url = `${API_BASE}/labels/login`;
+      console.log('[Login] POST', url);
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
+
+      console.log('[Login] response status:', res.status);
 
       if (!res.ok) {
         loginError.textContent = 'Invalid username or password';
@@ -89,12 +103,17 @@ function setupLogin() {
       }
 
       const data = await res.json();
+      console.log('[Login] success:', data);
       labelerId = data.labeler_id;
       sessionStorage.setItem('labeler_id', labelerId);
       showApp();
     } catch (err) {
-      loginError.textContent = 'Connection error';
+      console.error('[Login] error:', err);
+      loginError.textContent = 'Connection error: ' + err.message;
       loginError.classList.remove('hidden');
+    } finally {
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Login';
     }
   }
 
