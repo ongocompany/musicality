@@ -28,6 +28,7 @@ from fastapi.staticfiles import StaticFiles
 from routers.analysis import router as analysis_router
 from routers.formations import router as formations_router
 from routers.labeling import router as labeling_router
+from routers.admin import router as admin_router
 from models.schemas import HealthResponse
 
 app = FastAPI(
@@ -49,6 +50,11 @@ app.add_middleware(
 app.include_router(analysis_router)
 app.include_router(formations_router)
 app.include_router(labeling_router, prefix="/labels")
+
+app.include_router(admin_router, prefix="/admin")
+
+# Static files — admin UI
+app.mount("/admin-ui", StaticFiles(directory=Path(__file__).parent / "labeling" / "admin", html=True), name="admin-ui")
 
 # Static files — downloads (must be before /labeling to avoid catch-all)
 app.mount("/downloads", StaticFiles(directory=Path(__file__).parent / "labeling" / "downloads", html=True), name="downloads")
