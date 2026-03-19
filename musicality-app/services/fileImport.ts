@@ -84,8 +84,34 @@ export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Tra
   fileUri = destFile.uri;
   console.log(`[FileImport] Copied to permanent: ${fileUri.slice(-50)}`);
 
-  // Generate thumbnail for video files
+  // Extract ID3 metadata (title, artist, album art)
+  let metaTitle: string | undefined;
+  let artist: string | undefined;
+  let album: string | undefined;
   let thumbnailUri: string | undefined;
+
+  if (mediaType === 'audio') {
+    try {
+      const { extractMetadata } = require('../modules/my-module');
+      const meta = await extractMetadata(fileUri);
+      if (meta) {
+        if (meta.title) metaTitle = meta.title;
+        if (meta.artist) artist = meta.artist;
+        if (meta.album) album = meta.album;
+        if (meta.albumArt) {
+          // Copy album art to permanent storage
+          const artFile = new File(mediaDir, `art-${Date.now()}.jpg`);
+          new File(meta.albumArt.startsWith('/') ? `file://${meta.albumArt}` : meta.albumArt).copy(artFile);
+          thumbnailUri = artFile.uri;
+        }
+        console.log(`[FileImport] ID3: ${meta.artist ?? '?'} - ${meta.title ?? '?'}`);
+      }
+    } catch (e: any) {
+      console.warn('[FileImport] Metadata extraction failed:', e?.message);
+    }
+  }
+
+  // Generate thumbnail for video files
   if (mediaType === 'video') {
     try {
       const thumb = await VideoThumbnails.getThumbnailAsync(fileUri, { time: 1000 });
@@ -93,9 +119,16 @@ export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Tra
     } catch {}
   }
 
+  // Title: ID3 tag > filename
+  const displayTitle = metaTitle
+    ? (artist ? `${artist} - ${metaTitle}` : metaTitle)
+    : asset.name.replace(/\.[^/.]+$/, '');
+
   const track: Track = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    title: asset.name.replace(/\.[^/.]+$/, ''),
+    title: displayTitle,
+    artist,
+    album,
     uri: fileUri,
     sourceUri: asset.uri !== fileUri ? asset.uri : undefined,
     fileSize: asset.size ?? 0,

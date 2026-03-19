@@ -29,6 +29,57 @@ class AudioExtractorModule : Module() {
         }
       }.start()
     }
+
+    AsyncFunction("extractMetadata") { uri: String, promise: Promise ->
+      Thread {
+        try {
+          val result = extractMetadata(uri)
+          promise.resolve(result)
+        } catch (e: Exception) {
+          promise.resolve(emptyMap<String, Any?>())
+        }
+      }.start()
+    }
+  }
+
+  private fun extractMetadata(uri: String): Map<String, Any?> {
+    val context = appContext.reactContext ?: return emptyMap()
+    val retriever = android.media.MediaMetadataRetriever()
+
+    try {
+      when {
+        uri.startsWith("content://") -> retriever.setDataSource(context, Uri.parse(uri))
+        uri.startsWith("file://") -> retriever.setDataSource(Uri.parse(uri).path)
+        uri.startsWith("/") -> retriever.setDataSource(uri)
+        else -> return emptyMap()
+      }
+
+      val result = mutableMapOf<String, Any?>()
+
+      retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE)?.let {
+        result["title"] = it
+      }
+      retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ARTIST)?.let {
+        result["artist"] = it
+      }
+      retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ALBUM)?.let {
+        result["album"] = it
+      }
+      retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.let {
+        result["duration"] = it.toLong() / 1000.0
+      }
+
+      // Album art
+      retriever.embeddedPicture?.let { artBytes ->
+        val artFile = File(context.cacheDir, "ritmo_art_${UUID.randomUUID().toString().take(8)}.jpg")
+        artFile.writeBytes(artBytes)
+        result["albumArt"] = artFile.absolutePath
+      }
+
+      return result
+    } finally {
+      retriever.release()
+    }
   }
 
   private fun extractAndDownsample(uri: String): String {

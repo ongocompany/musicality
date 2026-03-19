@@ -6,24 +6,36 @@ export function isVideoFormat(format: string): boolean {
   return VIDEO_FORMATS.has(format.toLowerCase());
 }
 
-interface AudioExtractorInterface {
-  extractAndDownsample(uri: string): Promise<string>;
+export interface AudioMetadata {
+  title?: string;
+  artist?: string;
+  album?: string;
+  albumArt?: string; // temp file path
+  duration?: number; // seconds
 }
 
-/**
- * Extract audio from a video/audio file, downsample to mono 22kHz WAV.
- * Returns the file path of the processed audio.
- * Returns null if native module is not available (requires native build).
- */
+interface AudioExtractorInterface {
+  extractAndDownsample(uri: string): Promise<string>;
+  extractMetadata(uri: string): Promise<AudioMetadata>;
+}
+
 export async function extractAndDownsample(uri: string): Promise<string | null> {
   try {
     const mod = requireNativeModule<AudioExtractorInterface>('AudioExtractor');
-    console.log('[AudioExtractor] Native module loaded:', Object.keys(mod));
-    const result = await mod.extractAndDownsample(uri);
-    console.log('[AudioExtractor] Result:', result);
-    return result;
+    return await mod.extractAndDownsample(uri);
   } catch (err) {
-    console.error('[AudioExtractor] Failed to load native module:', err);
+    console.error('[AudioExtractor] Failed:', err);
+    return null;
+  }
+}
+
+export async function extractMetadata(uri: string): Promise<AudioMetadata | null> {
+  try {
+    const mod = requireNativeModule<AudioExtractorInterface>('AudioExtractor');
+    const meta = await mod.extractMetadata(uri);
+    return meta;
+  } catch (err) {
+    console.warn('[AudioExtractor] Metadata extraction failed:', err);
     return null;
   }
 }

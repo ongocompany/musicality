@@ -21,7 +21,9 @@ export interface Track {
   mediaType: MediaType;
   duration?: number;
   importedAt: number; // timestamp ms
-  thumbnailUri?: string; // video thumbnail or album art
+  artist?: string; // ID3 artist tag
+  album?: string; // ID3 album tag
+  thumbnailUri?: string; // video thumbnail or album art (ID3 album art)
   folderId?: string; // undefined = root (uncategorized)
   analysis?: AnalysisResult;
   analysisStatus: AnalysisStatus;

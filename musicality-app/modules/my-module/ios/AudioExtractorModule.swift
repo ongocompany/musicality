@@ -8,6 +8,59 @@ public class AudioExtractorModule: Module {
     AsyncFunction("extractAndDownsample") { (uri: String) -> String in
       return try Self.extractAndDownsample(uri: uri)
     }
+
+    AsyncFunction("extractMetadata") { (uri: String) -> [String: Any?] in
+      return Self.extractMetadata(uri: uri)
+    }
+  }
+
+  // MARK: - Metadata extraction
+
+  private static func extractMetadata(uri: String) -> [String: Any?] {
+    let fileURL: URL
+    if uri.hasPrefix("file://") {
+      guard let url = URL(string: uri) else { return [:] }
+      fileURL = url
+    } else if uri.hasPrefix("/") {
+      fileURL = URL(fileURLWithPath: uri)
+    } else {
+      guard let url = URL(string: uri) else { return [:] }
+      fileURL = url
+    }
+
+    let asset = AVURLAsset(url: fileURL)
+    var result: [String: Any?] = [:]
+
+    // Common metadata keys
+    for item in asset.commonMetadata {
+      if let key = item.commonKey {
+        switch key {
+        case .commonKeyTitle:
+          result["title"] = item.stringValue
+        case .commonKeyArtist:
+          result["artist"] = item.stringValue
+        case .commonKeyAlbumName:
+          result["album"] = item.stringValue
+        case .commonKeyArtwork:
+          if let data = item.dataValue {
+            // Save artwork to temp file
+            let artPath = NSTemporaryDirectory() + "ritmo_art_\(UUID().uuidString.prefix(8)).jpg"
+            try? data.write(to: URL(fileURLWithPath: artPath))
+            result["albumArt"] = artPath
+          }
+        default:
+          break
+        }
+      }
+    }
+
+    // Duration
+    let duration = CMTimeGetSeconds(asset.duration)
+    if duration.isFinite && duration > 0 {
+      result["duration"] = duration
+    }
+
+    return result
   }
 
   // MARK: - Core extraction logic
