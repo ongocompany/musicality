@@ -48,15 +48,21 @@ function getMediaType(mimeType: string | undefined, name: string): MediaType {
 
 /** Process a single document picker asset into a Track */
 async function processAsset(asset: DocumentPicker.DocumentPickerAsset): Promise<Track | null> {
-  // Duplicate check: same filename + size = same file
+  // Duplicate check: same filename + size, or same fileSize + format
   const { usePlayerStore } = require('../stores/playerStore');
   const existingTracks = usePlayerStore.getState().tracks;
   const fileName = asset.name.replace(/\.[^/.]+$/, '');
-  const duplicate = existingTracks.find((t: any) =>
-    t.title === fileName && t.fileSize === (asset.size ?? 0) && t.mediaType !== 'youtube'
-  );
+  const fileSize = asset.size ?? 0;
+  const duplicate = existingTracks.find((t: any) => {
+    if (t.mediaType === 'youtube') return false;
+    // Match by title (original filename or ID3-modified)
+    if (t.title === fileName && t.fileSize === fileSize) return true;
+    // Match by fileSize + format (same file, different title due to ID3)
+    if (t.fileSize === fileSize && t.fileSize > 0 && t.format === getFormat(asset.mimeType, asset.name)) return true;
+    return false;
+  });
   if (duplicate) {
-    console.log(`[FileImport] Duplicate skipped: ${fileName}`);
+    console.log(`[FileImport] Duplicate skipped: ${fileName} (matched: ${duplicate.title})`);
     return duplicate;
   }
   const mediaType = getMediaType(asset.mimeType, asset.name);
