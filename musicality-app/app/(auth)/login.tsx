@@ -1,15 +1,12 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Platform, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Platform, ScrollView, useWindowDimensions, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { supabase } from '../../lib/supabase';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 import { LANGUAGES, LanguageCode } from '../../i18n';
-
-const __DEV_MODE__ = __DEV__; // true in Expo Go dev
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -49,10 +46,10 @@ export default function LoginScreen() {
         <View style={[styles.inner, { maxWidth: contentMaxWidth }]}>
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <Ionicons name="musical-notes" size={48} color={Colors.primary} />
+              <Image source={require('../../assets/ritmo_appicon.png')} style={styles.logoImage} />
             </View>
             <Text style={styles.title}>Ritmo</Text>
-            <Text style={[styles.subtitle, { marginTop: Spacing.lg }]}>
+            <Text style={[styles.slogan, { marginTop: Spacing.lg, fontStyle: 'normal' }]}>
               {t('auth.selectLanguage')}
             </Text>
           </View>
@@ -93,10 +90,10 @@ export default function LoginScreen() {
       {/* Logo & Title */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
-          <Ionicons name="musical-notes" size={48} color={Colors.primary} />
+          <Image source={require('../../assets/ritmo_appicon.png')} style={styles.logoImage} />
         </View>
         <Text style={styles.title}>Ritmo</Text>
-        <Text style={styles.subtitle}>{t('auth.subtitle')}</Text>
+        <Text style={styles.slogan}>Vibe with Crew</Text>
       </View>
 
       {/* Social Login Buttons */}
@@ -121,13 +118,19 @@ export default function LoginScreen() {
         {/* Apple (iOS only) */}
         {Platform.OS === 'ios' && (
           <TouchableOpacity
-            style={[styles.socialButton, styles.appleButton, { opacity: 0.5 }]}
-            onPress={() => Alert.alert(t('common.comingSoon'), t('auth.appleComing'))}
+            style={[styles.socialButton, styles.appleButton]}
+            onPress={() => handleSignIn('apple', signInWithApple)}
+            disabled={signingIn !== null}
             activeOpacity={0.8}
           >
-            <Ionicons name="logo-apple" size={22} color="#FFF" />
-            <Text style={styles.socialButtonText}>{t('auth.continueWithApple')}</Text>
-            <Text style={styles.comingSoonBadge}>{t('common.comingSoon')}</Text>
+            {signingIn === 'apple' ? (
+              <ActivityIndicator size="small" color="#000" />
+            ) : (
+              <>
+                <Ionicons name="logo-apple" size={22} color="#000" />
+                <Text style={[styles.socialButtonText, { color: '#000' }]}>{t('auth.continueWithApple')}</Text>
+              </>
+            )}
           </TouchableOpacity>
         )}
 
@@ -142,37 +145,7 @@ export default function LoginScreen() {
         <Text style={styles.guestButtonText}>{t('auth.continueAsGuest')}</Text>
       </TouchableOpacity>
 
-      {/* Dev Login — only in development */}
-      {__DEV_MODE__ && (
-        <TouchableOpacity
-          style={[styles.socialButton, styles.devButton]}
-          onPress={async () => {
-            try {
-              setSigningIn('dev');
-              const { error } = await supabase.auth.signInWithPassword({
-                email: 'test@musicality.app',
-                password: 'test1234!',
-              });
-              if (error) throw error;
-            } catch (err: any) {
-              Alert.alert('Dev Login Failed', err.message);
-            } finally {
-              setSigningIn(null);
-            }
-          }}
-          disabled={signingIn !== null}
-          activeOpacity={0.8}
-        >
-          {signingIn === 'dev' ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <>
-              <Ionicons name="code-slash" size={18} color="#FFF" />
-              <Text style={styles.socialButtonText}>{t('auth.devLogin')}</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      )}
+      {/* Dev Login — disabled for production */}
 
       {/* Language switcher + Footer */}
       <TouchableOpacity
@@ -207,26 +180,30 @@ const styles = StyleSheet.create({
     marginBottom: 60,
   },
   logoContainer: {
-    width: 88,
-    height: 88,
-    borderRadius: 22,
-    backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    marginBottom: Spacing.md,
+  },
+  logoImage: {
+    width: 80,
+    height: 116,
+    resizeMode: 'contain',
   },
   title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: Colors.text,
-    letterSpacing: 1,
+    fontSize: 36,
+    fontWeight: '800',
+    color: Colors.primary,
+    letterSpacing: 2,
+    textShadowColor: 'rgba(187, 134, 252, 0.4)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
   },
-  subtitle: {
+  slogan: {
     fontSize: FontSize.md,
     color: Colors.textSecondary,
-    marginTop: Spacing.xs,
+    marginTop: Spacing.sm,
+    fontStyle: 'italic',
+    letterSpacing: 1,
   },
   buttonGroup: {
     gap: 12,
@@ -244,9 +221,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4285F4',
   },
   appleButton: {
-    backgroundColor: '#000000',
-    borderWidth: 1,
-    borderColor: '#333',
+    backgroundColor: '#FFFFFF',
   },
   socialButtonText: {
     fontSize: FontSize.lg,
