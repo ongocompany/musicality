@@ -100,7 +100,7 @@ export default function SettingsScreen() {
         <View style={styles.row}>
           <Ionicons name="information-circle-outline" size={20} color={Colors.textSecondary} />
           <Text style={styles.label}>{t('settings.version')}</Text>
-          <Text style={styles.value}>0.9.0 (Beta)</Text>
+          <Text style={styles.value}>0.9.1 (Beta 2)</Text>
         </View>
         <TouchableOpacity
           style={styles.row}
