@@ -51,7 +51,7 @@ app.include_router(formations_router)
 app.include_router(labeling_router, prefix="/labels")
 
 # Static files — downloads (must be before /labeling to avoid catch-all)
-app.mount("/downloads", StaticFiles(directory=Path(__file__).parent / "labeling" / "downloads"), name="downloads")
+app.mount("/downloads", StaticFiles(directory=Path(__file__).parent / "labeling" / "downloads", html=True), name="downloads")
 
 # Static files — labeling web UI
 app.mount("/labeling", StaticFiles(directory=Path(__file__).parent / "labeling", html=True), name="labeling")
