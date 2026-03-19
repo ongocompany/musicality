@@ -1,10 +1,13 @@
 import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Alert } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as Linking from 'expo-linking';
 import { useAuthStore } from '../stores/authStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { usePlayerStore } from '../stores/playerStore';
+import { parseYouTubeUrl, createYouTubeTrack } from '../services/fileImport';
 import { Colors } from '../constants/theme';
 import i18next, { detectDeviceLanguage } from '../i18n';
 
@@ -20,11 +23,53 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (lang) {
       i18next.changeLanguage(lang);
     } else {
-      // First launch: detect device language and persist
       const detected = detectDeviceLanguage();
       i18next.changeLanguage(detected);
       useSettingsStore.getState().setLanguage(detected);
     }
+
+    // Handle YouTube share intent (musicality://share?url=...)
+    async function handleDeepLink(event: { url: string }) {
+      const parsed = Linking.parse(event.url);
+      if (parsed.hostname === 'share' && parsed.queryParams?.url) {
+        const sharedUrl = decodeURIComponent(parsed.queryParams.url as string);
+        const videoId = parseYouTubeUrl(sharedUrl);
+        if (videoId) {
+          // Fetch title from YouTube oEmbed (no API key needed)
+          let title = `YouTube: ${videoId}`;
+          try {
+            const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.title) title = data.title;
+            }
+          } catch {}
+
+          // Check duplicate
+          const existing = usePlayerStore.getState().tracks.find(
+            t => t.mediaType === 'youtube' && t.uri === videoId
+          );
+          if (existing) {
+            usePlayerStore.getState().setCurrentTrack(existing);
+          } else {
+            const track = createYouTubeTrack(videoId, title);
+            usePlayerStore.getState().addTrack(track);
+            usePlayerStore.getState().setCurrentTrack(track);
+          }
+          console.log(`[Share] YouTube: ${title} (${videoId})`);
+          setTimeout(() => router.replace('/(tabs)/player'), 300);
+        }
+      }
+    }
+
+    // Check initial URL (app launched from share)
+    Linking.getInitialURL().then(url => {
+      if (url) handleDeepLink({ url });
+    });
+
+    // Listen for URL while app is running
+    const sub = Linking.addEventListener('url', handleDeepLink);
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {

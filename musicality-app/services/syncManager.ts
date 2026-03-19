@@ -269,10 +269,11 @@ export async function pushToCloud(): Promise<void> {
       }
     }
 
-    // Push YouTube tracks
+    // Push YouTube tracks (with or without analysis)
     for (const track of tracksToPush) {
-      if (track.mediaType !== 'youtube' || !track.analysis) continue;
+      if (track.mediaType !== 'youtube') continue;
 
+      const a = track.analysis;
       const { error } = await supabase.rpc('upsert_track_with_analysis', {
         p_title: track.title,
         p_media_type: 'youtube',
@@ -280,19 +281,19 @@ export async function pushToCloud(): Promise<void> {
         p_file_hash: null,
         p_file_size: null,
         p_format: 'youtube',
-        p_duration: track.analysis.duration ?? null,
+        p_duration: a?.duration ?? null,
         p_youtube_url: `https://www.youtube.com/watch?v=${track.uri}`,
         p_youtube_video_id: track.uri,
         p_dance_style: 'bachata',
         p_folder_id: null,
-        p_bpm: track.analysis.bpm ?? null,
-        p_beats: JSON.stringify(track.analysis.beats ?? []),
-        p_downbeats: JSON.stringify(track.analysis.downbeats ?? []),
-        p_beats_per_bar: track.analysis.beatsPerBar ?? 4,
-        p_confidence: track.analysis.confidence ?? 0,
-        p_sections: JSON.stringify(track.analysis.sections ?? []),
-        p_phrase_boundaries: JSON.stringify(track.analysis.phraseBoundaries ?? []),
-        p_waveform_peaks: JSON.stringify(track.analysis.waveformPeaks ?? []),
+        p_bpm: a?.bpm ?? null,
+        p_beats: JSON.stringify(a?.beats ?? []),
+        p_downbeats: JSON.stringify(a?.downbeats ?? []),
+        p_beats_per_bar: a?.beatsPerBar ?? 4,
+        p_confidence: a?.confidence ?? 0,
+        p_sections: JSON.stringify(a?.sections ?? []),
+        p_phrase_boundaries: JSON.stringify(a?.phraseBoundaries ?? []),
+        p_waveform_peaks: JSON.stringify(a?.waveformPeaks ?? []),
       });
 
       if (!error) pushed++;

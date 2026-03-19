@@ -6,24 +6,16 @@ import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 import { checkServerHealth } from '../../services/analysisApi';
 import { API_BASE_URL } from '../../constants/config';
-import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
-import { DanceStyle } from '../../utils/beatCounter';
-import { CueType } from '../../types/cue';
-import { PhraseDetectionMode } from '../../types/analysis';
 import { LANGUAGES, LanguageCode } from '../../i18n';
-import { exportLibraryBackup, importLibraryBackup, LibraryBackup } from '../../services/libraryBackupService';
 
 const LOOK_AHEAD_STEP = 25; // ms per tap
 
 export default function SettingsScreen() {
   const { t, i18n } = useTranslation();
   const {
-    danceStyle, setDanceStyle, lookAheadMs, setLookAheadMs,
-    cueType, setCueType, cueVolume, setCueVolume,
-    phraseDetectionMode, setPhraseDetectionMode,
-    defaultBeatsPerPhrase, setDefaultBeatsPerPhrase,
+    lookAheadMs, setLookAheadMs,
     language, setLanguage,
     autoHideMs, setAutoHideMs,
   } = useSettingsStore();
@@ -49,12 +41,6 @@ export default function SettingsScreen() {
     setShowLangPicker(false);
   };
 
-  const cueLabels: Partial<Record<CueType, string>> = {
-    'off': t('settings.cueOff'),
-    'click': t('settings.cueClick'),
-    'beep': t('settings.cueBeep'),
-    'voice-en': t('settings.cueVoiceEn'),
-  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -212,207 +198,6 @@ export default function SettingsScreen() {
         <Text style={styles.lookAheadHint}>
           {t('settings.autoHideHint', { defaultValue: '재생 중 하단 컨트롤바를 자동으로 숨깁니다' })}
         </Text>
-      </View>
-
-      {/* Data */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('settings.data')}</Text>
-
-        {/* Export Library */}
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => {
-            const playerState = usePlayerStore.getState();
-            const settingsState = useSettingsStore.getState();
-            const trackCount = playerState.tracks.length;
-
-            if (trackCount === 0) {
-              Alert.alert(t('settings.exportLibrary'), t('settings.libraryEmpty'));
-              return;
-            }
-
-            Alert.alert(
-              t('settings.exportLibrary'),
-              t('settings.exportDesc', { trackCount }),
-              [
-                { text: t('common.cancel'), style: 'cancel' },
-                {
-                  text: t('player.export'),
-                  onPress: async () => {
-                    try {
-                      const backup: LibraryBackup = {
-                        version: 1,
-                        createdAt: Date.now(),
-                        player: {
-                          tracks: playerState.tracks,
-                          folders: playerState.folders,
-                          sortBy: playerState.sortBy,
-                          sortOrder: playerState.sortOrder,
-                        },
-                        settings: {
-                          downbeatOffsets: settingsState.downbeatOffsets,
-                          beatTimeOffsets: settingsState.beatTimeOffsets,
-                          bpmOverrides: settingsState.bpmOverrides,
-                          phraseMarks: settingsState.phraseMarks,
-                          trackEditions: settingsState.trackEditions,
-                          cellNotes: settingsState.cellNotes,
-                          importedNotes: settingsState.importedNotes,
-                          trackFormations: settingsState.trackFormations,
-                          stageConfig: settingsState.stageConfig,
-                        },
-                      };
-                      await exportLibraryBackup(backup);
-                    } catch (err: any) {
-                      if (err?.message !== 'User did not share') {
-                        Alert.alert(t('common.error'), err?.message || t('settings.exportFailed'));
-                      }
-                    }
-                  },
-                },
-              ],
-            );
-          }}
-        >
-          <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
-          <Text style={[styles.label, { color: Colors.primary }]}>{t('settings.exportLibrary')}</Text>
-          <Text style={styles.value}>{t('settings.exportLibraryLabel')}</Text>
-        </TouchableOpacity>
-
-        {/* Import Library */}
-        <TouchableOpacity
-          style={styles.row}
-          onPress={async () => {
-            try {
-              const backup = await importLibraryBackup();
-              if (!backup) return; // cancelled
-
-              const trackCount = backup.player.tracks.length;
-              const folderCount = backup.player.folders.length;
-              const date = new Date(backup.createdAt).toLocaleDateString();
-
-              Alert.alert(
-                t('settings.importLibrary'),
-                t('settings.importDesc', { date, trackCount, folderCount }),
-                [
-                  { text: t('common.cancel'), style: 'cancel' },
-                  {
-                    text: t('player.import'),
-                    style: 'destructive',
-                    onPress: async () => {
-                      // Restore player store
-                      usePlayerStore.setState({
-                        tracks: backup.player.tracks,
-                        folders: backup.player.folders,
-                        sortBy: backup.player.sortBy as any,
-                        sortOrder: backup.player.sortOrder as any,
-                      });
-                      // Restore settings store
-                      useSettingsStore.setState({
-                        downbeatOffsets: backup.settings.downbeatOffsets ?? {},
-                        beatTimeOffsets: backup.settings.beatTimeOffsets ?? {},
-                        bpmOverrides: backup.settings.bpmOverrides ?? {},
-                        phraseMarks: backup.settings.phraseMarks ?? {},
-                        trackEditions: backup.settings.trackEditions ?? {},
-                        cellNotes: backup.settings.cellNotes ?? {},
-                        importedNotes: backup.settings.importedNotes ?? [],
-                        trackFormations: backup.settings.trackFormations ?? {},
-                        stageConfig: backup.settings.stageConfig ?? { gridWidth: 8, gridHeight: 4 },
-                      });
-                      Alert.alert(t('common.done'), t('settings.importDone', { trackCount }));
-                    },
-                  },
-                ],
-              );
-            } catch (err: any) {
-              Alert.alert(t('common.error'), err?.message || t('settings.importFailed'));
-            }
-          }}
-        >
-          <Ionicons name="cloud-download-outline" size={20} color={Colors.accent} />
-          <Text style={[styles.label, { color: Colors.accent }]}>{t('settings.importLibrary')}</Text>
-          <Text style={styles.value}>{t('settings.importLibraryLabel')}</Text>
-        </TouchableOpacity>
-
-        {/* Reset Library */}
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => {
-            const trackCount = usePlayerStore.getState().tracks.length;
-            const folderCount = usePlayerStore.getState().folders.length;
-            Alert.alert(
-              t('settings.resetLibrary'),
-              t('settings.resetLibraryConfirm', { trackCount, folderCount }),
-              [
-                { text: t('common.cancel'), style: 'cancel' },
-                {
-                  text: t('common.reset'),
-                  style: 'destructive',
-                  onPress: async () => {
-                    await AsyncStorage.removeItem('musicality-tracks');
-                    usePlayerStore.setState({
-                      tracks: [],
-                      folders: [],
-                      currentTrack: null,
-                      isPlaying: false,
-                      position: 0,
-                      duration: 0,
-                    });
-                    Alert.alert(t('common.done'), t('settings.resetLibraryDone'));
-                  },
-                },
-              ],
-            );
-          }}
-        >
-          <Ionicons name="trash-outline" size={20} color={Colors.error} />
-          <Text style={[styles.label, { color: Colors.error }]}>{t('settings.resetLibrary')}</Text>
-          <Text style={styles.value}>{t('settings.resetLibraryDesc')}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Cue Sounds */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('settings.cueSounds')}</Text>
-        {(Object.keys(cueLabels) as CueType[]).map((type) => (
-          <TouchableOpacity
-            key={type}
-            style={[styles.row, cueType === type && styles.rowActive]}
-            onPress={() => setCueType(type)}
-          >
-            <Ionicons
-              name={cueType === type ? 'radio-button-on' : 'radio-button-off'}
-              size={20}
-              color={cueType === type ? Colors.primary : Colors.textSecondary}
-            />
-            <Text style={[styles.label, cueType === type && styles.labelActive]}>
-              {cueLabels[type]}
-            </Text>
-          </TouchableOpacity>
-        ))}
-        {/* Volume control (only show when cue is not off) */}
-        {cueType !== 'off' && (
-          <>
-            <View style={styles.row}>
-              <Ionicons name="volume-medium-outline" size={20} color={Colors.textSecondary} />
-              <Text style={styles.label}>{t('settings.volume')}</Text>
-              <View style={styles.lookAheadControls}>
-                <TouchableOpacity
-                  style={styles.lookAheadBtn}
-                  onPress={() => setCueVolume(cueVolume - 0.1)}
-                >
-                  <Ionicons name="remove" size={18} color={Colors.text} />
-                </TouchableOpacity>
-                <Text style={styles.lookAheadValue}>{Math.round(cueVolume * 100)}%</Text>
-                <TouchableOpacity
-                  style={styles.lookAheadBtn}
-                  onPress={() => setCueVolume(cueVolume + 0.1)}
-                >
-                  <Ionicons name="add" size={18} color={Colors.text} />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </>
-        )}
       </View>
 
       {/* Account */}
