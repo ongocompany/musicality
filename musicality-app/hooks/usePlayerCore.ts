@@ -222,12 +222,18 @@ export function usePlayerCore() {
     return raw;
   }, [position, lookAheadMs, effectiveBeats, effectiveDownbeats, offsetBeatIndex, effectiveAnalysisData, danceStyle, phraseMap]);
 
-  // ─── Current BPM (use analyzed BPM, not real-time interval) ───
+  // ─── Current BPM ───
   const currentBpm = useMemo(() => {
-    if (bpmOverride) return bpmOverride;
-    if (analysis?.bpm) return Math.round(analysis.bpm);
-    return null;
-  }, [analysis?.bpm, bpmOverride]);
+    if (!effectiveBeats.length || !countInfo || countInfo.beatIndex < 0) return null;
+    const idx = countInfo.beatIndex;
+    const windowSize = 4;
+    const start = Math.max(0, idx - windowSize);
+    const end = Math.min(effectiveBeats.length - 1, idx + windowSize);
+    if (end <= start) return null;
+    const interval = (effectiveBeats[end] - effectiveBeats[start]) / (end - start);
+    if (interval <= 0) return null;
+    return Math.round(60 / interval);
+  }, [effectiveBeats, countInfo?.beatIndex]);
 
   // ─── Keep screen awake ───
   useEffect(() => {
