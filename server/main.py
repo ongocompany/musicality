@@ -20,11 +20,14 @@ np.float = float  # type: ignore[attr-defined]
 np.complex = complex  # type: ignore[attr-defined]
 np.bool = bool  # type: ignore[attr-defined]
 
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from routers.analysis import router as analysis_router
 from routers.formations import router as formations_router
+from routers.labeling import router as labeling_router
 from models.schemas import HealthResponse
 
 app = FastAPI(
@@ -45,6 +48,10 @@ app.add_middleware(
 # Routes
 app.include_router(analysis_router)
 app.include_router(formations_router)
+app.include_router(labeling_router, prefix="/labels")
+
+# Static files — labeling web UI
+app.mount("/labeling", StaticFiles(directory=Path(__file__).parent / "labeling", html=True), name="labeling")
 
 
 @app.get("/health", response_model=HealthResponse)
