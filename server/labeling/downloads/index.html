@@ -9,6 +9,9 @@
     body { font-family: -apple-system, sans-serif; background: #121212; color: #E0E0E0; padding: 20px; }
     h1 { color: #BB86FC; margin-bottom: 8px; }
     .subtitle { color: #888; margin-bottom: 20px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .tab { padding: 8px 20px; border-radius: 8px; border: 1px solid #333; background: #1E1E1E; color: #888; font-weight: 700; font-size: 14px; cursor: pointer; }
+    .tab.active { background: #BB86FC; color: #121212; border-color: #BB86FC; }
     .search { width: 100%; padding: 12px; background: #1E1E1E; border: 1px solid #333; border-radius: 8px; color: #E0E0E0; font-size: 16px; margin-bottom: 16px; }
     .search:focus { outline: none; border-color: #BB86FC; }
     .count { color: #888; font-size: 13px; margin-bottom: 12px; }
@@ -16,6 +19,9 @@
     .list li { padding: 12px; border-bottom: 1px solid #333; display: flex; align-items: center; justify-content: space-between; }
     .list li:hover { background: #1E1E1E; }
     .name { flex: 1; font-size: 14px; word-break: break-all; }
+    .badge { font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: 700; }
+    .badge-audio { background: rgba(102,187,106,0.2); color: #66BB6A; }
+    .badge-video { background: rgba(239,83,80,0.2); color: #EF5350; }
     .dl-btn { background: #BB86FC; color: #121212; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer; text-decoration: none; white-space: nowrap; margin-left: 12px; }
     .dl-btn:hover { opacity: 0.8; }
     #upload-area { display: block; text-align: center; padding: 16px; margin-bottom: 12px; background: #1E1E1E; border: 2px dashed #555; border-radius: 8px; cursor: pointer; color: #BB86FC; font-weight: 700; }
@@ -25,40 +31,73 @@
 </head>
 <body>
   <h1>Ritmo</h1>
-  <p class="subtitle">Upload & download music files</p>
+  <p class="subtitle">Upload & download media files</p>
   <label id="upload-area">
     <span>+ Upload Files</span>
     <input type="file" id="upload-input" multiple accept=".mp3,.wav,.flac,.m4a,.aac,.ogg,.mp4,.mov,.avi,.mkv" hidden>
   </label>
   <div id="upload-status" class="upload-status"></div>
+  <div class="tabs">
+    <button class="tab active" data-filter="all">All</button>
+    <button class="tab" data-filter="audio">Audio</button>
+    <button class="tab" data-filter="video">Video</button>
+  </div>
   <input type="text" class="search" id="search" placeholder="Search...">
   <p class="count" id="count"></p>
   <ul class="list" id="list"></ul>
 
   <script>
     let allFiles = [];
+    let activeFilter = 'all';
+    const AUDIO_EXTS = ['mp3','wav','flac','m4a','aac','ogg'];
+    const VIDEO_EXTS = ['mp4','mov','avi','mkv','m4v'];
+
+    function getType(name) {
+      const ext = name.split('.').pop().toLowerCase();
+      if (VIDEO_EXTS.includes(ext)) return 'video';
+      return 'audio';
+    }
 
     async function loadFiles() {
       const res = await fetch('/labels/downloads/list');
       allFiles = await res.json();
-      render(allFiles);
+      allFiles.forEach(f => f.type = getType(f.name));
+      applyFilters();
+    }
+
+    function applyFilters() {
+      const q = document.getElementById('search').value.toLowerCase();
+      let filtered = allFiles;
+      if (activeFilter !== 'all') filtered = filtered.filter(f => f.type === activeFilter);
+      if (q) filtered = filtered.filter(f => f.name.toLowerCase().includes(q));
+      render(filtered);
     }
 
     function render(files) {
       const list = document.getElementById('list');
       document.getElementById('count').textContent = `${files.length} files`;
-      list.innerHTML = files.map(f =>
-        `<li>
-          <span class="name">${f.name}</span>
+      list.innerHTML = files.map(f => {
+        const badge = f.type === 'video'
+          ? '<span class="badge badge-video">VIDEO</span>'
+          : '<span class="badge badge-audio">AUDIO</span>';
+        return `<li>
+          <span class="name">${f.name}${badge}</span>
           <a class="dl-btn" href="${f.url}" download="${f.name}">Download</a>
-        </li>`
-      ).join('');
+        </li>`;
+      }).join('');
     }
 
-    document.getElementById('search').addEventListener('input', (e) => {
-      const q = e.target.value.toLowerCase();
-      render(allFiles.filter(f => f.name.toLowerCase().includes(q)));
+    // Tabs
+    document.querySelectorAll('.tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeFilter = btn.dataset.filter;
+        applyFilters();
+      });
     });
+
+    document.getElementById('search').addEventListener('input', applyFilters);
 
     document.getElementById('upload-input').addEventListener('change', async (e) => {
       const files = e.target.files;
@@ -75,7 +114,6 @@
       loadFiles();
     });
 
-    // Drag & drop on whole page
     document.body.addEventListener('dragover', (e) => { e.preventDefault(); });
     document.body.addEventListener('drop', async (e) => {
       e.preventDefault();
