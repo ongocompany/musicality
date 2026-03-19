@@ -295,6 +295,32 @@ async def save_labels(track_id: str, body: dict):
     return {"status": "saved", "count": len(labels_data)}
 
 
+@router.post("/downloads/upload")
+async def upload_download(file: UploadFile = File(...)):
+    """Upload an audio file to the downloads directory."""
+    dl_dir = Path(__file__).parent.parent / "labeling" / "downloads"
+    dl_dir.mkdir(parents=True, exist_ok=True)
+    filename = file.filename or "unknown.mp3"
+    dest = dl_dir / filename
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    return {"status": "ok", "name": filename}
+
+
+@router.get("/downloads/list")
+async def list_downloads():
+    """List all audio files available for download."""
+    dl_dir = Path(__file__).parent.parent / "labeling" / "downloads"
+    if not dl_dir.exists():
+        return []
+    audio_exts = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"}
+    files = []
+    for f in sorted(dl_dir.iterdir()):
+        if f.suffix.lower() in audio_exts:
+            files.append({"name": f.name, "url": f"/downloads/{f.name}"})
+    return files
+
+
 @router.get("/stats")
 async def get_stats():
     """Get labeling statistics and auto vs user accuracy."""

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ritmo - Download Music</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, sans-serif; background: #121212; color: #E0E0E0; padding: 20px; }
+    h1 { color: #BB86FC; margin-bottom: 8px; }
+    .subtitle { color: #888; margin-bottom: 20px; }
+    .search { width: 100%; padding: 12px; background: #1E1E1E; border: 1px solid #333; border-radius: 8px; color: #E0E0E0; font-size: 16px; margin-bottom: 16px; }
+    .search:focus { outline: none; border-color: #BB86FC; }
+    .count { color: #888; font-size: 13px; margin-bottom: 12px; }
+    .list { list-style: none; }
+    .list li { padding: 12px; border-bottom: 1px solid #333; display: flex; align-items: center; justify-content: space-between; }
+    .list li:hover { background: #1E1E1E; }
+    .name { flex: 1; font-size: 14px; word-break: break-all; }
+    .dl-btn { background: #BB86FC; color: #121212; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer; text-decoration: none; white-space: nowrap; margin-left: 12px; }
+    .dl-btn:hover { opacity: 0.8; }
+    #upload-area { display: block; text-align: center; padding: 16px; margin-bottom: 12px; background: #1E1E1E; border: 2px dashed #555; border-radius: 8px; cursor: pointer; color: #BB86FC; font-weight: 700; }
+    #upload-area:hover { border-color: #BB86FC; background: #2A2A2A; }
+    .upload-status { color: #888; font-size: 13px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Ritmo</h1>
+  <p class="subtitle">Upload & download music files</p>
+  <label id="upload-area">
+    <span>+ Upload Files</span>
+    <input type="file" id="upload-input" multiple accept=".mp3,.wav,.flac,.m4a,.aac,.ogg" hidden>
+  </label>
+  <div id="upload-status" class="upload-status"></div>
+  <input type="text" class="search" id="search" placeholder="Search...">
+  <p class="count" id="count"></p>
+  <ul class="list" id="list"></ul>
+
+  <script>
+    let allFiles = [];
+
+    async function loadFiles() {
+      const res = await fetch('/labels/downloads/list');
+      allFiles = await res.json();
+      render(allFiles);
+    }
+
+    function render(files) {
+      const list = document.getElementById('list');
+      document.getElementById('count').textContent = `${files.length} files`;
+      list.innerHTML = files.map(f =>
+        `<li>
+          <span class="name">${f.name}</span>
+          <a class="dl-btn" href="${f.url}" download="${f.name}">Download</a>
+        </li>`
+      ).join('');
+    }
+
+    document.getElementById('search').addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase();
+      render(allFiles.filter(f => f.name.toLowerCase().includes(q)));
+    });
+
+    document.getElementById('upload-input').addEventListener('change', async (e) => {
+      const files = e.target.files;
+      if (!files.length) return;
+      const status = document.getElementById('upload-status');
+      for (let i = 0; i < files.length; i++) {
+        status.textContent = `Uploading ${i + 1}/${files.length}: ${files[i].name}...`;
+        const form = new FormData();
+        form.append('file', files[i]);
+        await fetch('/labels/downloads/upload', { method: 'POST', body: form });
+      }
+      status.textContent = `Done! ${files.length} file(s) uploaded.`;
+      e.target.value = '';
+      loadFiles();
+    });
+
+    // Drag & drop on whole page
+    document.body.addEventListener('dragover', (e) => { e.preventDefault(); });
+    document.body.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      const files = e.dataTransfer.files;
+      if (!files.length) return;
+      const status = document.getElementById('upload-status');
+      for (let i = 0; i < files.length; i++) {
+        status.textContent = `Uploading ${i + 1}/${files.length}: ${files[i].name}...`;
+        const form = new FormData();
+        form.append('file', files[i]);
+        await fetch('/labels/downloads/upload', { method: 'POST', body: form });
+      }
+      status.textContent = `Done! ${files.length} file(s) uploaded.`;
+      loadFiles();
+    });
+
+    loadFiles();
+  </script>
+</body>
+</html>
