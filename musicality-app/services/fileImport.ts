@@ -61,18 +61,12 @@ async function processAsset(asset: DocumentPicker.DocumentPickerAsset): Promise<
   }
   const mediaType = getMediaType(asset.mimeType, asset.name);
 
-  // Wait for cloud file to become available (iCloud/Google Drive on-demand downloads)
+  // Verify source file exists (copyToCacheDirectory should have it ready)
   let fileUri = asset.uri;
   try {
-    const info = await getInfoAsync(asset.uri);
-    if (!info.exists) {
-      console.log(`[FileImport] Cloud file not yet local, waiting...`);
-      await waitForFile(asset.uri, 30000);
-    }
-    // Verify source file has actual content (not a placeholder)
     const srcInfo = await getInfoAsync(asset.uri);
     if (!srcInfo.exists || (srcInfo.size ?? 0) === 0) {
-      console.warn(`[FileImport] Source file empty or missing after wait: ${asset.uri.slice(-50)}`);
+      console.warn(`[FileImport] Source file missing or empty: ${asset.uri.slice(-50)}`);
       return null;
     }
   } catch (e: any) {
