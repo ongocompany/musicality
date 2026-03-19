@@ -76,7 +76,7 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
 
         {/* ② Stage + Grid OR empty state */}
         {currentTrack.analysisStatus === 'done' && (
-          <View style={styles.countSection} {...focus.focusSwipeResponder.panHandlers}>
+          <View style={styles.countSection}>
             {hasFormation ? (
               <View style={{ maxHeight: 220 }}>
                 <FormationStageView

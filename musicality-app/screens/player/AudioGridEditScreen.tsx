@@ -109,7 +109,7 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
 
         {/* ③ Count + Grid (editable) */}
         {currentTrack.analysisStatus === 'done' && (
-          <View style={styles.countSection} {...focus.focusSwipeResponder.panHandlers}>
+          <View style={styles.countSection}>
             <CountDisplay count={countInfo?.count ?? '--'} color={countColor} size="large" />
 
             <View style={{ flex: 1, width: '100%' }}>

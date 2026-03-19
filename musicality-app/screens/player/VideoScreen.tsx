@@ -15,6 +15,7 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 import { usePlayerCore } from '../../hooks/usePlayerCore';
 import { usePlayerMode } from '../../hooks/usePlayerMode';
 import { useFocusMode } from '../../hooks/useFocusMode';
+import { useSlotSelector } from '../../hooks/useSlotSelector';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 
@@ -24,6 +25,7 @@ import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
 import { MarqueeTitle } from '../../components/player/MarqueeTitle';
 import { SettingsModal } from '../../components/player/SettingsModal';
+import { SlotBar } from '../../components/player/SlotBar';
 
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 
@@ -44,6 +46,7 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
   const { t } = useTranslation();
   const [settingsVisible, setSettingsVisible] = useState(false);
   const videoAspectRatio = usePlayerStore((s) => s.videoAspectRatio);
+  const slot = useSlotSelector('phrase');
 
   const {
     currentTrack, isPlaying, position, duration, playbackRate,
@@ -134,10 +137,10 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
           <MarqueeTitle text={currentTrack.title} style={styles.headerTitle} />
           <View style={styles.headerMeta}>
             {hasDoneAnalysis && (
-              <View style={styles.slotBadge}>
-                <Text style={styles.slotText}>S</Text>
+              <TouchableOpacity style={styles.slotBadge} onPress={slot.toggleSlotBar}>
+                <Text style={styles.slotText}>{slot.slotLabel}</Text>
                 <View style={styles.autoDot} />
-              </View>
+              </TouchableOpacity>
             )}
             {displayBpm > 0 && (
               <View style={styles.bpmBadge}>
@@ -151,6 +154,20 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
             )}
           </View>
         </View>
+
+        {/* ①-b Slot bar */}
+        {slot.slotBarVisible && (
+          <SlotBar
+            mode="phrase"
+            activeSlot={slot.activeSlot}
+            hasServerEdition={slot.hasServerEdition}
+            userSlotCount={slot.userSlotCount}
+            importedNotes={slot.trackImportedNotes}
+            onSelectSlot={slot.selectSlot}
+            onAddSlot={slot.addSlot}
+            onClose={slot.toggleSlotBar}
+          />
+        )}
 
         {/* ② YouTube Player */}
         {isYouTube && (
@@ -254,19 +271,19 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
               beats={effectiveBeats}
               isPlaying={isPlaying}
               onTapBeat={(idx) => { handleGridTapBeat(idx); focus.scheduleAutoHide(); }}
-              onReArrangePhrase={handleReArrangePhrase}
-              onSplitPhraseHere={handleSplitPhraseHere}
+              onReArrangePhrase={slot.isReadOnly ? () => { slot.tryEdit(); } : handleReArrangePhrase}
+              onSplitPhraseHere={slot.isReadOnly ? () => { slot.tryEdit(); } : handleSplitPhraseHere}
               onSetLoopPoint={handleSetLoopPoint}
               onClearLoop={clearLoop}
               onSeekAndPlay={(ms) => { handleSeekAndPlay(ms); focus.scheduleAutoHide(); }}
               onSeekOnly={(ms) => { handleSeekOnly(ms); focus.scheduleAutoHide(); }}
-              onMergeWithPrevious={handleMergeWithPrevious}
+              onMergeWithPrevious={slot.isReadOnly ? () => { slot.tryEdit(); } : handleMergeWithPrevious}
               loopStart={loopStart}
               loopEnd={loopEnd}
               scrollMode={true}
               cellNotes={currentCellNotes}
-              onSetCellNote={handleSetCellNote}
-              onClearCellNote={handleClearCellNote}
+              onSetCellNote={slot.isReadOnly ? () => { slot.tryEdit(); } : handleSetCellNote}
+              onClearCellNote={slot.isReadOnly ? () => { slot.tryEdit(); } : handleClearCellNote}
               currentBeatNote={currentBeatNote}
               editMode="note"
             />

@@ -80,7 +80,7 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
 
         {/* ② Count (large) */}
         {currentTrack.analysisStatus === 'done' && (
-          <View style={styles.countSection} {...focus.focusSwipeResponder.panHandlers}>
+          <View style={styles.countSection}>
             <CountDisplay
               count={countInfo?.count ?? '--'}
               color={countColor}
