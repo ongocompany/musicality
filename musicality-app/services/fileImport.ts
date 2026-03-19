@@ -75,7 +75,9 @@ async function processAsset(asset: DocumentPicker.DocumentPickerAsset): Promise<
   // Copy file to permanent storage (must succeed — cache URI gets evicted by OS)
   const mediaDir = new Directory(Paths.document, 'media');
   if (!mediaDir.exists) mediaDir.create();
-  const destName = `${Date.now()}-${asset.name}`;
+  // Sanitize filename: remove spaces, parens, special chars that break URI handling
+  const safeName = asset.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const destName = `${Date.now()}-${safeName}`;
   const destFile = new File(mediaDir, destName);
   const sourceFile = new File(asset.uri);
   sourceFile.copy(destFile);
@@ -258,7 +260,8 @@ export async function ensureFileAvailable(track: Track): Promise<string | null> 
       await waitForFile(track.sourceUri, 30000);
       const mediaDir = new Directory(Paths.document, 'media');
       if (!mediaDir.exists) mediaDir.create();
-      const destName = `${Date.now()}-${track.title}.${track.format}`;
+      const safeTitle = (track.title || 'track').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const destName = `${Date.now()}-${safeTitle}.${track.format}`;
       const sourceFile = new File(track.sourceUri);
       const destFile = new File(mediaDir, destName);
       sourceFile.copy(destFile);

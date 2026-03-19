@@ -169,10 +169,13 @@ export async function analyzeTrack(
     mov: 'video/quicktime',
   };
 
+  // Sanitize file name for network upload (spaces/parens break RN networking)
+  const safeName = (fileName || 'track').replace(/[^a-zA-Z0-9._-]/g, '_');
+
   const formData = new FormData();
   formData.append('file', {
     uri: uploadUri,
-    name: `${fileName || 'track'}.${uploadFormat}`,
+    name: `${safeName}.${uploadFormat}`,
     type: uploadMime || mimeMap[uploadFormat] || 'audio/mpeg',
   } as any);
 
