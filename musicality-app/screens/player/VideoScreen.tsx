@@ -102,20 +102,23 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
   const defaultHeight = VIDEO_MAX_HEIGHT * 0.6;
   const [videoHeight, setVideoHeight] = useState(defaultHeight);
   const videoHeightRef = useRef(defaultHeight);
+  const dragStartRef = useRef(defaultHeight);
   const videoCollapsed = videoHeight <= VIDEO_MIN_HEIGHT;
+
+  // Keep ref in sync with state
+  useEffect(() => { videoHeightRef.current = videoHeight; }, [videoHeight]);
 
   const videoResizeResponder = useRef(PanResponder.create({
     onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 8,
     onPanResponderGrant: () => {
-      videoHeightRef.current = videoHeight;
+      dragStartRef.current = videoHeightRef.current;
     },
     onPanResponderMove: (_, gs) => {
-      // Drag up (negative dy) = bigger, drag down (positive dy) = smaller
-      const newHeight = Math.max(0, Math.min(VIDEO_MAX_HEIGHT, videoHeightRef.current + gs.dy));
+      const newHeight = Math.max(0, Math.min(VIDEO_MAX_HEIGHT, dragStartRef.current + gs.dy));
       setVideoHeight(newHeight);
     },
     onPanResponderRelease: (_, gs) => {
-      const newHeight = videoHeightRef.current + gs.dy;
+      const newHeight = dragStartRef.current + gs.dy;
       if (newHeight < VIDEO_MIN_HEIGHT) {
         setVideoHeight(0);
       } else {
