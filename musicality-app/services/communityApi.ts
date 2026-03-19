@@ -237,6 +237,18 @@ export async function fetchMyCrews(): Promise<Crew[]> {
 }
 
 export async function fetchDiscoverCrews(search?: string): Promise<Crew[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Get my crew IDs to exclude
+  let myCrewIds: string[] = [];
+  if (user) {
+    const { data: memberRows } = await supabase
+      .from('crew_members')
+      .select('crew_id')
+      .eq('user_id', user.id);
+    myCrewIds = (memberRows ?? []).map((r: any) => r.crew_id);
+  }
+
   let query = supabase
     .from('crews')
     .select('*')
@@ -250,7 +262,11 @@ export async function fetchDiscoverCrews(search?: string): Promise<Crew[]> {
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapCrew);
+
+  // Filter out crews I'm already a member of
+  return (data ?? [])
+    .filter((row: any) => !myCrewIds.includes(row.id))
+    .map(mapCrew);
 }
 
 export async function fetchCrewById(crewId: string): Promise<Crew | null> {
