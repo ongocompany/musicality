@@ -258,6 +258,8 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
         onImport={() => { setSettingsVisible(false); playerCore.handleImportPhraseNote(); }}
         onReanalyze={() => { setSettingsVisible(false); runAnalysis(); }}
         onEditBpm={() => {}}
+        stageConfig={formation.stageConfig}
+        onStageConfigChange={slot.isReadOnly ? undefined : formation.handleStageConfigChange}
         onResetAll={() => {
           setSettingsVisible(false);
           if (currentTrack) {

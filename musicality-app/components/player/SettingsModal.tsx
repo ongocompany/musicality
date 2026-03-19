@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Colors, Spacing } from '../../constants/theme';
+import { StageConfig, STAGE_PRESETS } from '../../types/formation';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -15,6 +17,9 @@ interface SettingsModalProps {
   onReanalyze: () => void;
   onEditBpm: () => void;
   onResetAll: () => void;
+  // Optional: stage config (shown only in formation mode)
+  stageConfig?: StageConfig;
+  onStageConfigChange?: (config: StageConfig) => void;
 }
 
 export function SettingsModal({
@@ -23,6 +28,7 @@ export function SettingsModal({
   onAdjustOffset, onResetOffset,
   onExport, onImport,
   onReanalyze, onEditBpm, onResetAll,
+  stageConfig, onStageConfigChange,
 }: SettingsModalProps) {
   const { t } = useTranslation();
 
@@ -88,6 +94,74 @@ export function SettingsModal({
             </View>
             <Text style={styles.itemValue}>{Math.round(bpm)}</Text>
           </TouchableOpacity>
+
+          {/* Stage config (formation mode only) */}
+          {stageConfig && onStageConfigChange && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.item}>
+                <Ionicons name="resize-outline" size={20} color={Colors.accent} />
+                <View style={styles.itemText}>
+                  <Text style={styles.itemLabel}>{t('player.stageSize', '무대 크기')}</Text>
+                </View>
+              </View>
+              <View style={styles.stagePresetRow}>
+                {STAGE_PRESETS.map((preset) => {
+                  const isActive = stageConfig.gridWidth === preset.config.gridWidth
+                    && stageConfig.gridHeight === preset.config.gridHeight;
+                  return (
+                    <TouchableOpacity
+                      key={preset.label}
+                      style={[styles.stagePresetBtn, isActive && styles.stagePresetBtnActive]}
+                      onPress={() => onStageConfigChange(preset.config)}
+                    >
+                      <Text style={[styles.stagePresetText, isActive && styles.stagePresetTextActive]}>
+                        {preset.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <View style={styles.stageSizeRow}>
+                <View style={styles.stageSizeItem}>
+                  <Text style={styles.stageSizeLabel}>{t('player.width', '가로')}</Text>
+                  <View style={styles.offsetControls}>
+                    <TouchableOpacity
+                      style={styles.offsetBtn}
+                      onPress={() => onStageConfigChange({ ...stageConfig, gridWidth: Math.max(4, stageConfig.gridWidth - 1) })}
+                    >
+                      <Text style={styles.offsetBtnText}>-</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.stageSizeValue}>{stageConfig.gridWidth}m</Text>
+                    <TouchableOpacity
+                      style={styles.offsetBtn}
+                      onPress={() => onStageConfigChange({ ...stageConfig, gridWidth: Math.min(16, stageConfig.gridWidth + 1) })}
+                    >
+                      <Text style={styles.offsetBtnText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <View style={styles.stageSizeItem}>
+                  <Text style={styles.stageSizeLabel}>{t('player.depth', '세로')}</Text>
+                  <View style={styles.offsetControls}>
+                    <TouchableOpacity
+                      style={styles.offsetBtn}
+                      onPress={() => onStageConfigChange({ ...stageConfig, gridHeight: Math.max(2, stageConfig.gridHeight - 1) })}
+                    >
+                      <Text style={styles.offsetBtnText}>-</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.stageSizeValue}>{stageConfig.gridHeight}m</Text>
+                    <TouchableOpacity
+                      style={styles.offsetBtn}
+                      onPress={() => onStageConfigChange({ ...stageConfig, gridHeight: Math.min(10, stageConfig.gridHeight + 1) })}
+                    >
+                      <Text style={styles.offsetBtnText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </>
+          )}
 
           <View style={styles.divider} />
 
@@ -176,5 +250,48 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
     marginVertical: 8,
+  },
+  stagePresetRow: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 8,
+    marginBottom: 8,
+  },
+  stagePresetBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  stagePresetBtnActive: {
+    backgroundColor: 'rgba(187,134,252,0.2)',
+    borderColor: Colors.primary,
+  },
+  stagePresetText: { fontSize: 11, color: Colors.textSecondary },
+  stagePresetTextActive: { color: Colors.primary, fontWeight: '700' },
+  stageSizeRow: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingHorizontal: 8,
+    marginBottom: 4,
+  },
+  stageSizeItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stageSizeLabel: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+  },
+  stageSizeValue: {
+    fontSize: 12,
+    color: Colors.text,
+    fontWeight: '700',
+    minWidth: 30,
+    textAlign: 'center',
   },
 });

@@ -22,12 +22,32 @@ export function FormationSetupModal({ visible, onClose, onCreated }: FormationSe
   const { t } = useTranslation();
   const setStageConfig = useSettingsStore((s) => s.setStageConfig);
 
-  const [presetIdx, setPresetIdx] = useState(1); // default 8×4m
+  const [presetIdx, setPresetIdx] = useState<number | null>(1); // default 8×4m
+  const [stageWidth, setStageWidth] = useState(8);
+  const [stageHeight, setStageHeight] = useState(4);
   const [dancerCount, setDancerCount] = useState(4);
 
+  const selectPreset = (idx: number) => {
+    setPresetIdx(idx);
+    setStageWidth(STAGE_PRESETS[idx].config.gridWidth);
+    setStageHeight(STAGE_PRESETS[idx].config.gridHeight);
+  };
+
+  const adjustWidth = (delta: number) => {
+    const w = Math.max(4, Math.min(16, stageWidth + delta));
+    setStageWidth(w);
+    setPresetIdx(null); // custom
+  };
+
+  const adjustHeight = (delta: number) => {
+    const h = Math.max(2, Math.min(10, stageHeight + delta));
+    setStageHeight(h);
+    setPresetIdx(null); // custom
+  };
+
   const handleCreate = () => {
-    const preset = STAGE_PRESETS[presetIdx];
-    setStageConfig(preset.config);
+    const config = { gridWidth: stageWidth, gridHeight: stageHeight };
+    setStageConfig(config);
 
     const dancers = createDefaultDancers(dancerCount);
     const formation: FormationData = {
@@ -60,13 +80,41 @@ export function FormationSetupModal({ visible, onClose, onCreated }: FormationSe
               <TouchableOpacity
                 key={preset.label}
                 style={[styles.presetBtn, presetIdx === idx && styles.presetBtnActive]}
-                onPress={() => setPresetIdx(idx)}
+                onPress={() => selectPreset(idx)}
               >
                 <Text style={[styles.presetBtnText, presetIdx === idx && styles.presetBtnTextActive]}>
                   {preset.label}
                 </Text>
               </TouchableOpacity>
             ))}
+          </View>
+
+          {/* Custom size */}
+          <View style={styles.sizeRow}>
+            <View style={styles.sizeItem}>
+              <Text style={styles.sizeLabel}>{t('player.width', { defaultValue: '가로' })}</Text>
+              <View style={styles.stepper}>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => adjustWidth(-1)}>
+                  <Ionicons name="remove" size={18} color={Colors.text} />
+                </TouchableOpacity>
+                <Text style={styles.stepperValue}>{stageWidth}m</Text>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => adjustWidth(1)}>
+                  <Ionicons name="add" size={18} color={Colors.text} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.sizeItem}>
+              <Text style={styles.sizeLabel}>{t('player.depth', { defaultValue: '세로' })}</Text>
+              <View style={styles.stepper}>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => adjustHeight(-1)}>
+                  <Ionicons name="remove" size={18} color={Colors.text} />
+                </TouchableOpacity>
+                <Text style={styles.stepperValue}>{stageHeight}m</Text>
+                <TouchableOpacity style={styles.stepperBtn} onPress={() => adjustHeight(1)}>
+                  <Ionicons name="add" size={18} color={Colors.text} />
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
 
           {/* Dancer count */}
@@ -130,6 +178,15 @@ const styles = StyleSheet.create({
   },
   presetBtnText: { fontSize: 13, color: Colors.textSecondary },
   presetBtnTextActive: { color: Colors.primary, fontWeight: '700' },
+  sizeRow: {
+    flexDirection: 'row', gap: 16, marginBottom: 16,
+  },
+  sizeItem: {
+    flex: 1, alignItems: 'center',
+  },
+  sizeLabel: {
+    fontSize: 11, color: Colors.textSecondary, marginBottom: 6,
+  },
   dancerRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: 16,

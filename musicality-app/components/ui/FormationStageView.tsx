@@ -1209,9 +1209,11 @@ export function FormationStageView({
         )}
       </View>
 
-      {/* Dancer edit popup (longpress) */}
+      {/* Dancer edit popup (longpress) — Modal to ensure it's above everything */}
       {editingDancer && (
-        <View style={styles.dancerEditPopup}>
+      <Modal visible={true} transparent animationType="fade" onRequestClose={handleNameConfirm}>
+        <Pressable style={styles.dancerEditBackdrop} onPress={handleNameConfirm}>
+          <Pressable style={styles.dancerEditPopup} onPress={() => {}}>
           <View style={styles.dancerEditHeader}>
             <View style={[styles.dancerEditDot, { backgroundColor: editingDancer.color }]} />
             <TextInput
@@ -1303,7 +1305,9 @@ export function FormationStageView({
               )}
             </>
           )}
-        </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
       )}
 
       {/* Editing controls — reserve space even when not editing */}
@@ -1618,16 +1622,21 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   // Dancer edit popup
+  dancerEditBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
   dancerEditPopup: {
     backgroundColor: Colors.surface,
-    borderRadius: 8,
-    marginHorizontal: 8,
-    marginTop: 4,
-    padding: 10,
+    borderRadius: 12,
+    padding: 14,
+    width: '90%',
+    maxWidth: 360,
     borderWidth: 1,
     borderColor: Colors.border,
-    zIndex: 50,
-    elevation: 50,
   },
   dancerEditHeader: {
     flexDirection: 'row',
