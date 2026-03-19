@@ -19,6 +19,7 @@ import EventCard from '../../components/calendar/EventCard';
 import EventFormModal from '../../components/calendar/EventFormModal';
 import PostComposer from '../../components/board/PostComposer';
 import PostItem from '../../components/board/PostItem';
+import { Image } from 'react-native';
 import type { CrewMember } from '../../types/community';
 import type { CalendarEvent, CreateEventInput } from '../../types/calendar';
 
@@ -133,6 +134,8 @@ export default function CrewDetailScreen() {
   }
 
   const pendingCount = activePendingRequests.length;
+  const captainMember = activeCrewMembers.find(m => m.role === 'captain');
+  const captainAvatarUrl = captainMember?.profile?.avatarUrl;
 
   return (
     <>
@@ -171,9 +174,24 @@ export default function CrewDetailScreen() {
                 <Text style={styles.crewDesc} numberOfLines={2}>{crew.description}</Text>
               ) : null}
             </View>
-            <View style={styles.memberCountBox}>
-              <Text style={styles.memberCountNumber}>{crew.memberCount}</Text>
-              <Text style={styles.memberCountLabel}>/{crew.memberLimit}</Text>
+            <View style={styles.infoRight}>
+              {/* Captain avatar */}
+              <TouchableOpacity
+                style={styles.captainAvatar}
+                onPress={() => captainMember && router.push(`/profile/${captainMember.userId}`)}
+                activeOpacity={captainMember ? 0.7 : 1}
+              >
+                {captainAvatarUrl ? (
+                  <Image source={{ uri: captainAvatarUrl }} style={styles.captainAvatarImage} />
+                ) : (
+                  <Ionicons name="shield" size={18} color={Colors.warning} />
+                )}
+              </TouchableOpacity>
+              {/* Member count */}
+              <View style={styles.memberCountBox}>
+                <Text style={styles.memberCountNumber}>{crew.memberCount}</Text>
+                <Text style={styles.memberCountLabel}>/{crew.memberLimit}</Text>
+              </View>
             </View>
           </View>
 
@@ -437,6 +455,26 @@ const styles = StyleSheet.create({
   crewDesc: {
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
+  },
+  infoRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  captainAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.warning,
+  },
+  captainAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   memberCountBox: {
     flexDirection: 'row',
