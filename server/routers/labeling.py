@@ -313,7 +313,7 @@ async def list_downloads():
     dl_dir = Path(__file__).parent.parent / "labeling" / "downloads"
     if not dl_dir.exists():
         return []
-    audio_exts = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"}
+    audio_exts = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".mp4", ".mov", ".avi", ".mkv"}
     files = []
     for f in sorted(dl_dir.iterdir()):
         if f.suffix.lower() in audio_exts:
