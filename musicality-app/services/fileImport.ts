@@ -45,22 +45,8 @@ function getMediaType(mimeType: string | undefined, name: string): MediaType {
   return 'audio';
 }
 
-export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Track | null> {
-  const types = filterType === 'audio' ? AUDIO_TYPES
-    : filterType === 'video' ? ['video/*']
-    : ALL_MEDIA_TYPES;
-
-  const result = await DocumentPicker.getDocumentAsync({
-    type: types,
-    copyToCacheDirectory: true,
-  });
-
-  if (result.canceled || !result.assets || result.assets.length === 0) {
-    return null;
-  }
-
-  const asset = result.assets[0];
-
+/** Process a single document picker asset into a Track */
+async function processAsset(asset: DocumentPicker.DocumentPickerAsset): Promise<Track | null> {
   // Duplicate check: same filename + size = same file
   const { usePlayerStore } = require('../stores/playerStore');
   const existingTracks = usePlayerStore.getState().tracks;
@@ -136,7 +122,7 @@ export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Tra
     ? (artist ? `${artist} - ${metaTitle}` : metaTitle)
     : asset.name.replace(/\.[^/.]+$/, '');
 
-  const track: Track = {
+  return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     title: displayTitle,
     artist,
@@ -150,8 +136,42 @@ export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Tra
     thumbnailUri,
     analysisStatus: 'idle',
   };
+}
 
-  return track;
+/** Pick multiple media files at once */
+export async function pickMediaFiles(filterType?: 'audio' | 'video'): Promise<Track[]> {
+  const types = filterType === 'audio' ? AUDIO_TYPES
+    : filterType === 'video' ? ['video/*']
+    : ALL_MEDIA_TYPES;
+
+  const result = await DocumentPicker.getDocumentAsync({
+    type: types,
+    copyToCacheDirectory: true,
+    multiple: true,
+  });
+
+  if (result.canceled || !result.assets || result.assets.length === 0) {
+    return [];
+  }
+
+  console.log(`[FileImport] Processing ${result.assets.length} file(s)...`);
+  const tracks: Track[] = [];
+  for (const asset of result.assets) {
+    try {
+      const track = await processAsset(asset);
+      if (track) tracks.push(track);
+    } catch (e: any) {
+      console.warn(`[FileImport] Failed to import ${asset.name}: ${e?.message}`);
+    }
+  }
+  console.log(`[FileImport] Imported ${tracks.length}/${result.assets.length} files`);
+  return tracks;
+}
+
+/** Pick a single media file (legacy compat) */
+export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Track | null> {
+  const tracks = await pickMediaFiles(filterType);
+  return tracks.length > 0 ? tracks[0] : null;
 }
 
 // ─── YouTube helpers ───────────────────────────────────────────
@@ -210,19 +230,32 @@ export async function ensureFileAvailable(track: Track): Promise<string | null> 
   // YouTube doesn't have local files
   if (track.mediaType === 'youtube') return track.uri;
 
-  // Check if current URI exists
+  // Check if current URI exists and has content
   try {
     const info = await getInfoAsync(track.uri);
     if (info.exists && (info.size ?? 0) > 0) return track.uri;
-  } catch {}
 
-  console.log(`[FileImport] Local file missing, attempting recovery: ${track.uri.slice(-50)}`);
+    // File exists but 0 bytes — cloud placeholder, wait for download
+    if (info.exists && (info.size ?? 0) === 0) {
+      console.log(`[FileImport] Cloud placeholder detected (0 bytes), waiting for download: ${track.uri.slice(-50)}`);
+      try {
+        await waitForFile(track.uri, 30000);
+        return track.uri;
+      } catch {
+        console.warn(`[FileImport] Cloud download timed out for: ${track.uri.slice(-50)}`);
+      }
+    } else {
+      console.log(`[FileImport] File not found: ${track.uri.slice(-60)}`);
+    }
+  } catch (e: any) {
+    console.log(`[FileImport] File check error: ${e?.message}, uri: ${track.uri.slice(-60)}`);
+  }
 
   // Try re-copying from original source
   if (track.sourceUri) {
+    console.log(`[FileImport] Attempting recovery from sourceUri: ${track.sourceUri.slice(-50)}`);
     try {
-      // Wait for cloud file if needed
-      await waitForFile(track.sourceUri, 15000);
+      await waitForFile(track.sourceUri, 30000);
       const mediaDir = new Directory(Paths.document, 'media');
       if (!mediaDir.exists) mediaDir.create();
       const destName = `${Date.now()}-${track.title}.${track.format}`;

@@ -30,7 +30,7 @@ export function useAudioPlayer() {
       }
       if (!currentTrack || currentTrack.mediaType === 'video' || currentTrack.mediaType === 'youtube') return;
 
-      // Ensure file exists (auto-recover from cloud if evicted)
+      // Ensure file exists (wait for cloud download if needed)
       const validUri = await ensureFileAvailable(currentTrack);
       if (!validUri) {
         console.warn(`[AudioPlayer] File unrecoverable: ${currentTrack.uri.slice(-50)}`);

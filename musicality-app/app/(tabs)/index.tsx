@@ -7,7 +7,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { pickMediaFile, parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
+import { pickMediaFiles, parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
 import { analyzeTrack, resumeAnalysisJob } from '../../services/analysisApi';
 import { deleteTrackFromCloud } from '../../services/syncManager';
 import { Colors, Spacing, FontSize, NoteTypeColors } from '../../constants/theme';
@@ -353,8 +353,10 @@ export default function LibraryScreen() {
   // ─── Handlers ─────────────────────────────────────
   const handleImport = async () => {
     const filterType = activeTab === 'youtube' ? undefined : activeTab;
-    const track = await pickMediaFile(filterType);
-    if (track) addTrack(track);
+    const tracks = await pickMediaFiles(filterType);
+    for (const track of tracks) {
+      addTrack(track);
+    }
   };
 
   const handleAddButton = () => {

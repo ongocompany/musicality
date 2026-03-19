@@ -7,7 +7,7 @@ import time
 import traceback
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from models.schemas import AnalysisResult
@@ -80,15 +80,47 @@ def _run_analysis_background(job_id: str, file_path: Path,
 
 # ── Endpoints ────────────────────────────────────────────────────
 
+def _get_client_ip(request: Request) -> str:
+    """Extract client IP from request (supports X-Forwarded-For)."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _has_active_job(client_ip: str) -> str | None:
+    """Check if this client already has a processing job. Returns job_id or None."""
+    with _jobs_lock:
+        for jid, job in _jobs.items():
+            if job.get("client_ip") == client_ip and job["status"] == "processing":
+                return jid
+    return None
+
+
 @router.post("/analyze")
-async def analyze_track(file: UploadFile = File(...)):
+async def analyze_track(request: Request, file: UploadFile = File(...)):
     """
     Upload audio and analyze beats.
     - Cache HIT → 200 with AnalysisResult (instant)
     - Cache MISS → 202 with {job_id, status} (async, poll /analyze/status/{job_id})
+    - Already processing → 429 with existing job_id
     """
     # Periodic cleanup
     _cleanup_old_jobs()
+
+    # Rate limit: 1 concurrent analysis per client IP
+    client_ip = _get_client_ip(request)
+    existing_job = _has_active_job(client_ip)
+    if existing_job:
+        logger.info(f"[RateLimit] {client_ip} already has active job {existing_job[:8]}, rejecting")
+        return JSONResponse(
+            status_code=429,
+            content={
+                "detail": "Analysis already in progress",
+                "job_id": existing_job,
+                "status": "processing",
+            },
+        )
 
     # Validate extension
     filename = file.filename or "unknown"
@@ -149,6 +181,7 @@ async def analyze_track(file: UploadFile = File(...)):
                 "created_at": time.time(),
                 "filename": filename,
                 "file_path": str(file_path),
+                "client_ip": client_ip,
             }
 
         thread = threading.Thread(

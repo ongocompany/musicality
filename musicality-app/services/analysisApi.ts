@@ -192,6 +192,18 @@ export async function analyzeTrack(
     const uploadMs = Date.now() - t0;
     console.log(`[Analysis] Upload done in ${(uploadMs / 1000).toFixed(1)}s — HTTP ${response.status}`);
 
+    // 429 → already analyzing, poll existing job
+    if (response.status === 429) {
+      const data = await response.json().catch(() => ({}));
+      if (data.job_id) {
+        console.log(`[Analysis] Already in progress, polling existing job: ${data.job_id}`);
+        onJobId?.(data.job_id);
+        const result = await pollForResult(data.job_id, controller.signal);
+        return result;
+      }
+      throw new Error('Analysis already in progress. Please wait.');
+    }
+
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
       let detail = `Server error (HTTP ${response.status})`;

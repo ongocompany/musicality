@@ -12,6 +12,8 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 import { usePlayerCore } from '../../hooks/usePlayerCore';
 import { usePlayerMode } from '../../hooks/usePlayerMode';
 import { usePlayerStore } from '../../stores/playerStore';
+import { useFocusMode } from '../../hooks/useFocusMode';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 import { PhraseGrid } from '../../components/ui/PhraseGrid';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
@@ -34,6 +36,8 @@ interface VideoGridEditScreenProps {
 export function VideoGridEditScreen({ playerCore, playerMode }: VideoGridEditScreenProps) {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const videoAspectRatio = usePlayerStore((s) => s.videoAspectRatio);
+  const autoHideMs = useSettingsStore((s) => s.autoHideMs);
+  const focus = useFocusMode(autoHideMs > 0 ? autoHideMs : undefined);
 
   const {
     currentTrack, isPlaying, position, duration, playbackRate,
@@ -214,27 +218,42 @@ export function VideoGridEditScreen({ playerCore, playerMode }: VideoGridEditScr
           </View>
         )}
 
-        {/* ④ Seek */}
-        <View style={styles.seekSection}>
-          {phraseMap && analysis && (
-            <SectionTimeline
-              phrases={phraseMap.phrases}
-              duration={duration > 0 ? duration / 1000 : analysis.duration}
-              currentTimeMs={position}
-              waveformPeaks={analysis.waveformPeaks}
-              onSeek={seekTo}
-              onSeekStart={() => playerCore.setIsSeeking(true)}
-              onSeekEnd={() => playerCore.setIsSeeking(false)}
-              loopStart={loopStart}
-              loopEnd={loopEnd}
-              loopEnabled={loopEnabled}
-            />
-          )}
-        </View>
+        {/* Focus handle */}
+        <TouchableOpacity
+          style={[styles.focusHandle, focus.focusMode && styles.focusHandleActive]}
+          onPress={focus.focusMode ? focus.exitFocusMode : focus.enterFocusMode}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={focus.focusMode ? 'chevron-up' : 'chevron-down'}
+            size={focus.focusMode ? 20 : 16}
+            color={focus.focusMode ? Colors.primary : Colors.textMuted}
+          />
+        </TouchableOpacity>
+
+        {/* ④ Seek — hidden in focus mode */}
+        {!focus.focusMode && (
+          <View style={styles.seekSection}>
+            {phraseMap && analysis && (
+              <SectionTimeline
+                phrases={phraseMap.phrases}
+                duration={duration > 0 ? duration / 1000 : analysis.duration}
+                currentTimeMs={position}
+                waveformPeaks={analysis.waveformPeaks}
+                onSeek={seekTo}
+                onSeekStart={() => playerCore.setIsSeeking(true)}
+                onSeekEnd={() => playerCore.setIsSeeking(false)}
+                loopStart={loopStart}
+                loopEnd={loopEnd}
+                loopEnabled={loopEnabled}
+              />
+            )}
+          </View>
+        )}
       </View>
 
-      {/* ⑤ Bottom bar — 👥 disabled + undo */}
-      <View style={styles.bottomBar}>
+      {/* ⑤ Bottom bar — hidden in focus mode */}
+      {!focus.focusMode && (<View style={styles.bottomBar}>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-end' }]}>
           <ModeSegment
             gridState={playerMode.gridSegState}
@@ -267,7 +286,19 @@ export function VideoGridEditScreen({ playerCore, playerMode }: VideoGridEditScr
             <Ionicons name="arrow-undo" size={20} color={Colors.primary} />
           </TouchableOpacity>
         </View>
-      </View>
+      </View>)}
+
+      {/* Focus mode mini controls */}
+      {focus.focusMode && (
+        <>
+          <TouchableOpacity style={styles.focusPlayButton} onPress={togglePlay} activeOpacity={0.7}>
+            <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.focusExitHandle} onPress={focus.exitFocusMode} activeOpacity={0.7}>
+            <Ionicons name="chevron-up" size={16} color={Colors.primary} />
+          </TouchableOpacity>
+        </>
+      )}
 
       {/* ⚙️ Settings modal */}
       <SettingsModal
@@ -354,5 +385,21 @@ const styles = StyleSheet.create({
     width: 48, height: 48, borderRadius: 24,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
     marginHorizontal: Spacing.md,
+  },
+  focusHandle: {
+    alignItems: 'center', paddingVertical: 4,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  focusHandleActive: { backgroundColor: 'rgba(187,134,252,0.1)' },
+  focusPlayButton: {
+    position: 'absolute', bottom: 12, right: 12,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(187,134,252,0.8)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  focusExitHandle: {
+    position: 'absolute', bottom: 0, alignSelf: 'center',
+    paddingHorizontal: 24, paddingVertical: 4,
+    backgroundColor: 'rgba(187,134,252,0.15)', borderTopLeftRadius: 12, borderTopRightRadius: 12,
   },
 });

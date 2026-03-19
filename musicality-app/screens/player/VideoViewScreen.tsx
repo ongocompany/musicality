@@ -278,6 +278,13 @@ export function VideoViewScreen({ playerCore, playerMode }: VideoViewScreenProps
           </View>
         </Animated.View>
       )}
+
+      {/* Mini play button — visible when controls are hidden */}
+      {!controlsVisible && (
+        <TouchableOpacity style={styles.focusPlayButton} onPress={togglePlay} activeOpacity={0.7}>
+          <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#fff" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -327,5 +334,11 @@ const styles = StyleSheet.create({
     width: 48, height: 48, borderRadius: 24,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
     marginHorizontal: Spacing.md,
+  },
+  focusPlayButton: {
+    position: 'absolute', bottom: 12, right: 12,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(187,134,252,0.8)',
+    alignItems: 'center', justifyContent: 'center',
   },
 });

@@ -387,6 +387,18 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
         </View>
       </View>)}
 
+      {/* Focus mode mini controls */}
+      {focus.focusMode && (
+        <>
+          <TouchableOpacity style={styles.focusPlayButton} onPress={togglePlay} activeOpacity={0.7}>
+            <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.focusExitHandle} onPress={focus.exitFocusMode} activeOpacity={0.7}>
+            <Ionicons name="chevron-up" size={16} color={Colors.primary} />
+          </TouchableOpacity>
+        </>
+      )}
+
       {/* ⚙️ Settings modal */}
       <SettingsModal
         visible={settingsVisible}
@@ -540,5 +552,16 @@ const styles = StyleSheet.create({
     width: 32, height: 32, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(187,134,252,0.2)',
+  },
+  focusPlayButton: {
+    position: 'absolute', bottom: 12, right: 12,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(187,134,252,0.8)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  focusExitHandle: {
+    position: 'absolute', bottom: 0, alignSelf: 'center',
+    paddingHorizontal: 24, paddingVertical: 4,
+    backgroundColor: 'rgba(187,134,252,0.15)', borderTopLeftRadius: 12, borderTopRightRadius: 12,
   },
 });
