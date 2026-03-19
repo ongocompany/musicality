@@ -364,34 +364,45 @@ export async function pushToCloud(): Promise<void> {
   }
 }
 
-// ─── Merge remote tracks into local store ────────────
+// ─── Replace local tracks with cloud data ────────────
+// Server is source of truth. Local-only tracks (not yet pushed) are preserved.
 
 function mergeTracksFromCloud(remoteTracks: any[]): void {
   const localTracks = usePlayerStore.getState().tracks;
+  const store = usePlayerStore.getState();
+
+  // Build set of remote track IDs for cleanup
+  const remoteIds = new Set(remoteTracks.map((r: any) => r.id));
+  const remoteTitles = new Set(remoteTracks.map((r: any) => `${r.title}|${r.format ?? ''}`));
+
+  // Remove local tracks that were deleted from server
+  // (has remoteId or cloud- prefix but no longer in server)
+  for (const local of localTracks) {
+    const isFromCloud = local.remoteId || local.id.startsWith('cloud-');
+    if (isFromCloud) {
+      const rid = local.remoteId || local.id.replace('cloud-', '');
+      const titleKey = `${local.title}|${local.format}`;
+      if (!remoteIds.has(rid) && !remoteTitles.has(titleKey)) {
+        store.removeTrack(local.id);
+      }
+    }
+  }
+
+  // Re-read after removals
+  const currentTracks = usePlayerStore.getState().tracks;
 
   for (const remote of remoteTracks) {
     const analysisRow = Array.isArray(remote.track_analyses)
       ? remote.track_analyses[0]
       : remote.track_analyses;
 
-    // Find local match by remoteId, youtube_video_id, title+format, or fingerprint
-    const localMatch = localTracks.find(t => {
-      // Already synced from this remote
+    // Find local match
+    const localMatch = currentTracks.find(t => {
       if (t.remoteId === remote.id) return true;
-      // Cloud-created track
       if (t.id === `cloud-${remote.id}`) return true;
-      // YouTube match
-      if (remote.youtube_video_id && t.mediaType === 'youtube') {
-        return t.uri === remote.youtube_video_id;
-      }
-      // Match by title + format
-      if (remote.title && t.title === remote.title && remote.format && t.format === remote.format) {
-        return true;
-      }
-      // Match by file hash
-      if (remote.file_hash && t.analysis?.fingerprint) {
-        return t.analysis.fingerprint === remote.file_hash;
-      }
+      if (remote.youtube_video_id && t.mediaType === 'youtube') return t.uri === remote.youtube_video_id;
+      if (remote.title && t.title === remote.title && remote.format && t.format === remote.format) return true;
+      if (remote.file_hash && t.analysis?.fingerprint) return t.analysis.fingerprint === remote.file_hash;
       return false;
     });
 
@@ -409,12 +420,12 @@ function mergeTracksFromCloud(remoteTracks: any[]): void {
     } : undefined;
 
     if (localMatch) {
-      // Local has track — update analysis if missing
+      // Update analysis if cloud has it and local doesn't
       if (analysis && !localMatch.analysis) {
-        usePlayerStore.getState().setTrackAnalysis(localMatch.id, analysis);
+        store.setTrackAnalysis(localMatch.id, analysis);
       }
     } else {
-      // No local match → create track from cloud data (file not on device yet)
+      // Create from cloud
       const isYouTube = remote.media_type === 'youtube';
       const newTrack: Track = {
         id: `cloud-${remote.id}`,
@@ -429,7 +440,7 @@ function mergeTracksFromCloud(remoteTracks: any[]): void {
         analysisStatus: analysis ? 'done' : 'idle',
         remoteId: remote.id,
       };
-      usePlayerStore.getState().addTrack(newTrack);
+      store.addTrack(newTrack);
     }
   }
 }
@@ -464,6 +475,17 @@ function mergeEditionsFromCloud(remoteEditions: any[]): void {
       console.log(SYNC_LOG, `Edition skip: no track for fp=${row.fingerprint.slice(0, 12)}...`);
       continue;
     }
+    // Validate boundaries against track's beat count
+    const track = tracks.find(t => t.id === trackId);
+    const beatCount = track?.analysis?.beats?.length ?? 0;
+    if (row.edition_type === 'phrase' && Array.isArray(row.edition_data) && beatCount > 0) {
+      const maxBoundary = Math.max(...row.edition_data);
+      if (maxBoundary >= beatCount) {
+        console.log(SYNC_LOG, `Edition skip: boundaries out of range (max=${maxBoundary}, beats=${beatCount})`);
+        continue;
+      }
+    }
+
     console.log(SYNC_LOG, `Edition apply: slot=${row.slot_id} type=${row.edition_type} → trackId=${trackId}, boundaries=${JSON.stringify(row.edition_data).slice(0, 50)}`);
 
     const remoteUpdated = new Date(row.updated_at).getTime();
@@ -489,5 +511,40 @@ function mergeEditionsFromCloud(remoteEditions: any[]): void {
         settings.setFormationEdition(trackId, row.slot_id as FormationEditionId, row.edition_data as FormationData);
       }
     }
+  }
+}
+
+// ─── Delete track from cloud ─────────────────────────
+
+export async function deleteTrackFromCloud(track: Track): Promise<void> {
+  const { user } = useAuthStore.getState();
+  if (!user) return;
+
+  try {
+    // Delete by title + format (matches unique constraint)
+    const { error } = await supabase
+      .from('player_tracks')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('title', track.title)
+      .eq('format', track.format ?? '');
+
+    if (error) {
+      console.warn(SYNC_LOG, 'Delete track from cloud failed:', error.message);
+      return;
+    }
+
+    // Also delete editions by fingerprint
+    let fp = track.analysis?.fingerprint;
+    if (!fp && track.uri && track.mediaType !== 'youtube') {
+      try { fp = await computeQuickHash(track.uri, track.fileSize); } catch {}
+    }
+    if (fp) {
+      await supabase.from('user_editions').delete().eq('user_id', user.id).eq('fingerprint', fp);
+    }
+
+    console.log(SYNC_LOG, `Deleted from cloud: ${track.title}`);
+  } catch (err: any) {
+    console.warn(SYNC_LOG, 'Delete error:', err.message);
   }
 }

@@ -9,6 +9,7 @@ import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { pickMediaFile, parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
 import { analyzeTrack, resumeAnalysisJob } from '../../services/analysisApi';
+import { deleteTrackFromCloud } from '../../services/syncManager';
 import { Colors, Spacing, FontSize, NoteTypeColors } from '../../constants/theme';
 import { Track, MediaType, Folder, SortField } from '../../types/track';
 import { TrackEditions } from '../../types/analysis';
@@ -401,7 +402,7 @@ export default function LibraryScreen() {
       options.push({ text: t('library.reanalyze'), onPress: () => handleReanalyze(track) });
     }
     options.push(
-      { text: t('common.delete'), style: 'destructive', onPress: () => removeTrack(track.id) },
+      { text: t('common.delete'), style: 'destructive', onPress: () => { deleteTrackFromCloud(track); removeTrack(track.id); } },
       { text: t('common.cancel'), style: 'cancel' },
     );
     Alert.alert(track.title, undefined, options);
@@ -570,7 +571,12 @@ export default function LibraryScreen() {
           text: t('common.delete'),
           style: 'destructive',
           onPress: () => {
-            for (const id of selectedTracks) removeTrack(id);
+            const allTracks = usePlayerStore.getState().tracks;
+            for (const id of selectedTracks) {
+              const t = allTracks.find(tr => tr.id === id);
+              if (t) deleteTrackFromCloud(t);
+              removeTrack(id);
+            }
             clearSelection();
           },
         },

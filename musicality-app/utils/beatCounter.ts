@@ -170,6 +170,7 @@ export function findDerechoStartBeatIndex(
   beats: number[],
   sections: Section[],
 ): number | null {
+  if (!sections || !Array.isArray(sections)) return null;
   const derecho = sections.find((s) => s.label === 'derecho');
   if (!derecho || beats.length === 0) return null;
   return findNearestBeatIndex(derecho.startTime * 1000, beats);
