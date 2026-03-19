@@ -87,10 +87,6 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   countContainer: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 12,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 80,
