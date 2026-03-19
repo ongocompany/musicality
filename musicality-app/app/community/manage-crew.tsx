@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   Image,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,6 +65,8 @@ export default function ManageCrewScreen() {
   const crew = id ? crewCache[id] : undefined;
   const isCaptain = crew?.captainId === user?.id;
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteInput, setDeleteInput] = useState('');
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [editType, setEditType] = useState<CrewType>('open');
@@ -165,22 +169,24 @@ export default function ManageCrewScreen() {
 
   const handleDeleteCrew = () => {
     if (!id || !crew) return;
-    Alert.alert('Delete Crew', `"${crew.name}" will be permanently deleted. This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteCrew(id);
-            Alert.alert('Done', 'Crew has been deleted.');
-            router.replace('/(tabs)/community');
-          } catch (err: any) {
-            Alert.alert('Error', err.message || 'Failed to delete crew');
-          }
-        },
-      },
-    ]);
+    setDeleteInput('');
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteCrew = async () => {
+    if (!id || !crew) return;
+    if (deleteInput.trim() !== crew.name.trim()) {
+      Alert.alert('Name mismatch', 'Please type the exact crew name to confirm.');
+      return;
+    }
+    try {
+      await deleteCrew(id);
+      setShowDeleteConfirm(false);
+      Alert.alert('Done', 'Crew has been deleted. Data will be retained for 30 days.');
+      router.replace('/(tabs)/community');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to delete crew');
+    }
   };
 
   const ROLE_COLORS: Record<string, string> = {
@@ -482,6 +488,46 @@ export default function ManageCrewScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Delete Confirmation Modal */}
+      <Modal visible={showDeleteConfirm} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteConfirm(false)}>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <Ionicons name="warning" size={32} color={Colors.error} style={{ alignSelf: 'center' }} />
+            <Text style={styles.modalTitle}>Delete Crew</Text>
+            <Text style={styles.modalDesc}>
+              This action cannot be undone. To confirm, type the crew name exactly:
+            </Text>
+            <Text style={styles.modalCrewName}>"{crew?.name}"</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={deleteInput}
+              onChangeText={setDeleteInput}
+              placeholder="Type crew name here"
+              placeholderTextColor={Colors.textMuted}
+              autoFocus
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShowDeleteConfirm(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalDeleteBtn,
+                  deleteInput.trim() !== crew?.name.trim() && { opacity: 0.4 },
+                ]}
+                onPress={confirmDeleteCrew}
+                disabled={deleteInput.trim() !== crew?.name.trim()}
+              >
+                <Text style={styles.modalDeleteText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </>
   );
 }
@@ -779,5 +825,81 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     fontWeight: '600',
     color: Colors.error,
+  },
+  // Delete confirmation modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    width: '100%',
+    maxWidth: 340,
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: FontSize.xl,
+    fontWeight: '700',
+    color: Colors.error,
+    textAlign: 'center',
+  },
+  modalDesc: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  modalCrewName: {
+    fontSize: FontSize.md,
+    fontWeight: '700',
+    color: Colors.text,
+    textAlign: 'center',
+  },
+  modalInput: {
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 10,
+    fontSize: FontSize.md,
+    color: Colors.text,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    textAlign: 'center',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modalCancelText: {
+    fontSize: FontSize.md,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  modalDeleteBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.error,
+  },
+  modalDeleteText: {
+    fontSize: FontSize.md,
+    fontWeight: '600',
+    color: '#FFF',
   },
 });

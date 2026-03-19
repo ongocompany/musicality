@@ -407,11 +407,18 @@ export async function transferCaptain(crewId: string, newCaptainUserId: string):
   if (error) throw new Error(error.message);
 }
 
-/** Delete crew (captain only) */
+/** Soft-delete crew (captain only, retained 30 days for recovery) */
 export async function deleteCrew(crewId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
   const { error } = await supabase
     .from('crews')
-    .delete()
+    .update({
+      is_active: false,
+      deleted_at: new Date().toISOString(),
+      deleted_by: user.id,
+    })
     .eq('id', crewId);
 
   if (error) throw new Error(error.message);
