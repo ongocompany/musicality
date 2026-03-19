@@ -55,6 +55,12 @@ function AnalysisBadge({ track }: { track: Track }) {
           <Text style={styles.badgeText}>{track.analysis?.bpm ? `${Math.round(track.analysis.bpm)} BPM` : 'Analyzed'}</Text>
         </View>
       );
+    case 'analyzing':
+      return (
+        <View style={[styles.badge, styles.badgeAnalyzing]}>
+          <Text style={styles.badgeAnalyzingText}>Analyzing...</Text>
+        </View>
+      );
     case 'error':
       return (
         <View style={[styles.badge, styles.badgeError]}>
@@ -1039,6 +1045,7 @@ const styles = StyleSheet.create({
   badgeAnalyzing: { backgroundColor: 'rgba(255, 193, 7, 0.15)' },
   badgeError: { backgroundColor: 'rgba(244, 67, 54, 0.15)' },
   badgeText: { color: '#4CAF50', fontSize: FontSize.xs, fontWeight: '600' },
+  badgeAnalyzingText: { color: '#FFC107', fontSize: FontSize.xs, fontWeight: '600' },
   analyzeButton: {
     width: 36,
     height: 36,
