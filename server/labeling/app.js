@@ -30,6 +30,9 @@ let currentTrackData = null;
 let selectedRegion = null;
 let autoSections = [];
 let isDirty = false;
+let beats = [];       // beat timestamps from analysis
+let downbeats = [];   // downbeat (beat 1) timestamps
+const SNAP_THRESHOLD = 0.15; // snap within 150ms of a beat
 
 // ─── DOM Elements ─────────────────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
@@ -105,6 +108,12 @@ function initWavesurfer(audioUrl) {
   });
 
   regions.on('region-updated', (region) => {
+    // Snap to nearest beat
+    const snappedStart = snapToBeat(region.start);
+    const snappedEnd = snapToBeat(region.end);
+    if (snappedStart !== region.start || snappedEnd !== region.end) {
+      region.setOptions({ start: snappedStart, end: snappedEnd });
+    }
     isDirty = true;
     updateSaveStatus();
     if (selectedRegion && selectedRegion.id === region.id) {
@@ -222,7 +231,7 @@ function deleteSelectedRegion() {
 function addBoundaryAtCursor() {
   if (!wavesurfer || !regions) return;
 
-  const cursorTime = wavesurfer.getCurrentTime();
+  const cursorTime = snapToBeat(wavesurfer.getCurrentTime());
   const allRegions = getSortedRegions();
 
   // Find which region the cursor is in
@@ -252,6 +261,22 @@ function addBoundaryAtCursor() {
 
 function getSortedRegions() {
   return regions.getRegions().sort((a, b) => a.start - b.start);
+}
+
+// ─── Beat Snap ─────────────────────────────────────────────
+function snapToBeat(time) {
+  if (beats.length === 0) return time;
+  let closest = beats[0];
+  let minDist = Math.abs(time - closest);
+  for (let i = 1; i < beats.length; i++) {
+    const dist = Math.abs(time - beats[i]);
+    if (dist < minDist) {
+      minDist = dist;
+      closest = beats[i];
+    }
+    if (beats[i] > time + SNAP_THRESHOLD) break; // early exit
+  }
+  return minDist <= SNAP_THRESHOLD ? closest : time;
 }
 
 // ─── UI Updates ───────────────────────────────────────────────
@@ -372,6 +397,8 @@ function loadTrack(data) {
   currentTrackId = data.track_id || data.id;
   currentTrackData = data;
   autoSections = data.auto_sections || [];
+  beats = data.beats || [];
+  downbeats = data.downbeats || [];
 
   // Update track info bar
   $('#track-title').textContent = data.title;

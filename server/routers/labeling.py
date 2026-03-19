@@ -94,6 +94,8 @@ async def upload_and_analyze(
                 "filename": track["filename"],
                 "duration": track["duration"],
                 "bpm": track["bpm"],
+                "beats": track.get("beats") or [],
+                "downbeats": track.get("downbeats") or [],
                 "audio_url": audio_url,
                 "auto_sections": auto.data,
                 "user_labels": user.data,
@@ -122,6 +124,8 @@ async def upload_and_analyze(
             "filename": filename,
             "duration": result.duration,
             "bpm": result.bpm,
+            "beats": result.beats,
+            "downbeats": result.downbeats,
             "audio_path": storage_path,
             "file_hash": fhash,
         }).execute()
@@ -149,6 +153,8 @@ async def upload_and_analyze(
             "filename": filename,
             "duration": result.duration,
             "bpm": result.bpm,
+            "beats": result.beats,
+            "downbeats": result.downbeats,
             "audio_url": audio_url,
             "auto_sections": [
                 {
@@ -214,6 +220,8 @@ async def get_track(track_id: str):
         "audio_url": audio_url,
         "auto_sections": auto.data,
         "user_labels": user.data,
+        "beats": track_data.get("beats") or [],
+        "downbeats": track_data.get("downbeats") or [],
     }
 
 
