@@ -50,8 +50,10 @@ export function startSyncManager(): void {
 
   console.log(SYNC_LOG, 'Starting sync manager');
 
-  // Initial pull
-  pullFromCloud();
+  // Initial pull, then push all local data
+  pullFromCloud().then(() => {
+    pushToCloud();
+  });
 
   // Watch app foreground
   appStateSubscription = AppState.addEventListener('change', handleAppState);
@@ -215,38 +217,45 @@ export async function pushToCloud(): Promise<void> {
 
     let pushed = 0;
 
-    // Push tracks with analysis
+    // Push tracks (with or without analysis)
     for (const track of tracksToPush) {
-      if (!track.analysis || track.mediaType === 'youtube') continue;
+      if (track.mediaType === 'youtube') continue;
 
       let fileHash: string | undefined;
       try {
         fileHash = await computeQuickHash(track.uri, track.fileSize);
       } catch {}
 
-      const { error } = await supabase.rpc('upsert_track_with_analysis', {
+      const a = track.analysis;
+      const { data: remoteId, error } = await supabase.rpc('upsert_track_with_analysis', {
         p_title: track.title,
         p_media_type: track.mediaType,
-        p_fingerprint: track.analysis.fingerprint ?? null,
+        p_fingerprint: a?.fingerprint ?? null,
         p_file_hash: fileHash ?? null,
         p_file_size: track.fileSize ?? null,
         p_format: track.format ?? null,
-        p_duration: track.duration ? track.duration / 1000 : track.analysis.duration ?? null,
+        p_duration: track.duration ? track.duration / 1000 : a?.duration ?? null,
         p_youtube_url: null,
         p_youtube_video_id: null,
         p_dance_style: 'bachata',
         p_folder_id: null,
-        p_bpm: track.analysis.bpm ?? null,
-        p_beats: JSON.stringify(track.analysis.beats ?? []),
-        p_downbeats: JSON.stringify(track.analysis.downbeats ?? []),
-        p_beats_per_bar: track.analysis.beatsPerBar ?? 4,
-        p_confidence: track.analysis.confidence ?? 0,
-        p_sections: JSON.stringify(track.analysis.sections ?? []),
-        p_phrase_boundaries: JSON.stringify(track.analysis.phraseBoundaries ?? []),
-        p_waveform_peaks: JSON.stringify(track.analysis.waveformPeaks ?? []),
+        p_bpm: a?.bpm ?? null,
+        p_beats: JSON.stringify(a?.beats ?? []),
+        p_downbeats: JSON.stringify(a?.downbeats ?? []),
+        p_beats_per_bar: a?.beatsPerBar ?? 4,
+        p_confidence: a?.confidence ?? 0,
+        p_sections: JSON.stringify(a?.sections ?? []),
+        p_phrase_boundaries: JSON.stringify(a?.phraseBoundaries ?? []),
+        p_waveform_peaks: JSON.stringify(a?.waveformPeaks ?? []),
       });
 
-      if (!error) pushed++;
+      if (!error) {
+        pushed++;
+        // Save local URI for same-device restore
+        if (remoteId && track.uri) {
+          await supabase.from('player_tracks').update({ local_uri: track.uri }).eq('id', remoteId);
+        }
+      }
     }
 
     // Push YouTube tracks
@@ -354,15 +363,21 @@ function mergeTracksFromCloud(remoteTracks: any[]): void {
       ? remote.track_analyses[0]
       : remote.track_analyses;
 
-    // Find local match by youtube_video_id, title+format, or fingerprint
+    // Find local match by remoteId, youtube_video_id, title+format, or fingerprint
     const localMatch = localTracks.find(t => {
+      // Already synced from this remote
+      if (t.remoteId === remote.id) return true;
+      // Cloud-created track
+      if (t.id === `cloud-${remote.id}`) return true;
+      // YouTube match
       if (remote.youtube_video_id && t.mediaType === 'youtube') {
         return t.uri === remote.youtube_video_id;
       }
-      // Match by title + format (most reliable when fingerprint is absent)
+      // Match by title + format
       if (remote.title && t.title === remote.title && remote.format && t.format === remote.format) {
         return true;
       }
+      // Match by file hash
       if (remote.file_hash && t.analysis?.fingerprint) {
         return t.analysis.fingerprint === remote.file_hash;
       }
@@ -393,7 +408,7 @@ function mergeTracksFromCloud(remoteTracks: any[]): void {
       const newTrack: Track = {
         id: `cloud-${remote.id}`,
         title: remote.title,
-        uri: isYouTube ? remote.youtube_video_id : '', // empty URI — file needs re-import
+        uri: isYouTube ? remote.youtube_video_id : (remote.local_uri || ''),
         fileSize: remote.file_size ?? 0,
         format: remote.format ?? 'mp3',
         mediaType: remote.media_type as any,
@@ -412,14 +427,29 @@ function mergeTracksFromCloud(remoteTracks: any[]): void {
 
 function mergeEditionsFromCloud(remoteEditions: any[]): void {
   const settings = useSettingsStore.getState();
+  // Re-read tracks AFTER mergeTracksFromCloud has added cloud tracks
   const tracks = usePlayerStore.getState().tracks;
 
-  for (const row of remoteEditions) {
-    // Find local track by fingerprint
-    const localTrack = tracks.find(t => t.analysis?.fingerprint === row.fingerprint);
-    if (!localTrack) continue;
+  // Build fingerprint → trackId lookup (check analysis.fingerprint AND remoteId's file_hash)
+  const fpToTrackId = new Map<string, string>();
+  for (const t of tracks) {
+    if (t.analysis?.fingerprint) fpToTrackId.set(t.analysis.fingerprint, t.id);
+    // Cloud-created tracks store file_hash in analysis.fingerprint via merge
+    if (t.remoteId) {
+      // Also try matching by remote track's file_hash stored in analysis
+      if (t.analysis?.fingerprint) fpToTrackId.set(t.analysis.fingerprint, t.id);
+    }
+  }
 
-    const trackId = localTrack.id;
+  console.log(SYNC_LOG, `Edition merge: ${fpToTrackId.size} fingerprints mapped, ${remoteEditions.length} remote editions`);
+
+  for (const row of remoteEditions) {
+    const trackId = fpToTrackId.get(row.fingerprint);
+    if (!trackId) {
+      console.log(SYNC_LOG, `Edition skip: no track for fp=${row.fingerprint.slice(0, 12)}...`);
+      continue;
+    }
+
     const remoteUpdated = new Date(row.updated_at).getTime();
 
     if (row.edition_type === 'phrase') {
