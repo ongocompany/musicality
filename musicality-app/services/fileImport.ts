@@ -205,10 +205,23 @@ export async function pickMediaFiles(filterType?: 'audio' | 'video'): Promise<Tr
   return tracks;
 }
 
-/** Pick a single media file (legacy compat) */
+/** Pick a single media file */
 export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Track | null> {
-  const tracks = await pickMediaFiles(filterType);
-  return tracks.length > 0 ? tracks[0] : null;
+  const types = filterType === 'audio' ? AUDIO_TYPES
+    : filterType === 'video' ? ['video/*']
+    : ALL_MEDIA_TYPES;
+
+  const result = await DocumentPicker.getDocumentAsync({
+    type: types,
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
+
+  if (result.canceled || !result.assets || result.assets.length === 0) {
+    return null;
+  }
+
+  return processAsset(result.assets[0]);
 }
 
 // ─── YouTube helpers ───────────────────────────────────────────
