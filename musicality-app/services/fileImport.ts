@@ -237,39 +237,23 @@ export async function ensureFileAvailable(track: Track): Promise<string | null> 
     const info = await getInfoAsync(track.uri);
     if (info.exists && (info.size ?? 0) > 0) return track.uri;
 
-    // File exists but 0 bytes — cloud placeholder, wait for download
+    // File exists but 0 bytes — cloud placeholder, brief wait
     if (info.exists && (info.size ?? 0) === 0) {
-      console.log(`[FileImport] Cloud placeholder detected (0 bytes), waiting for download: ${track.uri.slice(-50)}`);
+      console.log(`[FileImport] Cloud placeholder (0 bytes): ${track.uri.slice(-50)}`);
       try {
-        await waitForFile(track.uri, 30000);
+        await waitForFile(track.uri, 5000);
         return track.uri;
       } catch {
-        console.warn(`[FileImport] Cloud download timed out for: ${track.uri.slice(-50)}`);
+        console.warn(`[FileImport] Cloud download timed out: ${track.uri.slice(-50)}`);
       }
     } else {
+      // File doesn't exist at all — no point waiting, return immediately
       console.log(`[FileImport] File not found: ${track.uri.slice(-60)}`);
+      return null;
     }
   } catch (e: any) {
-    console.log(`[FileImport] File check error: ${e?.message}, uri: ${track.uri.slice(-60)}`);
-  }
-
-  // Try re-copying from original source
-  if (track.sourceUri) {
-    console.log(`[FileImport] Attempting recovery from sourceUri: ${track.sourceUri.slice(-50)}`);
-    try {
-      await waitForFile(track.sourceUri, 30000);
-      const mediaDir = new Directory(Paths.document, 'media');
-      if (!mediaDir.exists) mediaDir.create();
-      const safeTitle = (track.title || 'track').replace(/[^a-zA-Z0-9._-]/g, '_');
-      const destName = `${Date.now()}-${safeTitle}.${track.format}`;
-      const sourceFile = new File(track.sourceUri);
-      const destFile = new File(mediaDir, destName);
-      sourceFile.copy(destFile);
-      console.log(`[FileImport] Recovered from source: ${destFile.uri.slice(-50)}`);
-      return destFile.uri;
-    } catch (e: any) {
-      console.warn(`[FileImport] Recovery from source failed: ${e?.message}`);
-    }
+    console.log(`[FileImport] File check error: ${e?.message}`);
+    return null;
   }
 
   return null;
