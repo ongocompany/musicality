@@ -43,10 +43,6 @@ const dirtyEditionTrackIds = new Set<string>();
 // ─── Initialize sync (call after login) ─────────────
 
 export function startSyncManager(): void {
-  // TEMP: disabled for debugging phrase issue
-  console.log(SYNC_LOG, 'Sync disabled (debugging)');
-  return;
-
   const { user, guestMode } = useAuthStore.getState();
   if (!user || guestMode) {
     console.log(SYNC_LOG, 'Skipped: guest mode or not logged in');
