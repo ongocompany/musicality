@@ -4,12 +4,14 @@ import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, Alert } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Linking from 'expo-linking';
+import { readAsStringAsync } from 'expo-file-system/legacy';
 import { useAuthStore } from '../stores/authStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { usePlayerStore } from '../stores/playerStore';
 import { parseYouTubeUrl, createYouTubeTrack } from '../services/fileImport';
 import { Colors } from '../constants/theme';
 import i18next, { detectDeviceLanguage } from '../i18n';
+import { decryptPhraseNote } from '../services/phraseNoteService';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading, guestMode, initialize } = useAuthStore();
@@ -58,6 +60,36 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           }
           console.log(`[Share] YouTube: ${title} (${videoId})`);
           setTimeout(() => router.replace('/(tabs)/player'), 300);
+        }
+      }
+
+      // Handle .pnote / .cnote import
+      if (parsed.hostname === 'import' && parsed.queryParams?.file) {
+        const fileUri = decodeURIComponent(parsed.queryParams.file as string);
+        try {
+          const content = await readAsStringAsync(fileUri);
+          const phraseNote = decryptPhraseNote(content);
+          if (phraseNote?.metadata?.title) {
+            const tracks = usePlayerStore.getState().tracks;
+            const match = tracks.find(t =>
+              t.title === phraseNote.music.title ||
+              (phraseNote.music.fingerprint && t.analysis?.fingerprint === phraseNote.music.fingerprint)
+            );
+            useSettingsStore.getState().addImportedNote({
+              id: `imported-${Date.now()}`,
+              trackId: match?.id ?? '',
+              phraseNote,
+              isActive: false,
+            });
+            const noteType = fileUri.endsWith('.cnote') ? 'ChoreoNote' : 'PhraseNote';
+            Alert.alert(`${noteType} 가져오기 완료`, `"${phraseNote.metadata.title}"`);
+            if (match) {
+              usePlayerStore.getState().setCurrentTrack(match);
+              setTimeout(() => router.replace('/(tabs)/player'), 300);
+            }
+          }
+        } catch (err: any) {
+          console.warn('[Import] Failed:', err.message);
         }
       }
     }

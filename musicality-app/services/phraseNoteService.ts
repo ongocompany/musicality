@@ -38,7 +38,7 @@ function encryptPhraseNote(data: PhraseNoteFile): string {
   return RITMO_MAGIC + encrypted;
 }
 
-function decryptPhraseNote(content: string): PhraseNoteFile {
+export function decryptPhraseNote(content: string): PhraseNoteFile {
   // Check magic header
   if (!content.startsWith(RITMO_MAGIC)) {
     // Try legacy JSON format (backward compatibility)

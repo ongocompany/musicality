@@ -1,17 +1,18 @@
 import { useEffect } from 'react';
-import { View } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { View, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
+import { readAsStringAsync } from 'expo-file-system/legacy';
 import { parseYouTubeUrl, createYouTubeTrack } from '../services/fileImport';
+import { decryptPhraseNote } from '../services/phraseNoteService';
 import { usePlayerStore } from '../stores/playerStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { Colors } from '../constants/theme';
 
 export default function NotFoundScreen() {
   const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
-    // Handle share deep links that expo-router can't match
     Linking.getInitialURL().then(async (url) => {
       if (!url) {
         router.replace('/(tabs)');
@@ -19,6 +20,8 @@ export default function NotFoundScreen() {
       }
 
       const parsed = Linking.parse(url);
+
+      // ─── YouTube share ───
       if (parsed.hostname === 'share' && parsed.queryParams?.url) {
         const sharedUrl = decodeURIComponent(parsed.queryParams.url as string);
         const videoId = parseYouTubeUrl(sharedUrl);
@@ -45,6 +48,48 @@ export default function NotFoundScreen() {
           console.log(`[Share] YouTube: ${title} (${videoId})`);
           router.replace('/(tabs)/player');
           return;
+        }
+      }
+
+      // ─── PhraseNote / ChoreoNote import ───
+      if (parsed.hostname === 'import' && parsed.queryParams?.file) {
+        const fileUri = decodeURIComponent(parsed.queryParams.file as string);
+        try {
+          const content = await readAsStringAsync(fileUri);
+          const phraseNote = decryptPhraseNote(content);
+
+          if (phraseNote?.metadata?.title) {
+            // Find matching track
+            const tracks = usePlayerStore.getState().tracks;
+            const match = tracks.find(t =>
+              t.title === phraseNote.music.title ||
+              (phraseNote.music.fingerprint && t.analysis?.fingerprint === phraseNote.music.fingerprint)
+            );
+
+            const importedNote = {
+              id: `imported-${Date.now()}`,
+              trackId: match?.id ?? '',
+              phraseNote,
+              isActive: false,
+            };
+
+            useSettingsStore.getState().addImportedNote(importedNote);
+            const noteType = fileUri.endsWith('.cnote') ? 'ChoreoNote' : 'PhraseNote';
+            Alert.alert(
+              `${noteType} 가져오기 완료`,
+              `"${phraseNote.metadata.title}" by ${phraseNote.metadata.author ?? 'Unknown'}`,
+            );
+            console.log(`[Import] ${noteType}: ${phraseNote.metadata.title}`);
+
+            if (match) {
+              usePlayerStore.getState().setCurrentTrack(match);
+              router.replace('/(tabs)/player');
+              return;
+            }
+          }
+        } catch (err: any) {
+          console.warn('[Import] Failed:', err.message);
+          Alert.alert('가져오기 실패', '파일을 읽을 수 없습니다.');
         }
       }
 
