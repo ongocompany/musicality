@@ -11,6 +11,42 @@ import Constants from 'expo-constants';
 
 WebBrowser.maybeCompleteAuthSession();
 
+/** Sync OAuth metadata (name, avatar) to profiles table */
+async function syncProfileFromMetadata(user: User) {
+  try {
+    const meta = user.user_metadata;
+    const fullName = meta?.full_name || meta?.name;
+    const avatarUrl = meta?.avatar_url || meta?.picture;
+    if (!fullName && !avatarUrl) return;
+
+    // Check current profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name, avatar_url')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile) return;
+
+    const updates: Record<string, string> = {};
+    // Update display_name if it looks like an email (not set by user)
+    if (fullName && (!profile.display_name || profile.display_name.includes('@'))) {
+      updates.display_name = fullName;
+    }
+    // Update avatar if missing
+    if (avatarUrl && !profile.avatar_url) {
+      updates.avatar_url = avatarUrl;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await supabase.from('profiles').update(updates).eq('id', user.id);
+      console.log('[Auth] Profile synced from OAuth:', updates);
+    }
+  } catch (e: any) {
+    console.warn('[Auth] Profile sync failed:', e?.message);
+  }
+}
+
 interface AuthState {
   user: User | null;
   session: Session | null;
@@ -46,10 +82,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           session,
           user: session?.user ?? null,
         });
-        // Cloud sync disabled — library is local-only
+        // On login: sync OAuth metadata → profile (name, avatar)
+        if (session?.user && !prevUser) {
+          syncProfileFromMetadata(session.user);
+        }
       });
 
-      // Cloud sync disabled — library is local-only
+      // Sync profile on initial load if already logged in
+      if (session?.user) {
+        syncProfileFromMetadata(session.user);
+      }
     } catch (error) {
       console.error('Auth init error:', error);
       set({ loading: false });
