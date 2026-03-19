@@ -9,7 +9,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-ACOUSTID_API_KEY = "PRFvjdfrM2"
+ACOUSTID_API_KEY = "5urpeh7f0F"
 ACOUSTID_URL = "https://api.acoustid.org/v2/lookup"
 COVERART_URL = "https://coverartarchive.org/release"
 
@@ -120,6 +120,7 @@ def _acoustid_lookup(fingerprint: str, duration: float) -> dict | None:
 
     recordings = best.get("recordings", [])
     if not recordings:
+        logger.info(f"[AcoustID] Matched (score={score:.2f}) but no recordings linked — likely a remix/edit not in MusicBrainz")
         return None
 
     # Return first recording with the most metadata
