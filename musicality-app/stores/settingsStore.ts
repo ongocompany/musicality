@@ -121,6 +121,10 @@ interface SettingsState {
   stageConfig: StageConfig;
   setStageConfig: (config: Partial<StageConfig>) => void;
 
+  // Show album art next to beat count
+  showAlbumArt: boolean;
+  setShowAlbumArt: (show: boolean) => void;
+
   // Auto-hide controls delay (ms), 0 = disabled
   autoHideMs: number;
   setAutoHideMs: (ms: number) => void;
@@ -570,6 +574,9 @@ export const useSettingsStore = create<SettingsState>()(
         })),
 
       // ─── Auto-hide controls ────────────────────────────
+      showAlbumArt: true,
+      setShowAlbumArt: (show) => set({ showAlbumArt: show }),
+
       autoHideMs: 3000,
       setAutoHideMs: (ms) => set({ autoHideMs: Math.max(0, ms) }),
 
@@ -645,6 +652,7 @@ export const useSettingsStore = create<SettingsState>()(
         importedNotes: state.importedNotes,
         trackFormations: state.trackFormations,
         stageConfig: state.stageConfig,
+        showAlbumArt: state.showAlbumArt,
         autoHideMs: state.autoHideMs,
       }),
     },

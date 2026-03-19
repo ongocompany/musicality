@@ -17,6 +17,7 @@ export default function SettingsScreen() {
   const {
     lookAheadMs, setLookAheadMs,
     language, setLanguage,
+    showAlbumArt, setShowAlbumArt,
     autoHideMs, setAutoHideMs,
   } = useSettingsStore();
   const { user, guestMode, signOut } = useAuthStore();
@@ -147,9 +148,23 @@ export default function SettingsScreen() {
 
       {/* Phrase Detection — hidden (managed in player via grid long-press) */}
 
-      {/* Count Timing */}
+      {/* Player */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('settings.countTiming')}</Text>
+
+        {/* Album art toggle */}
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => setShowAlbumArt(!showAlbumArt)}
+        >
+          <Ionicons name="image-outline" size={20} color={Colors.textSecondary} />
+          <Text style={styles.label}>{t('settings.showAlbumArt', { defaultValue: '앨범아트 표시' })}</Text>
+          <Ionicons
+            name={showAlbumArt ? 'toggle' : 'toggle-outline'}
+            size={32}
+            color={showAlbumArt ? Colors.primary : Colors.textMuted}
+          />
+        </TouchableOpacity>
         <View style={styles.row}>
           <Ionicons name="timer-outline" size={20} color={Colors.textSecondary} />
           <Text style={styles.label}>{t('settings.lookAhead')}</Text>

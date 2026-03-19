@@ -5,7 +5,7 @@
  */
 
 import { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
@@ -53,6 +53,7 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
   } = playerCore;
 
   const autoHideMs = useSettingsStore((s) => s.autoHideMs);
+  const showAlbumArt = useSettingsStore((s) => s.showAlbumArt);
   const hasDoneAnalysis = currentTrack?.analysisStatus === 'done';
   const focus = useFocusMode(hasDoneAnalysis && autoHideMs > 0 ? autoHideMs : undefined);
 
@@ -78,14 +79,29 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
           )}
         </View>
 
-        {/* ② Count (large) */}
+        {/* ② Count (large) — album art behind count */}
         {currentTrack.analysisStatus === 'done' && (
           <View style={styles.countSection}>
-            <CountDisplay
-              count={countInfo?.count ?? '--'}
-              color={countColor}
-              size="large"
-            />
+            {showAlbumArt && currentTrack.thumbnailUri ? (
+              <View style={styles.countWithArt}>
+                <Image
+                  source={{ uri: currentTrack.thumbnailUri }}
+                  style={styles.countArt}
+                  resizeMode="contain"
+                />
+                <CountDisplay
+                  count={countInfo?.count ?? '--'}
+                  color={countColor}
+                  size="large"
+                />
+              </View>
+            ) : (
+              <CountDisplay
+                count={countInfo?.count ?? '--'}
+                color={countColor}
+                size="large"
+              />
+            )}
 
             {/* PhraseGrid (read-only) */}
             <View style={{ flex: 1, width: '100%' }}>
@@ -216,6 +232,17 @@ const styles = StyleSheet.create({
   },
   bpmText: { fontSize: 10, fontWeight: '700', color: Colors.primary },
   countSection: { flex: 1, alignItems: 'center' },
+  countWithArt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.md,
+  },
+  countArt: {
+    width: 120,
+    height: 120,
+    borderRadius: 16,
+  },
   seekSection: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between' },
   timeText: { fontSize: 10, color: Colors.textMuted, fontVariant: ['tabular-nums'] },

@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
@@ -40,6 +40,7 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
   const { t } = useTranslation();
   const [settingsVisible, setSettingsVisible] = useState(false);
   const autoHideMs = useSettingsStore((s) => s.autoHideMs);
+  const showAlbumArt = useSettingsStore((s) => s.showAlbumArt);
   const focus = useFocusMode(autoHideMs > 0 ? autoHideMs : undefined);
   const slot = useSlotSelector('phrase');
 
@@ -110,7 +111,18 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
         {/* ③ Count + Grid (editable) */}
         {currentTrack.analysisStatus === 'done' && (
           <View style={styles.countSection}>
-            <CountDisplay count={countInfo?.count ?? '--'} color={countColor} size="large" />
+            {showAlbumArt && currentTrack.thumbnailUri ? (
+              <View style={styles.countWithArt}>
+                <Image
+                  source={{ uri: currentTrack.thumbnailUri }}
+                  style={styles.countArt}
+                  resizeMode="contain"
+                />
+                <CountDisplay count={countInfo?.count ?? '--'} color={countColor} size="large" />
+              </View>
+            ) : (
+              <CountDisplay count={countInfo?.count ?? '--'} color={countColor} size="large" />
+            )}
 
             <View style={{ flex: 1, width: '100%' }}>
               <PhraseGrid
@@ -276,6 +288,17 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   countSection: { flex: 1, alignItems: 'center' },
+  countWithArt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.md,
+  },
+  countArt: {
+    width: 120,
+    height: 120,
+    borderRadius: 16,
+  },
   seekSection: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   focusHandle: {
     alignItems: 'center', paddingVertical: 4,

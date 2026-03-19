@@ -60,6 +60,18 @@ export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Tra
   }
 
   const asset = result.assets[0];
+
+  // Duplicate check: same filename + size = same file
+  const { usePlayerStore } = require('../stores/playerStore');
+  const existingTracks = usePlayerStore.getState().tracks;
+  const fileName = asset.name.replace(/\.[^/.]+$/, '');
+  const duplicate = existingTracks.find((t: any) =>
+    t.title === fileName && t.fileSize === (asset.size ?? 0) && t.mediaType !== 'youtube'
+  );
+  if (duplicate) {
+    console.log(`[FileImport] Duplicate skipped: ${fileName}`);
+    return duplicate;
+  }
   const mediaType = getMediaType(asset.mimeType, asset.name);
 
   // Wait for cloud file to become available (iCloud/Google Drive on-demand downloads)
