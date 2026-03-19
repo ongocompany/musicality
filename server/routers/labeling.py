@@ -18,6 +18,16 @@ from services.supabase_client import get_supabase
 
 router = APIRouter()
 
+# Simple tester accounts (no heavy auth needed)
+TESTERS = {
+    "jinwoo": "ritmo2026",
+    "tester1": "bachata1",
+    "tester2": "bachata2",
+    "tester3": "bachata3",
+    "tester4": "bachata4",
+    "tester5": "bachata5",
+}
+
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
@@ -33,6 +43,16 @@ def _file_hash(file_path: str) -> str:
         for chunk in iter(lambda: f.read(8192), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+@router.post("/login")
+async def login(body: dict):
+    """Simple login for labeling tool."""
+    username = body.get("username", "").strip()
+    password = body.get("password", "").strip()
+    if username in TESTERS and TESTERS[username] == password:
+        return {"status": "ok", "labeler_id": username}
+    raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
 @router.post("/upload")

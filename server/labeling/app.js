@@ -32,6 +32,7 @@ let autoSections = [];
 let isDirty = false;
 let beats = [];       // beat timestamps from analysis
 let downbeats = [];   // downbeat (beat 1) timestamps
+let labelerId = null; // logged-in user
 const SNAP_THRESHOLD = 0.15; // snap within 150ms of a beat
 
 // ─── DOM Elements ─────────────────────────────────────────────
@@ -47,13 +48,72 @@ const loadingText = $('#loading-text');
 
 // ─── Initialize ───────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  setupLogin();
   setupUpload();
   setupKeyboard();
   setupLabelButtons();
   setupTransport();
+});
+
+// ─── Login ────────────────────────────────────────────────────
+function setupLogin() {
+  const loginBtn = $('#login-btn');
+  const loginError = $('#login-error');
+  const usernameInput = $('#login-username');
+  const passwordInput = $('#login-password');
+
+  // Check saved session
+  const saved = sessionStorage.getItem('labeler_id');
+  if (saved) {
+    labelerId = saved;
+    showApp();
+    return;
+  }
+
+  async function doLogin() {
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value.trim();
+    if (!username || !password) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/labels/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!res.ok) {
+        loginError.textContent = 'Invalid username or password';
+        loginError.classList.remove('hidden');
+        return;
+      }
+
+      const data = await res.json();
+      labelerId = data.labeler_id;
+      sessionStorage.setItem('labeler_id', labelerId);
+      showApp();
+    } catch (err) {
+      loginError.textContent = 'Connection error';
+      loginError.classList.remove('hidden');
+    }
+  }
+
+  loginBtn.addEventListener('click', doLogin);
+  passwordInput.addEventListener('keydown', (e) => {
+    if (e.code === 'Enter') doLogin();
+  });
+  usernameInput.addEventListener('keydown', (e) => {
+    if (e.code === 'Enter') passwordInput.focus();
+  });
+}
+
+function showApp() {
+  $('#login-overlay').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  $('#logged-in-as').textContent = `Logged in as: ${labelerId}`;
   loadTracks();
   loadStats();
-});
+}
 
 // ─── Wavesurfer Setup ─────────────────────────────────────────
 function initWavesurfer(audioUrl) {
@@ -506,7 +566,7 @@ async function saveLabels() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sections,
-        labeler_id: 'expert',
+        labeler_id: labelerId || 'anonymous',
         source: 'web_tool',
       }),
     });

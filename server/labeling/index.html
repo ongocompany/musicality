@@ -7,11 +7,24 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="app">
+  <!-- Login overlay -->
+  <div id="login-overlay">
+    <div id="login-box">
+      <h1>Ritmo</h1>
+      <p class="subtitle">Section Labeling Tool</p>
+      <input type="text" id="login-username" placeholder="Username" autocomplete="off">
+      <input type="password" id="login-password" placeholder="Password" autocomplete="off">
+      <button id="login-btn">Login</button>
+      <p id="login-error" class="hidden"></p>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
     <!-- Sidebar: Track list + Upload -->
     <aside id="sidebar">
-      <h1>Musicality</h1>
+      <h1>Ritmo</h1>
       <p class="subtitle">Section Labeling Tool</p>
+      <p id="logged-in-as" style="font-size:12px;color:#BB86FC;margin-bottom:8px"></p>
 
       <div id="upload-area">
         <label for="file-input" id="upload-label">
