@@ -22,7 +22,7 @@ import { Colors, Spacing, FontSize } from '../../constants/theme';
 import InboxItemComponent from '../../components/messages/InboxItem';
 import type { InboxItem } from '../../types/message';
 
-const POLL_INTERVAL = 10_000;
+const POLL_INTERVAL = 5_000;
 
 export default function MessagesScreen() {
   const router = useRouter();
