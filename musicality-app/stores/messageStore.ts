@@ -1,10 +1,8 @@
 /**
  * Message Store — DM + Group Chat state management.
- * Follows communityStore.ts pattern (Zustand + AsyncStorage persist).
+ * No local persistence — always fresh from Supabase.
  */
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   DirectMessage,
   ChatRoom,
@@ -72,7 +70,6 @@ function withLoading(
 }
 
 export const useMessageStore = create<MessageState>()(
-  persist(
     (set, get) => ({
       // ─── Initial state ────────────────
       totalUnreadCount: 0,
@@ -233,13 +230,4 @@ export const useMessageStore = create<MessageState>()(
         });
       },
     }),
-    {
-      name: 'musicality-messages',
-      version: 1,
-      storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({
-        totalUnreadCount: state.totalUnreadCount,
-      }),
-    },
-  ),
 );

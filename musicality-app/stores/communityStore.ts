@@ -1,10 +1,8 @@
 /**
  * Community Store — Crew system state management.
- * Follows existing Zustand + AsyncStorage persist pattern.
+ * No local persistence — always fresh from Supabase.
  */
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   Crew,
   CrewMember,
@@ -91,7 +89,6 @@ function withLoading(
 }
 
 export const useCommunityStore = create<CommunityState>()(
-  persist(
     (set, get) => ({
       // ─── Initial state ────────────────
       myCrewIds: [],
@@ -371,14 +368,4 @@ export const useCommunityStore = create<CommunityState>()(
         })();
       },
     }),
-    {
-      name: 'musicality-community',
-      version: 1,
-      storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({
-        myCrewIds: state.myCrewIds,
-        crewCache: state.crewCache,
-      }),
-    },
-  ),
 );
