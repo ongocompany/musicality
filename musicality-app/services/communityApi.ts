@@ -368,6 +368,55 @@ export async function kickMember(crewId: string, userId: string): Promise<void> 
   await supabase.rpc('leave_crew', { p_crew_id: crewId });
 }
 
+/** Change member role (captain/moderator/member) */
+export async function changeMemberRole(crewId: string, userId: string, newRole: 'moderator' | 'member'): Promise<void> {
+  const { error } = await supabase
+    .from('crew_members')
+    .update({ role: newRole })
+    .eq('crew_id', crewId)
+    .eq('user_id', userId);
+
+  if (error) throw new Error(error.message);
+}
+
+/** Transfer captain role to another member */
+export async function transferCaptain(crewId: string, newCaptainUserId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Demote current captain to moderator
+  await supabase
+    .from('crew_members')
+    .update({ role: 'moderator' })
+    .eq('crew_id', crewId)
+    .eq('user_id', user.id);
+
+  // Promote new captain
+  await supabase
+    .from('crew_members')
+    .update({ role: 'captain' })
+    .eq('crew_id', crewId)
+    .eq('user_id', newCaptainUserId);
+
+  // Update crews table
+  const { error } = await supabase
+    .from('crews')
+    .update({ captain_id: newCaptainUserId, updated_at: new Date().toISOString() })
+    .eq('id', crewId);
+
+  if (error) throw new Error(error.message);
+}
+
+/** Delete crew (captain only) */
+export async function deleteCrew(crewId: string): Promise<void> {
+  const { error } = await supabase
+    .from('crews')
+    .delete()
+    .eq('id', crewId);
+
+  if (error) throw new Error(error.message);
+}
+
 // ─── Join Requests ──────────────────────────────────────
 
 export async function requestJoinCrew(crewId: string, message?: string): Promise<void> {

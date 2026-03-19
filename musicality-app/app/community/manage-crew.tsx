@@ -55,6 +55,9 @@ export default function ManageCrewScreen() {
     kickMember,
     approveRequest,
     rejectRequest,
+    changeMemberRole,
+    transferCaptain,
+    deleteCrew,
   } = useCommunityStore();
 
   const crew = id ? crewCache[id] : undefined;
@@ -122,7 +125,6 @@ export default function ManageCrewScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            // Find the userId from the member's record
             const member = activeCrewMembers.find((m) => m.id === memberId);
             if (member) {
               await kickMember(id, member.userId);
@@ -133,6 +135,64 @@ export default function ManageCrewScreen() {
         },
       },
     ]);
+  };
+
+  const handleMemberAction = (member: typeof activeCrewMembers[0]) => {
+    if (!id || member.role === 'captain') return;
+    const memberName = member.profile?.displayName || 'Dancer';
+    const options: any[] = [];
+
+    if (member.role === 'member') {
+      options.push({ text: 'Promote to Moderator', onPress: () => changeMemberRole(id, member.userId, 'moderator').catch((e: any) => Alert.alert('Error', e.message)) });
+    }
+    if (member.role === 'moderator') {
+      options.push({ text: 'Demote to Member', onPress: () => changeMemberRole(id, member.userId, 'member').catch((e: any) => Alert.alert('Error', e.message)) });
+    }
+    options.push({
+      text: 'Transfer Captain',
+      onPress: () => {
+        Alert.alert('Transfer Captain', `Make "${memberName}" the new captain? You will become a moderator.`, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Transfer', style: 'destructive', onPress: () => transferCaptain(id, member.userId).then(() => { Alert.alert('Done', `${memberName} is now the captain.`); router.back(); }).catch((e: any) => Alert.alert('Error', e.message)) },
+        ]);
+      },
+    });
+    options.push({ text: 'Kick from Crew', style: 'destructive', onPress: () => handleKick(member.id, memberName) });
+    options.push({ text: 'Cancel', style: 'cancel' });
+
+    Alert.alert(memberName, `Role: ${member.role}`, options);
+  };
+
+  const handleDeleteCrew = () => {
+    if (!id || !crew) return;
+    Alert.alert('Delete Crew', `"${crew.name}" will be permanently deleted. This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteCrew(id);
+            Alert.alert('Done', 'Crew has been deleted.');
+            router.replace('/(tabs)/community');
+          } catch (err: any) {
+            Alert.alert('Error', err.message || 'Failed to delete crew');
+          }
+        },
+      },
+    ]);
+  };
+
+  const ROLE_COLORS: Record<string, string> = {
+    captain: Colors.warning,
+    moderator: '#4FC3F7',
+    member: Colors.textMuted,
+  };
+
+  const ROLE_LABELS: Record<string, string> = {
+    captain: 'Captain',
+    moderator: 'Moderator',
+    member: 'Member',
   };
 
   const handleApprove = async (requestId: string) => {
@@ -373,38 +433,53 @@ export default function ManageCrewScreen() {
         </View>
 
         <View style={styles.listBlock}>
-          {activeCrewMembers.map((member) => {
+          {activeCrewMembers
+            .sort((a, b) => {
+              const order = { captain: 0, moderator: 1, member: 2 };
+              return (order[a.role] ?? 2) - (order[b.role] ?? 2);
+            })
+            .map((member) => {
             const isMe = member.userId === user?.id;
-            const isMemberCaptain = member.role === 'captain';
+            const roleColor = ROLE_COLORS[member.role] || Colors.textMuted;
             return (
-              <View key={member.id} style={styles.memberRow}>
-                <View style={styles.avatar}>
-                  <Ionicons name="person" size={16} color={Colors.textMuted} />
+              <TouchableOpacity
+                key={member.id}
+                style={styles.memberRow}
+                onPress={() => !isMe && handleMemberAction(member)}
+                activeOpacity={isMe ? 1 : 0.7}
+              >
+                <View style={[styles.avatar, { borderColor: roleColor }]}>
+                  {member.profile?.avatarUrl ? (
+                    <Image source={{ uri: member.profile.avatarUrl }} style={styles.avatarImage} />
+                  ) : (
+                    <Ionicons name="person" size={16} color={roleColor} />
+                  )}
                 </View>
                 <View style={styles.memberInfo}>
                   <Text style={styles.memberName}>
                     {member.profile?.displayName || 'Dancer'}
                     {isMe ? ' (You)' : ''}
                   </Text>
-                  {isMemberCaptain && (
-                    <View style={styles.captainBadge}>
-                      <Text style={styles.captainBadgeText}>Captain</Text>
-                    </View>
-                  )}
+                  <View style={[styles.roleBadge, { backgroundColor: roleColor + '25' }]}>
+                    <Text style={[styles.roleBadgeText, { color: roleColor }]}>
+                      {ROLE_LABELS[member.role] || member.role}
+                    </Text>
+                  </View>
                 </View>
-                {!isMe && !isMemberCaptain && (
-                  <TouchableOpacity
-                    style={styles.kickBtn}
-                    onPress={() =>
-                      handleKick(member.id, member.profile?.displayName || 'this member')
-                    }
-                  >
-                    <Ionicons name="remove-circle-outline" size={20} color={Colors.error} />
-                  </TouchableOpacity>
+                {!isMe && (
+                  <Ionicons name="ellipsis-vertical" size={18} color={Colors.textMuted} />
                 )}
-              </View>
+              </TouchableOpacity>
             );
           })}
+        </View>
+
+        {/* Delete Crew */}
+        <View style={styles.dangerSection}>
+          <TouchableOpacity style={styles.deleteCrewBtn} onPress={handleDeleteCrew} activeOpacity={0.7}>
+            <Ionicons name="trash-outline" size={20} color={Colors.error} />
+            <Text style={styles.deleteCrewText}>Delete Crew</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </>
@@ -671,18 +746,38 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     color: Colors.text,
   },
-  captainBadge: {
-    backgroundColor: Colors.warning + '30',
+  avatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  roleBadge: {
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 4,
   },
-  captainBadgeText: {
+  roleBadgeText: {
     fontSize: 10,
     fontWeight: '600',
-    color: Colors.warning,
   },
-  kickBtn: {
-    padding: 4,
+  dangerSection: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.xxl,
+  },
+  deleteCrewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.error,
+  },
+  deleteCrewText: {
+    fontSize: FontSize.md,
+    fontWeight: '600',
+    color: Colors.error,
   },
 });

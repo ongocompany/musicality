@@ -66,6 +66,9 @@ interface CommunityState {
   rejectRequest: (requestId: string) => Promise<void>;
   kickMember: (crewId: string, userId: string) => Promise<void>;
   updateCrew: (crewId: string, updates: Parameters<typeof api.updateCrew>[1]) => Promise<void>;
+  changeMemberRole: (crewId: string, userId: string, role: 'moderator' | 'member') => Promise<void>;
+  transferCaptain: (crewId: string, newCaptainUserId: string) => Promise<void>;
+  deleteCrew: (crewId: string) => Promise<void>;
 }
 
 // Helper to set loading/error state
@@ -365,6 +368,38 @@ export const useCommunityStore = create<CommunityState>()(
               crewCache: { ...s.crewCache, [crewId]: crew },
             }));
           }
+        })();
+      },
+
+      changeMemberRole: async (crewId: string, userId: string, role: 'moderator' | 'member') => {
+        await withLoading(set, 'changeMemberRole', async () => {
+          await api.changeMemberRole(crewId, userId, role);
+          set((s) => ({
+            activeCrewMembers: s.activeCrewMembers.map((m) =>
+              m.userId === userId ? { ...m, role } : m
+            ),
+          }));
+        })();
+      },
+
+      transferCaptain: async (crewId: string, newCaptainUserId: string) => {
+        await withLoading(set, 'transferCaptain', async () => {
+          await api.transferCaptain(crewId, newCaptainUserId);
+          // Refresh crew detail + members
+          const crew = await api.fetchCrewById(crewId);
+          if (crew) set((s) => ({ crewCache: { ...s.crewCache, [crewId]: crew } }));
+        })();
+      },
+
+      deleteCrew: async (crewId: string) => {
+        await withLoading(set, 'deleteCrew', async () => {
+          await api.deleteCrew(crewId);
+          set((s) => ({
+            myCrewIds: s.myCrewIds.filter((id) => id !== crewId),
+            crewCache: Object.fromEntries(
+              Object.entries(s.crewCache).filter(([id]) => id !== crewId)
+            ),
+          }));
         })();
       },
     }),

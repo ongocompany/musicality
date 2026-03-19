@@ -86,7 +86,7 @@ export interface CreateCrewInput {
 }
 
 // ─── Crew Member ────────────────────────────────────────
-export type MemberRole = 'captain' | 'member';
+export type MemberRole = 'captain' | 'moderator' | 'member';
 
 export interface CrewMember {
   id: string;
