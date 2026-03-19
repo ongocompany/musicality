@@ -90,15 +90,15 @@ def lookup_metadata(fingerprint: str, duration: float) -> dict | None:
 
 
 def _acoustid_lookup(fingerprint: str, duration: float) -> dict | None:
-    """Query AcoustID API with fingerprint and duration."""
-    params = {
+    """Query AcoustID API with fingerprint and duration (POST to avoid URL length limits)."""
+    payload = {
         "client": ACOUSTID_API_KEY,
         "fingerprint": fingerprint,
         "duration": int(duration),
         "meta": "recordings+releasegroups+compress",
     }
 
-    resp = requests.get(ACOUSTID_URL, params=params, timeout=10)
+    resp = requests.post(ACOUSTID_URL, data=payload, timeout=10)
     resp.raise_for_status()
     data = resp.json()
 
