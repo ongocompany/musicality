@@ -25,6 +25,16 @@ export interface PhraseMap {
   detectionMode: PhraseDetectionMode;
 }
 
+// ─── Track metadata (auto-tagged via AcoustID + MusicBrainz) ──
+
+export interface TrackMetadata {
+  title?: string;           // track title from MusicBrainz
+  artist?: string;          // artist name
+  album?: string;           // album name
+  albumArtUrl?: string;     // Cover Art Archive URL (250px thumbnail)
+  releaseId?: string;       // MusicBrainz release ID
+}
+
 // ─── Analysis result ──────────────────────────────────
 
 export interface AnalysisResult {
@@ -38,6 +48,7 @@ export interface AnalysisResult {
   phraseBoundaries?: number[]; // phrase boundary timestamps from server (seconds)
   waveformPeaks?: number[];    // normalized amplitude peaks (0-1) for waveform visualization
   fingerprint?: string;        // Chromaprint audio fingerprint for track identification
+  metadata?: TrackMetadata;    // auto-tagged track info (AcoustID + MusicBrainz)
 }
 
 export type AnalysisStatus = 'idle' | 'analyzing' | 'done' | 'error';

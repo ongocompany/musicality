@@ -8,8 +8,9 @@ import acoustid
 from madmom.features.beats import RNNBeatProcessor, DBNBeatTrackingProcessor
 from madmom.features.downbeats import RNNDownBeatProcessor, DBNDownBeatTrackingProcessor
 
-from models.schemas import AnalysisResult
+from models.schemas import AnalysisResult, TrackMetadata
 from services.structure_analyzer import analyze_structure, analyze_structure_with_phrases
+from services.metadata_lookup import lookup_metadata
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".m4v"}
 
@@ -130,6 +131,16 @@ def _do_analysis(audio_path: str) -> AnalysisResult:
     except Exception:
         pass  # graceful degradation — fingerprint is optional
 
+    # 9. Metadata lookup (AcoustID -> MusicBrainz -> Cover Art Archive)
+    metadata = None
+    if fingerprint:
+        try:
+            meta_dict = lookup_metadata(fingerprint, duration)
+            if meta_dict:
+                metadata = TrackMetadata(**meta_dict)
+        except Exception:
+            pass  # graceful degradation — metadata is optional
+
     return AnalysisResult(
         bpm=round(tempo, 1),
         beats=beats_list,
@@ -141,6 +152,7 @@ def _do_analysis(audio_path: str) -> AnalysisResult:
         phrase_boundaries=phrase_boundaries,
         waveform_peaks=waveform_peaks,
         fingerprint=fingerprint,
+        metadata=metadata,
     )
 
 

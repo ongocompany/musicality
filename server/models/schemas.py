@@ -8,6 +8,14 @@ class SectionInfo(BaseModel):
     confidence: float       # classification confidence 0-1
 
 
+class TrackMetadata(BaseModel):
+    title: str | None = None        # track title from MusicBrainz
+    artist: str | None = None       # artist name
+    album: str | None = None        # album name
+    album_art_url: str | None = None  # Cover Art Archive URL (250px thumbnail)
+    release_id: str | None = None   # MusicBrainz release ID
+
+
 class AnalysisResult(BaseModel):
     bpm: float
     beats: list[float]          # beat timestamps in seconds
@@ -21,6 +29,7 @@ class AnalysisResult(BaseModel):
     fingerprint: str = ""  # Chromaprint audio fingerprint for track identification
     cached: bool = False  # True if result came from cache
     file_hash: str = ""  # SHA-256 hash of the uploaded file
+    metadata: TrackMetadata | None = None  # auto-tagged track info (AcoustID + MusicBrainz)
 
 
 class HealthResponse(BaseModel):

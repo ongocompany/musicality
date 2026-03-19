@@ -40,6 +40,13 @@ function mapAnalysisResult(data: any): AnalysisResult {
     })),
     phraseBoundaries: data.phrase_boundaries ?? [],
     waveformPeaks: data.waveform_peaks ?? [],
+    metadata: data.metadata ? {
+      title: data.metadata.title,
+      artist: data.metadata.artist,
+      album: data.metadata.album,
+      albumArtUrl: data.metadata.album_art_url,
+      releaseId: data.metadata.release_id,
+    } : undefined,
   };
 }
 

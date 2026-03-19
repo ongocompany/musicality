@@ -9,7 +9,7 @@ import logging
 import os
 from typing import Optional
 
-from models.schemas import AnalysisResult, SectionInfo
+from models.schemas import AnalysisResult, SectionInfo, TrackMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,12 @@ def _row_to_result(row: dict, file_hash: str = "") -> AnalysisResult:
             confidence=s.get("confidence", 0),
         ))
 
+    # Restore metadata if stored
+    metadata = None
+    meta_raw = row.get("metadata")
+    if meta_raw and isinstance(meta_raw, dict):
+        metadata = TrackMetadata(**meta_raw)
+
     return AnalysisResult(
         bpm=row["bpm"],
         beats=row.get("beats") or [],
@@ -66,6 +72,7 @@ def _row_to_result(row: dict, file_hash: str = "") -> AnalysisResult:
         fingerprint=row.get("fingerprint") or "",
         cached=True,
         file_hash=file_hash or row.get("file_hash", ""),
+        metadata=metadata,
     )
 
 
@@ -259,6 +266,7 @@ def store_in_cache(file_hash: str, file_size: int, result: AnalysisResult) -> No
             "fingerprint": result.fingerprint,
             "analyzer_version": CURRENT_ANALYZER_VERSION,
             "hit_count": 0,
+            "metadata": result.metadata.model_dump() if result.metadata else None,
         }
 
         client.table("analysis_cache").upsert(
