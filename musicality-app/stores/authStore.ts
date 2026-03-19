@@ -6,6 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { startSyncManager, stopSyncManager } from '../services/syncManager';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -39,11 +40,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Listen for auth state changes
       supabase.auth.onAuthStateChange((_event, session) => {
+        const prevUser = get().user;
         set({
           session,
           user: session?.user ?? null,
         });
+        // Start sync on login, stop on logout
+        if (session?.user && !prevUser) {
+          startSyncManager();
+        } else if (!session?.user && prevUser) {
+          stopSyncManager();
+        }
       });
+
+      // Start sync if already logged in
+      if (session?.user) {
+        startSyncManager();
+      }
     } catch (error) {
       console.error('Auth init error:', error);
       set({ loading: false });
@@ -128,6 +141,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     try {
+      stopSyncManager();
       await supabase.auth.signOut();
       set({ user: null, session: null, guestMode: false });
     } catch (error) {
