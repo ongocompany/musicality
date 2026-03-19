@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { activateKeepAwake, deactivateKeepAwake } from 'expo-keep-awake';
 import { syncAllEditionsForTrack, restoreEditionsFromServer } from '../services/editionSyncService';
+import { ensureFileAvailable } from '../services/fileImport';
 
 import { usePlayerStore } from '../stores/playerStore';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -405,11 +406,22 @@ export function usePlayerCore() {
   // ─── Analysis trigger (서버 분석) ───
   const runAnalysis = useCallback(async () => {
     if (!currentTrack) return;
+
+    // Ensure file exists before uploading to server
+    const validUri = await ensureFileAvailable(currentTrack);
+    if (!validUri) {
+      Alert.alert('파일을 찾을 수 없습니다', '음원 파일이 삭제되었거나 접근할 수 없습니다. 다시 가져와 주세요.');
+      return;
+    }
+    if (validUri !== currentTrack.uri) {
+      updateTrackData(currentTrack.id, { uri: validUri });
+    }
+
     setTrackAnalysisStatus(currentTrack.id, 'analyzing');
 
     try {
       const result = await analyzeTrack(
-        currentTrack.uri, currentTrack.title, currentTrack.format,
+        validUri, currentTrack.title, currentTrack.format,
         (jobId) => setTrackPendingJobId(currentTrack.id, jobId),
       );
       setTrackAnalysis(currentTrack.id, result);

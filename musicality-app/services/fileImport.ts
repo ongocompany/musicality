@@ -68,8 +68,15 @@ async function processAsset(asset: DocumentPicker.DocumentPickerAsset): Promise<
       console.log(`[FileImport] Cloud file not yet local, waiting...`);
       await waitForFile(asset.uri, 30000);
     }
+    // Verify source file has actual content (not a placeholder)
+    const srcInfo = await getInfoAsync(asset.uri);
+    if (!srcInfo.exists || (srcInfo.size ?? 0) === 0) {
+      console.warn(`[FileImport] Source file empty or missing after wait: ${asset.uri.slice(-50)}`);
+      return null;
+    }
   } catch (e: any) {
     console.warn(`[FileImport] File check failed: ${e?.message}`);
+    return null;
   }
 
   // Copy file to permanent storage (must succeed — cache URI gets evicted by OS)
@@ -80,9 +87,27 @@ async function processAsset(asset: DocumentPicker.DocumentPickerAsset): Promise<
   const destName = `${Date.now()}-${safeName}`;
   const destFile = new File(mediaDir, destName);
   const sourceFile = new File(asset.uri);
-  sourceFile.copy(destFile);
+  try {
+    sourceFile.copy(destFile);
+  } catch (e: any) {
+    console.warn(`[FileImport] Copy failed: ${e?.message}`);
+    return null;
+  }
+
+  // Verify copy succeeded — don't save broken files to library
+  try {
+    const destInfo = await getInfoAsync(destFile.uri);
+    if (!destInfo.exists || (destInfo.size ?? 0) === 0) {
+      console.warn(`[FileImport] Copy verification failed — file empty or missing: ${destFile.uri.slice(-50)}`);
+      try { new File(destFile.uri).delete(); } catch {}
+      return null;
+    }
+    console.log(`[FileImport] Copied to permanent (${((destInfo as any).size / 1024 / 1024).toFixed(1)}MB): ${destFile.uri.slice(-50)}`);
+  } catch (e: any) {
+    console.warn(`[FileImport] Copy verify error: ${e?.message}`);
+    return null;
+  }
   fileUri = destFile.uri;
-  console.log(`[FileImport] Copied to permanent: ${fileUri.slice(-50)}`);
 
   // Extract ID3 metadata (title, artist, album art)
   let metaTitle: string | undefined;
