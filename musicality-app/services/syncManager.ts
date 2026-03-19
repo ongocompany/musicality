@@ -171,7 +171,7 @@ export async function pullFromCloud(): Promise<void> {
     }
 
     if (remoteTracks && remoteTracks.length > 0) {
-      mergeTracksFromCloud(remoteTracks);
+      await mergeTracksFromCloud(remoteTracks);
     }
 
     // 2. Pull editions
@@ -368,7 +368,7 @@ export async function pushToCloud(): Promise<void> {
 // ─── Replace local tracks with cloud data ────────────
 // Server is source of truth. Local-only tracks (not yet pushed) are preserved.
 
-function mergeTracksFromCloud(remoteTracks: any[]): void {
+async function mergeTracksFromCloud(remoteTracks: any[]): Promise<void> {
   const localTracks = usePlayerStore.getState().tracks;
   const store = usePlayerStore.getState();
 
@@ -428,6 +428,29 @@ function mergeTracksFromCloud(remoteTracks: any[]): void {
     } else {
       // Create from cloud
       const isYouTube = remote.media_type === 'youtube';
+
+      if (!isYouTube) {
+        // Non-YouTube tracks: only sync if file exists locally
+        // Different devices have different file paths — don't create ghost tracks
+        const localUri = remote.local_uri || '';
+        if (!localUri) {
+          console.log(SYNC_LOG, `Skip cloud track (no file): ${remote.title}`);
+          continue;
+        }
+        // Check if the local file actually exists on THIS device
+        try {
+          const { getInfoAsync } = require('expo-file-system/legacy');
+          const info = await getInfoAsync(localUri);
+          if (!info.exists) {
+            console.log(SYNC_LOG, `Skip cloud track (file not on device): ${remote.title}`);
+            continue;
+          }
+        } catch {
+          console.log(SYNC_LOG, `Skip cloud track (file check failed): ${remote.title}`);
+          continue;
+        }
+      }
+
       const newTrack: Track = {
         id: `cloud-${remote.id}`,
         title: remote.title,
