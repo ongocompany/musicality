@@ -24,6 +24,7 @@ interface SlotBarProps {
   userSlotCount: number; // 현재 생성된 유저 슬롯 수 (0~3)
   importedNotes: ImportedPhraseNote[];
   onSelectSlot: (slotId: string) => void;
+  onAddSlot?: () => void; // + 버튼: R 데이터로 새 슬롯 생성
   onClose: () => void;
 }
 
@@ -32,10 +33,13 @@ const FORMATION_COLOR = '#FFB300';         // 금색
 
 export function SlotBar({
   mode, activeSlot, hasServerEdition, userSlotCount,
-  importedNotes, onSelectSlot, onClose,
+  importedNotes, onSelectSlot, onAddSlot, onClose,
 }: SlotBarProps) {
   const color = mode === 'phrase' ? PHRASE_COLOR : FORMATION_COLOR;
   const userSlots: string[] = ['1', '2', '3'];
+  // Track which slots actually have data
+  const existingSlots = new Set<string>();
+  for (let i = 1; i <= userSlotCount && i <= 3; i++) existingSlots.add(String(i));
 
   const handleSelect = (slotId: string) => {
     onSelectSlot(slotId);
@@ -48,13 +52,28 @@ export function SlotBar({
         {/* 내 슬롯 1, 2, 3 */}
         {userSlots.map((slot) => {
           const isActive = activeSlot === slot;
+          const isEmpty = !existingSlots.has(slot);
           return (
             <TouchableOpacity
               key={slot}
-              style={[styles.slot, isActive && { backgroundColor: color + '30', borderColor: color }]}
-              onPress={() => handleSelect(slot)}
+              style={[
+                styles.slot,
+                isActive && { backgroundColor: color + '30', borderColor: color },
+                isEmpty && styles.emptySlot,
+              ]}
+              onPress={() => {
+                if (isEmpty && onAddSlot) {
+                  onAddSlot();
+                  onClose();
+                } else if (!isEmpty) {
+                  handleSelect(slot);
+                }
+              }}
             >
-              <Text style={[styles.slotText, { color: isActive ? color : Colors.textSecondary }]}>
+              <Text style={[
+                styles.slotText,
+                { color: isActive ? color : isEmpty ? Colors.textMuted + '60' : Colors.textSecondary },
+              ]}>
                 {slot}
               </Text>
               {isActive && <View style={[styles.activeDot, { backgroundColor: color }]} />}
@@ -138,6 +157,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1.5,
     borderColor: 'transparent',
+  },
+  emptySlot: {
+    opacity: 0.4,
   },
   communitySlot: {
     width: 36,

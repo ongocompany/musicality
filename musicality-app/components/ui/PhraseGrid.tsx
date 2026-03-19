@@ -184,20 +184,29 @@ export function PhraseGrid({
     if (prevVisualCellsRef.current === visualCells) return;
     prevVisualCellsRef.current = visualCells;
 
-    // Re-anchor to the action beat (where user split/re-arranged), or fall back to current beat
-    const anchorBeat = actionBeatRef.current >= 0 ? actionBeatRef.current : globalBeatIndex;
-    actionBeatRef.current = -1; // consume
-    if (anchorBeat >= 0) {
+    // Re-anchor to the action beat (where user split/re-arranged)
+    if (actionBeatRef.current >= 0) {
+      const anchorBeat = actionBeatRef.current;
+      actionBeatRef.current = -1; // consume
       const visualCell = beatToVisualCell.get(anchorBeat);
       if (visualCell != null) {
         const currentRow = Math.floor(visualCell / COLS);
         const targetStartRow = Math.max(0, currentRow - SCROLL_ANCHOR_ROW - RENDER_BUFFER_ROWS);
         setRenderStartRow(targetStartRow);
-        // Also reset scroll position to match new layout
         if (scrollViewRef.current && rowHeight > 0) {
           const targetOffset = Math.max(0, (currentRow - SCROLL_ANCHOR_ROW) * rowHeight);
           scrollViewRef.current.scrollTo({ y: targetOffset, animated: false });
         }
+        return;
+      }
+    }
+    // No action beat — only reposition if playing (don't jump while editing)
+    if (isPlaying && globalBeatIndex >= 0) {
+      const visualCell = beatToVisualCell.get(globalBeatIndex);
+      if (visualCell != null) {
+        const currentRow = Math.floor(visualCell / COLS);
+        const targetStartRow = Math.max(0, currentRow - SCROLL_ANCHOR_ROW - RENDER_BUFFER_ROWS);
+        setRenderStartRow(targetStartRow);
         return;
       }
     }
@@ -206,8 +215,9 @@ export function PhraseGrid({
     setRenderStartRow(prev => Math.min(prev, maxStartRow));
   }, [visualCells, totalDataRows, rowCount, globalBeatIndex, beatToVisualCell, rowHeight]);
 
-  // ─── Auto-scroll during playback ───
+  // ─── Auto-scroll during playback only ───
   useEffect(() => {
+    if (!isPlaying) return; // paused: no auto-scroll (user is editing)
     if (globalBeatIndex < 0 || rowHeight <= 0) return;
 
     const visualCell = beatToVisualCell.get(globalBeatIndex);
@@ -218,11 +228,10 @@ export function PhraseGrid({
     setRenderStartRow(prev => prev !== targetStartRow ? targetStartRow : prev);
 
     // Auto-scroll the ScrollView when user isn't manually scrolling
-    // (works both during playback AND seek-while-paused)
     if (!scrollViewRef.current || userScrollingRef.current) return;
     const targetOffset = Math.max(0, (currentRow - SCROLL_ANCHOR_ROW) * rowHeight);
     scrollViewRef.current.scrollTo({ y: targetOffset, animated: isPlaying });
-  }, [globalBeatIndex, isPlaying, rowHeight, beatToVisualCell]);
+  }, [globalBeatIndex, isPlaying, rowHeight, beatToVisualCell, editMode]);
 
   // Re-enable auto-scroll when playback starts
   useEffect(() => {
@@ -394,8 +403,9 @@ export function PhraseGrid({
     }
   }, [cellToGlobalBeat, isPlaying, beats, onSeekAndPlay, onSeekOnly, onTapBeat, showTooltip, editMode, onEditFormation, onSetCellNote]);
 
-  // ─── Long-press handler ───
+  // ─── Long-press handler (disabled during playback) ───
   const handleCellLongPress = useCallback((cellIndex: number) => {
+    if (isPlaying) return; // no editing during playback
     const globalBeat = cellToGlobalBeat(cellIndex);
     if (globalBeat < 0) return;
 
@@ -411,7 +421,7 @@ export function PhraseGrid({
       setMenuCellIndex(cellIndex);
       setMenuVisible(true);
     }
-  }, [cellToGlobalBeat, repeatSelectMode, beats, onSetLoopPoint]);
+  }, [cellToGlobalBeat, repeatSelectMode, beats, onSetLoopPoint, isPlaying]);
 
   // ─── Context menu helpers ───
   const menuGlobalBeat = useMemo(() => {
@@ -421,17 +431,21 @@ export function PhraseGrid({
 
   const handleSplitPhraseHere = useCallback(() => {
     if (menuGlobalBeat < 0) return;
+    console.log(`[Grid] split at beat=${menuGlobalBeat}, cellIdx=${menuCellIndex}`);
     actionBeatRef.current = menuGlobalBeat;
     onSplitPhraseHere(menuGlobalBeat);
     setMenuVisible(false);
-  }, [menuGlobalBeat, onSplitPhraseHere]);
+    setMenuCellIndex(-1);
+  }, [menuGlobalBeat, menuCellIndex, onSplitPhraseHere]);
 
   const handleReArrangePhrase = useCallback(() => {
     if (menuGlobalBeat < 0) return;
+    console.log(`[Grid] rearrange at beat=${menuGlobalBeat}, cellIdx=${menuCellIndex}`);
     actionBeatRef.current = menuGlobalBeat;
     onReArrangePhrase(menuGlobalBeat);
     setMenuVisible(false);
-  }, [menuGlobalBeat, onReArrangePhrase]);
+    setMenuCellIndex(-1);
+  }, [menuGlobalBeat, menuCellIndex, onReArrangePhrase]);
 
   const handleRepeatFromHere = useCallback(() => {
     if (menuGlobalBeat < 0 || menuGlobalBeat >= beats.length) return;
@@ -449,10 +463,12 @@ export function PhraseGrid({
   // ─── Merge with previous phrase ───
   const handleMergeWithPrevious = useCallback(() => {
     if (menuGlobalBeat < 0) return;
+    console.log(`[Grid] merge at beat=${menuGlobalBeat}, cellIdx=${menuCellIndex}`);
     actionBeatRef.current = menuGlobalBeat;
     onMergeWithPrevious(menuGlobalBeat);
     setMenuVisible(false);
-  }, [menuGlobalBeat, onMergeWithPrevious]);
+    setMenuCellIndex(-1);
+  }, [menuGlobalBeat, menuCellIndex, onMergeWithPrevious]);
 
   // ─── Cell note menu handlers ───
   const menuHasNote = useMemo(() => {

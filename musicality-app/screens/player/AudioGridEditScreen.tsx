@@ -102,6 +102,7 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
             userSlotCount={slot.userSlotCount}
             importedNotes={slot.trackImportedNotes}
             onSelectSlot={slot.selectSlot}
+            onAddSlot={slot.addSlot}
             onClose={slot.toggleSlotBar}
           />
         )}

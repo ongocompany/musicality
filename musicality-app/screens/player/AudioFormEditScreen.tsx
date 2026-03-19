@@ -107,6 +107,7 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
             userSlotCount={slot.userSlotCount}
             importedNotes={slot.trackImportedNotes}
             onSelectSlot={slot.selectSlot}
+            onAddSlot={slot.addSlot}
             onClose={slot.toggleSlotBar}
           />
         )}

@@ -30,6 +30,7 @@ const SYNC_LOG = '[Sync]';
 
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let isSyncing = false;
+let isPulling = false; // suppress dirty tracking during pull
 let isInitialPushDone = false;
 let appStateSubscription: any = null;
 let playerUnsubscribe: (() => void) | null = null;
@@ -42,6 +43,10 @@ const dirtyEditionTrackIds = new Set<string>();
 // ─── Initialize sync (call after login) ─────────────
 
 export function startSyncManager(): void {
+  // TEMP: disabled for debugging phrase issue
+  console.log(SYNC_LOG, 'Sync disabled (debugging)');
+  return;
+
   const { user, guestMode } = useAuthStore.getState();
   if (!user || guestMode) {
     console.log(SYNC_LOG, 'Skipped: guest mode or not logged in');
@@ -50,9 +55,13 @@ export function startSyncManager(): void {
 
   console.log(SYNC_LOG, 'Starting sync manager');
 
-  // Initial pull, then push all local data
+  // Initial pull, then push all local data (with delay to let store settle)
   pullFromCloud().then(() => {
-    pushToCloud();
+    setTimeout(() => {
+      dirtyTrackIds.clear();
+      dirtyEditionTrackIds.clear();
+      pushToCloud();
+    }, 500);
   });
 
   // Watch app foreground
@@ -61,8 +70,8 @@ export function startSyncManager(): void {
   // Watch local store changes (debounced push with dirty tracking)
   let prevTracksRef = usePlayerStore.getState().tracks;
   playerUnsubscribe = usePlayerStore.subscribe((state) => {
+    if (isPulling) return; // don't dirty-mark during pull
     if (state.tracks !== prevTracksRef) {
-      // Find changed tracks
       const prev = new Map(prevTracksRef.map(t => [t.id, t]));
       for (const t of state.tracks) {
         const old = prev.get(t.id);
@@ -77,6 +86,7 @@ export function startSyncManager(): void {
   let prevFormationsRef = useSettingsStore.getState().trackFormations;
   let prevNotesRef = useSettingsStore.getState().cellNotes;
   settingsUnsubscribe = useSettingsStore.subscribe((state) => {
+    if (isPulling) return; // don't dirty-mark during pull
     let changed = false;
     if (state.trackEditions !== prevEditionsRef) {
       for (const id of Object.keys(state.trackEditions)) {
@@ -149,6 +159,7 @@ export async function pullFromCloud(): Promise<void> {
   if (!user || isSyncing) return;
 
   isSyncing = true;
+  isPulling = true; // suppress dirty tracking during pull
   try {
     console.log(SYNC_LOG, 'Pulling from cloud...');
 
@@ -181,6 +192,10 @@ export async function pullFromCloud(): Promise<void> {
   } catch (err: any) {
     console.warn(SYNC_LOG, 'Pull error:', err.message);
   } finally {
+    isPulling = false;
+    // Clear any dirty flags that were set during pull
+    dirtyTrackIds.clear();
+    dirtyEditionTrackIds.clear();
     isSyncing = false;
   }
 }
@@ -441,6 +456,10 @@ function mergeEditionsFromCloud(remoteEditions: any[]): void {
     }
   }
 
+  // Debug: log all track IDs for matching
+  for (const [fp, tid] of fpToTrackId) {
+    console.log(SYNC_LOG, `  fp=${fp.slice(0, 12)}... → trackId=${tid}`);
+  }
   console.log(SYNC_LOG, `Edition merge: ${fpToTrackId.size} fingerprints mapped, ${remoteEditions.length} remote editions`);
 
   for (const row of remoteEditions) {
@@ -449,6 +468,7 @@ function mergeEditionsFromCloud(remoteEditions: any[]): void {
       console.log(SYNC_LOG, `Edition skip: no track for fp=${row.fingerprint.slice(0, 12)}...`);
       continue;
     }
+    console.log(SYNC_LOG, `Edition apply: slot=${row.slot_id} type=${row.edition_type} → trackId=${trackId}, boundaries=${JSON.stringify(row.edition_data).slice(0, 50)}`);
 
     const remoteUpdated = new Date(row.updated_at).getTime();
 
