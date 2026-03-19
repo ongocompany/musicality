@@ -143,6 +143,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       stopSyncManager();
       await supabase.auth.signOut();
+      // Reset all stores to prevent cross-account data leaks
+      const { useCommunityStore } = require('./communityStore');
+      const { useSocialStore } = require('./socialStore');
+      const { useMessageStore } = require('./messageStore');
+      useCommunityStore.getState().resetAll();
+      useSocialStore.getState().clearViewing();
+      useMessageStore.getState().resetAll?.();
       set({ user: null, session: null, guestMode: false });
     } catch (error) {
       console.error('Sign-out error:', error);

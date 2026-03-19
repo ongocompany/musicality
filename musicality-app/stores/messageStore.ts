@@ -84,6 +84,19 @@ export const useMessageStore = create<MessageState>()(
       loading: {},
       errors: {},
 
+      resetAll: () => {
+        set({
+          totalUnreadCount: 0,
+          inboxItems: [],
+          activeConversation: [],
+          activeRoom: null,
+          activeRoomMessages: [],
+          activeRoomMembers: [],
+          loading: {},
+          errors: {},
+        });
+      },
+
       // ─── Inbox ────────────────────────
 
       fetchInbox: async () => {

@@ -34,6 +34,8 @@ interface CommunityState {
   loading: Record<string, boolean>;
   errors: Record<string, string | null>;
 
+  resetAll: () => void;
+
   // ─── Crew Lifecycle ───────────────────
   fetchMyCrews: () => Promise<void>;
   fetchDiscoverCrews: (search?: string) => Promise<void>;
@@ -105,6 +107,22 @@ export const useCommunityStore = create<CommunityState>()(
       errors: {},
 
       // ─── Crew Lifecycle ───────────────
+
+      resetAll: () => {
+        set({
+          myCrewIds: [],
+          crewCache: {},
+          discoverCrews: [],
+          activeCrewId: null,
+          activeCrewMembers: [],
+          activeSongThreads: [],
+          activeGeneralPosts: [],
+          activePendingRequests: [],
+          activeThreadNotes: {},
+          loading: {},
+          errors: {},
+        });
+      },
 
       fetchMyCrews: async () => {
         await withLoading(set, 'myCrews', async () => {
