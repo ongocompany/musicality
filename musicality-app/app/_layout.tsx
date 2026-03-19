@@ -10,6 +10,7 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { usePlayerStore } from '../stores/playerStore';
 import { parseYouTubeUrl, createYouTubeTrack } from '../services/fileImport';
 import { Colors } from '../constants/theme';
+import { AnnouncementPopup } from '../components/ui/AnnouncementPopup';
 import i18next, { detectDeviceLanguage } from '../i18n';
 import { decryptPhraseNote } from '../services/phraseNoteService';
 
@@ -120,7 +121,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  const isLoggedIn = user !== null || guestMode;
+
+  return (
+    <>
+      {children}
+      {isLoggedIn && <AnnouncementPopup />}
+    </>
+  );
 }
 
 export default function RootLayout() {
