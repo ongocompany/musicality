@@ -229,6 +229,13 @@ export default function CreateCrewScreen() {
               </>
             )}
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => router.back()}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.cancelButtonText}>{t('common.cancel', '취소')}</Text>
+          </TouchableOpacity>
         </ScrollView>
       </View>
     </>
@@ -349,5 +356,16 @@ const styles = StyleSheet.create({
     fontSize: FontSize.lg,
     fontWeight: '600',
     color: '#FFF',
+  },
+  cancelButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 44,
+    borderRadius: 12,
+    marginTop: Spacing.sm,
+  },
+  cancelButtonText: {
+    fontSize: FontSize.md,
+    color: Colors.textSecondary,
   },
 });
