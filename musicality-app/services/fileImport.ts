@@ -36,8 +36,16 @@ async function validateAudioFile(uri: string, fileName: string): Promise<AudioVa
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
 
   try {
-    const info = await getInfoAsync(uri);
-    const size = (info as any).size ?? 0;
+    // Wait for file size to stabilize (cloud files may still be downloading)
+    let size = 0;
+    let prevSize = -1;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const info = await getInfoAsync(uri);
+      size = (info as any).size ?? 0;
+      if (size > 0 && size === prevSize) break;
+      prevSize = size;
+      if (attempt < 4) await new Promise(r => setTimeout(r, 500));
+    }
 
     // Too small to be a valid audio file (< 50KB)
     if (size < 50 * 1024) {
@@ -76,7 +84,7 @@ async function validateAudioFile(uri: string, fileName: string): Promise<AudioVa
       }
 
       // Read a chunk from near the end of the file to check for truncation
-      const tailSize = 128;
+      const tailSize = 1024;
       const tailPos = Math.max(0, size - tailSize);
       const tailHex: string = await readAsStringAsync(uri, {
         encoding: EncodingType.Base64,
@@ -93,8 +101,8 @@ async function validateAudioFile(uri: string, fileName: string): Promise<AudioVa
         else break;
       }
 
-      // If last 64+ bytes are all the same → truncated file
-      if (identicalCount >= 64) {
+      // If last 512+ bytes are all the same → truncated file
+      if (identicalCount >= 512) {
         return { valid: false, reason: 'This file appears to be incomplete (download may have been interrupted).' };
       }
     }

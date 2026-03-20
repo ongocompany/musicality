@@ -106,6 +106,18 @@ export function useSlotSelector(mode: SlotMode) {
   const selectSlot = useCallback((slotId: string) => {
     if (!trackId) return;
 
+    // Auto-save current draft before switching
+    if (!isReadOnly && currentDraft) {
+      const curSlot = activeSlot as EditionId;
+      if (curSlot !== 'S' && !curSlot.startsWith('imported')) {
+        if (mode === 'phrase' && Array.isArray(currentDraft)) {
+          setEditionBoundaries(trackId, curSlot, currentDraft as number[]);
+        } else if (mode === 'formation' && !Array.isArray(currentDraft)) {
+          setFormationEdition(trackId, curSlot as FormationEditionId, currentDraft as any);
+        }
+      }
+    }
+
     // Clear draft so phraseMap reads from the new slot's edition data
     if (mode === 'phrase') clearDraft(trackId);
     else clearFormationDraft(trackId);
@@ -125,7 +137,9 @@ export function useSlotSelector(mode: SlotMode) {
     } else {
       setActiveFormationEdition(trackId, slotId as FormationEditionId);
     }
-  }, [trackId, mode, setActiveEdition, setActiveFormationEdition, setActiveImportedNote, clearDraft, clearFormationDraft]);
+  }, [trackId, mode, activeSlot, isReadOnly, currentDraft,
+      setActiveEdition, setActiveFormationEdition, setActiveImportedNote,
+      setEditionBoundaries, setFormationEdition, clearDraft, clearFormationDraft]);
 
   // ─── 헤더 배지용 라벨 ───
   const slotLabel = useMemo((): string => {
@@ -181,9 +195,21 @@ export function useSlotSelector(mode: SlotMode) {
   // ─── 진입 시: 개인 에디션 있으면 마지막 사용 슬롯 유지, 없으면 R(S) 유지 ───
   // 편집은 tryEdit()에서 처리
 
-  // R 데이터를 빈 슬롯 하나에 복제 → 그 슬롯으로 전환
-  const createSlotFromServer = useCallback((): boolean => {
+  // R 데이터를 지정(또는 빈) 슬롯에 복제 → 그 슬롯으로 전환
+  const createSlotFromServer = useCallback((targetSlot?: string): boolean => {
     if (!trackId) return false;
+
+    // Auto-save current draft before switching
+    if (!isReadOnly && currentDraft) {
+      const slotId = activeSlot as EditionId;
+      if (slotId !== 'S' && !slotId.startsWith('imported')) {
+        if (mode === 'phrase' && Array.isArray(currentDraft)) {
+          setEditionBoundaries(trackId, slotId, currentDraft as number[]);
+        } else if (mode === 'formation' && !Array.isArray(currentDraft)) {
+          setFormationEdition(trackId, slotId as FormationEditionId, currentDraft as any);
+        }
+      }
+    }
 
     // Clear draft before switching
     if (mode === 'phrase') clearDraft(trackId);
@@ -191,60 +217,40 @@ export function useSlotSelector(mode: SlotMode) {
 
     if (mode === 'phrase') {
       const serverBoundaries = editions?.server?.boundaries ?? [];
+      const target = targetSlot as EditionId | undefined;
       const usedIds = new Set(editions?.userEditions.map(e => e.id) ?? []);
-      const available = (['1', '2', '3'] as EditionId[]).find(id => !usedIds.has(id));
+      const slotToUse = target && !usedIds.has(target)
+        ? target
+        : (['1', '2', '3'] as EditionId[]).find(id => !usedIds.has(id));
 
-      if (available) {
-        setEditionBoundaries(trackId, available, [...serverBoundaries]);
-        setActiveEdition(trackId, available);
+      if (slotToUse) {
+        setEditionBoundaries(trackId, slotToUse, [...serverBoundaries]);
+        setActiveEdition(trackId, slotToUse);
         return true;
       } else {
-        // 3개 다 찼음 — 슬롯 선택해서 덮어쓰기
-        Alert.alert(
-          '슬롯이 가득 찼습니다',
-          '어느 슬롯에 덮어쓰시겠습니까?',
-          [
-            { text: '취소', style: 'cancel' },
-            ...(['1', '2', '3'] as const).map(s => ({
-              text: `슬롯 ${s}`,
-              onPress: () => {
-                setEditionBoundaries(trackId, s as EditionId, [...serverBoundaries]);
-                setActiveEdition(trackId, s as EditionId);
-              },
-            })),
-          ],
-        );
+        Alert.alert('슬롯이 가득 찼습니다', '기존 슬롯을 삭제한 후 다시 시도해주세요.');
         return false;
       }
     } else {
       const serverData = formations?.server?.data;
       if (!serverData) return false;
+      const target = targetSlot as FormationEditionId | undefined;
       const usedIds = new Set(formations?.userEditions.map(e => e.id) ?? []);
-      const available = (['1', '2', '3'] as FormationEditionId[]).find(id => !usedIds.has(id));
+      const slotToUse = target && !usedIds.has(target)
+        ? target
+        : (['1', '2', '3'] as FormationEditionId[]).find(id => !usedIds.has(id));
 
-      if (available) {
-        setFormationEdition(trackId, available, JSON.parse(JSON.stringify(serverData)));
-        setActiveFormationEdition(trackId, available);
+      if (slotToUse) {
+        setFormationEdition(trackId, slotToUse, JSON.parse(JSON.stringify(serverData)));
+        setActiveFormationEdition(trackId, slotToUse);
         return true;
       } else {
-        Alert.alert(
-          '슬롯이 가득 찼습니다',
-          '어느 슬롯에 덮어쓰시겠습니까?',
-          [
-            { text: '취소', style: 'cancel' },
-            ...(['1', '2', '3'] as const).map(s => ({
-              text: `슬롯 ${s}`,
-              onPress: () => {
-                setFormationEdition(trackId, s as FormationEditionId, JSON.parse(JSON.stringify(serverData)));
-                setActiveFormationEdition(trackId, s as FormationEditionId);
-              },
-            })),
-          ],
-        );
+        Alert.alert('슬롯이 가득 찼습니다', '기존 슬롯을 삭제한 후 다시 시도해주세요.');
         return false;
       }
     }
-  }, [trackId, mode, editions, formations, setEditionBoundaries, setFormationEdition, setActiveEdition, setActiveFormationEdition]);
+  }, [trackId, mode, editions, formations, activeSlot, isReadOnly, currentDraft,
+      setEditionBoundaries, setFormationEdition, setActiveEdition, setActiveFormationEdition, clearDraft, clearFormationDraft]);
 
   // ─── R 슬롯에서 편집 시도 시 처리 ───
   const tryEdit = useCallback((): boolean => {

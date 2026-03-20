@@ -284,6 +284,19 @@ export default function LibraryScreen() {
   const [analyzeTarget, setAnalyzeTarget] = useState<Track | null>(null);
   const [choreoDancerCount, setChoreoDancerCount] = useState(4);
 
+  // Text input prompt (cross-platform replacement for Alert.prompt)
+  const [promptVisible, setPromptVisible] = useState(false);
+  const [promptTitle, setPromptTitle] = useState('');
+  const [promptValue, setPromptValue] = useState('');
+  const [promptCallback, setPromptCallback] = useState<((value: string) => void) | null>(null);
+
+  const showPrompt = useCallback((title: string, defaultValue: string, onSubmit: (value: string) => void) => {
+    setPromptTitle(title);
+    setPromptValue(defaultValue);
+    setPromptCallback(() => onSubmit);
+    setPromptVisible(true);
+  }, []);
+
   // ─── Sort logic ───────────────────────────────────
   const sortTracks = useCallback((list: Track[]) => {
     const sorted = [...list].sort((a, b) => {
@@ -398,9 +411,9 @@ export default function LibraryScreen() {
       {
         text: t('library.rename'),
         onPress: () => {
-          Alert.prompt(t('library.renameTrack'), t('library.renameTrackPrompt'), (newTitle) => {
-            if (newTitle && newTitle.trim()) renameTrack(track.id, newTitle.trim());
-          }, 'plain-text', track.title);
+          showPrompt(t('library.renameTrack'), track.title, (newTitle) => {
+            if (newTitle.trim()) renameTrack(track.id, newTitle.trim());
+          });
         },
       },
     ];
@@ -512,9 +525,9 @@ export default function LibraryScreen() {
 
   // ─── Folder handlers ──────────────────────────────
   const handleCreateFolder = () => {
-    Alert.prompt(t('library.newFolder'), t('library.folderName'), (name) => {
-      if (name && name.trim()) createFolder(name.trim(), activeTab);
-    }, 'plain-text');
+    showPrompt(t('library.newFolder'), '', (name) => {
+      if (name.trim()) createFolder(name.trim(), activeTab);
+    });
   };
 
   const handleFolderLongPress = (folder: Folder) => {
@@ -522,9 +535,9 @@ export default function LibraryScreen() {
       {
         text: t('common.edit'),
         onPress: () => {
-          Alert.prompt(t('library.folderName'), t('library.folderName'), (name) => {
-            if (name && name.trim()) renameFolder(folder.id, name.trim());
-          }, 'plain-text', folder.name);
+          showPrompt(t('library.folderName'), folder.name, (name) => {
+            if (name.trim()) renameFolder(folder.id, name.trim());
+          });
         },
       },
       {
@@ -819,6 +832,51 @@ export default function LibraryScreen() {
               </View>
             </TouchableOpacity>
           </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Text input prompt (cross-platform) */}
+      <Modal
+        visible={promptVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPromptVisible(false)}
+      >
+        <Pressable style={styles.analyzeBackdrop} onPress={() => setPromptVisible(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <Pressable style={styles.promptContainer} onPress={() => {}}>
+              <Text style={styles.promptTitle}>{promptTitle}</Text>
+              <TextInput
+                style={styles.promptInput}
+                value={promptValue}
+                onChangeText={setPromptValue}
+                autoFocus
+                selectTextOnFocus
+                returnKeyType="done"
+                onSubmitEditing={() => {
+                  setPromptVisible(false);
+                  promptCallback?.(promptValue);
+                }}
+              />
+              <View style={styles.promptButtons}>
+                <TouchableOpacity
+                  style={styles.promptCancelBtn}
+                  onPress={() => setPromptVisible(false)}
+                >
+                  <Text style={styles.promptCancelText}>{t('common.cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.promptConfirmBtn}
+                  onPress={() => {
+                    setPromptVisible(false);
+                    promptCallback?.(promptValue);
+                  }}
+                >
+                  <Text style={styles.promptConfirmText}>{t('common.confirm', { defaultValue: '확인' })}</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
     </View>
@@ -1197,4 +1255,62 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dancerCountValue: { color: Colors.text, fontSize: FontSize.md, fontWeight: '700', minWidth: 24, textAlign: 'center' },
+
+  // ─── Text Input Prompt ──────────────────────────────
+  promptContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    minWidth: 280,
+    maxWidth: '85%',
+    borderWidth: 1,
+    borderColor: Colors.surfaceLight,
+  },
+  promptTitle: {
+    color: Colors.text,
+    fontSize: FontSize.lg,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  promptInput: {
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.surfaceLight,
+    color: Colors.text,
+    fontSize: FontSize.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  promptButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  promptCancelBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+  },
+  promptCancelText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.md,
+    fontWeight: '600',
+  },
+  promptConfirmBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+  },
+  promptConfirmText: {
+    color: '#FFFFFF',
+    fontSize: FontSize.md,
+    fontWeight: '700',
+  },
 });

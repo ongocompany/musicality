@@ -29,19 +29,15 @@ export function FormationSetupModal({ visible, onClose, onCreated }: FormationSe
 
   const selectPreset = (idx: number) => {
     setPresetIdx(idx);
-    setStageWidth(STAGE_PRESETS[idx].config.gridWidth);
-    setStageHeight(STAGE_PRESETS[idx].config.gridHeight);
+    const w = STAGE_PRESETS[idx].config.gridWidth;
+    setStageWidth(w);
+    setStageHeight(Math.round(w / 2)); // 2:1 ratio
   };
 
   const adjustWidth = (delta: number) => {
     const w = Math.max(4, Math.min(16, stageWidth + delta));
     setStageWidth(w);
-    setPresetIdx(null); // custom
-  };
-
-  const adjustHeight = (delta: number) => {
-    const h = Math.max(2, Math.min(10, stageHeight + delta));
-    setStageHeight(h);
+    setStageHeight(Math.round(w / 2)); // 2:1 ratio
     setPresetIdx(null); // custom
   };
 
@@ -89,7 +85,7 @@ export function FormationSetupModal({ visible, onClose, onCreated }: FormationSe
             ))}
           </View>
 
-          {/* Custom size */}
+          {/* Custom size — width controls height at 2:1 ratio */}
           <View style={styles.sizeRow}>
             <View style={styles.sizeItem}>
               <Text style={styles.sizeLabel}>{t('player.width', { defaultValue: '가로' })}</Text>
@@ -105,15 +101,7 @@ export function FormationSetupModal({ visible, onClose, onCreated }: FormationSe
             </View>
             <View style={styles.sizeItem}>
               <Text style={styles.sizeLabel}>{t('player.depth', { defaultValue: '세로' })}</Text>
-              <View style={styles.stepper}>
-                <TouchableOpacity style={styles.stepperBtn} onPress={() => adjustHeight(-1)}>
-                  <Ionicons name="remove" size={18} color={Colors.text} />
-                </TouchableOpacity>
-                <Text style={styles.stepperValue}>{stageHeight}m</Text>
-                <TouchableOpacity style={styles.stepperBtn} onPress={() => adjustHeight(1)}>
-                  <Ionicons name="add" size={18} color={Colors.text} />
-                </TouchableOpacity>
-              </View>
+              <Text style={styles.stepperValue}>{stageHeight}m</Text>
             </View>
           </View>
 

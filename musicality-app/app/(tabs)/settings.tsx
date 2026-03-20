@@ -11,6 +11,8 @@ import { usePlayerStore } from '../../stores/playerStore';
 import { useAuthStore } from '../../stores/authStore';
 import { LANGUAGES, LanguageCode } from '../../i18n';
 import { exportLibraryBackup, importLibraryBackup, LibraryBackup } from '../../services/libraryBackupService';
+import { extractMetadata } from '../../modules/my-module';
+import { File, Directory, Paths } from 'expo-file-system/next';
 
 const LOOK_AHEAD_STEP = 25; // ms per tap
 
@@ -26,6 +28,7 @@ export default function SettingsScreen() {
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
+  const [reloadingArt, setReloadingArt] = useState(false);
 
   const checkServer = useCallback(async () => {
     setChecking(true);
@@ -299,6 +302,48 @@ export default function SettingsScreen() {
           <Ionicons name="cloud-download-outline" size={20} color={Colors.primary} />
           <Text style={[styles.label, { color: Colors.primary }]}>
             {t('settings.importLibrary', { defaultValue: '라이브러리 복원 (가져오기)' })}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={async () => {
+            if (reloadingArt) return;
+            setReloadingArt(true);
+            try {
+              const tracks = usePlayerStore.getState().tracks;
+              const audioTracks = tracks.filter(t => t.mediaType === 'audio' && t.uri);
+              let updated = 0;
+              const mediaDir = new Directory(Paths.document, 'media');
+              if (!mediaDir.exists) mediaDir.create();
+
+              for (const track of audioTracks) {
+                try {
+                  const meta = await extractMetadata(track.uri);
+                  if (meta?.albumArt) {
+                    const artFile = new File(mediaDir, `art-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.jpg`);
+                    new File(meta.albumArt.startsWith('/') ? `file://${meta.albumArt}` : meta.albumArt).copy(artFile);
+                    usePlayerStore.getState().setTrackThumbnail(track.id, artFile.uri);
+                    updated++;
+                  }
+                } catch {}
+              }
+              Alert.alert(
+                t('common.done', { defaultValue: '완료' }),
+                `${updated}/${audioTracks.length} ${t('settings.albumArtUpdated', { defaultValue: '곡의 앨범아트를 갱신했습니다.' })}`,
+              );
+            } catch (e: any) {
+              Alert.alert(t('common.error'), e?.message || 'Failed');
+            } finally {
+              setReloadingArt(false);
+            }
+          }}
+          disabled={reloadingArt}
+        >
+          <Ionicons name="images-outline" size={20} color={reloadingArt ? Colors.textMuted : Colors.primary} />
+          <Text style={[styles.label, { color: reloadingArt ? Colors.textMuted : Colors.primary }]}>
+            {reloadingArt
+              ? t('settings.reloadingAlbumArt', { defaultValue: '앨범아트 검색 중...' })
+              : t('settings.reloadAlbumArt', { defaultValue: '앨범아트 재검색' })}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity

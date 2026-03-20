@@ -155,7 +155,7 @@ export const useSettingsStore = create<SettingsState>()(
       setDanceStyle: (style) => set({ danceStyle: style }),
 
       lookAheadMs: 150,
-      setLookAheadMs: (ms) => set({ lookAheadMs: Math.max(0, Math.min(300, ms)) }),
+      setLookAheadMs: (ms) => set({ lookAheadMs: Math.max(-300, Math.min(300, ms)) }),
 
       downbeatOffsets: {},
       setDownbeatOffset: (trackId, beatIndex) =>

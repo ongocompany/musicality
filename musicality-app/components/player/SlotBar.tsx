@@ -24,7 +24,7 @@ interface SlotBarProps {
   userSlotCount: number; // 현재 생성된 유저 슬롯 수 (0~3)
   importedNotes: ImportedPhraseNote[];
   onSelectSlot: (slotId: string) => void;
-  onAddSlot?: () => void; // + 버튼: R 데이터로 새 슬롯 생성
+  onAddSlot?: (targetSlot?: string) => void; // R 데이터로 지정 슬롯에 생성
   onClose: () => void;
 }
 
@@ -63,9 +63,9 @@ export function SlotBar({
               ]}
               onPress={() => {
                 if (isEmpty && onAddSlot) {
-                  onAddSlot();
+                  onAddSlot(slot);
                   onClose();
-                } else if (!isEmpty) {
+                } else {
                   handleSelect(slot);
                 }
               }}
