@@ -79,7 +79,13 @@ export const usePlayerStore = create<PlayerState>()(
         }
         return { tracks: [...state.tracks, track] };
       }),
-      removeTrack: (id) => set((state) => ({ tracks: state.tracks.filter((t) => t.id !== id) })),
+      removeTrack: (id) => {
+        set((state) => ({ tracks: state.tracks.filter((t) => t.id !== id) }));
+        try {
+          const { useSettingsStore } = require('./settingsStore');
+          useSettingsStore.getState().removeTrackData(id);
+        } catch {}
+      },
       renameTrack: (id, newTitle) =>
         set((state) => ({
           tracks: state.tracks.map((t) =>

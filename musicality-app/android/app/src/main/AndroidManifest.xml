@@ -31,13 +31,11 @@
         <data android:scheme="musicality"/>
         <data android:scheme="exp+musicality-app"/>
       </intent-filter>
-      <!-- YouTube share: receive text/plain URLs -->
       <intent-filter>
         <action android:name="android.intent.action.SEND"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <data android:mimeType="text/plain"/>
       </intent-filter>
-      <!-- Open .pnote / .cnote files -->
       <intent-filter>
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>

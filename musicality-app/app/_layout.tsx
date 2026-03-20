@@ -21,6 +21,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     initialize();
+
+    // Cleanup orphaned settings data (tracks deleted or app reinstalled)
+    const validIds = new Set(usePlayerStore.getState().tracks.map(t => t.id));
+    useSettingsStore.getState().cleanupTrackData(validIds);
+
     // Sync i18n language from persisted settings
     const lang = useSettingsStore.getState().language;
     if (lang) {

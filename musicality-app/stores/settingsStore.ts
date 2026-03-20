@@ -132,6 +132,10 @@ interface SettingsState {
   // Onboarding tutorial
   hasSeenOnboarding: boolean;
   setHasSeenOnboarding: (seen: boolean) => void;
+
+  // Cleanup orphaned track data (trackIds that no longer exist in player)
+  cleanupTrackData: (validTrackIds: Set<string>) => void;
+  removeTrackData: (trackId: string) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -583,6 +587,64 @@ export const useSettingsStore = create<SettingsState>()(
       // ─── Onboarding ──────────────────────────────────
       hasSeenOnboarding: false,
       setHasSeenOnboarding: (seen) => set({ hasSeenOnboarding: seen }),
+
+      // ─── Track data cleanup ─────────────────────────
+      removeTrackData: (trackId) =>
+        set((state) => {
+          const { [trackId]: _do, ...downbeatRest } = state.downbeatOffsets;
+          const { [trackId]: _bt, ...beatTimeRest } = state.beatTimeOffsets;
+          const { [trackId]: _bp, ...bpmRest } = state.bpmOverrides;
+          const { [trackId]: _pm, ...phraseRest } = state.phraseMarks;
+          const { [trackId]: _cn, ...cellNotesRest } = state.cellNotes;
+          const { [trackId]: _te, ...editionsRest } = state.trackEditions;
+          const { [trackId]: _db, ...draftRest } = state.draftBoundaries;
+          const { [trackId]: _tf, ...formationsRest } = state.trackFormations;
+          const { [trackId]: _df, ...draftFormRest } = state.draftFormation;
+          return {
+            downbeatOffsets: downbeatRest,
+            beatTimeOffsets: beatTimeRest,
+            bpmOverrides: bpmRest,
+            phraseMarks: phraseRest,
+            cellNotes: cellNotesRest,
+            trackEditions: editionsRest,
+            draftBoundaries: draftRest,
+            trackFormations: formationsRest,
+            draftFormation: draftFormRest,
+            importedNotes: state.importedNotes.filter(n => n.trackId !== trackId),
+          };
+        }),
+
+      cleanupTrackData: (validTrackIds) =>
+        set((state) => {
+          const filter = <T>(record: Record<string, T>): Record<string, T> => {
+            const result: Record<string, T> = {};
+            for (const key of Object.keys(record)) {
+              if (validTrackIds.has(key)) result[key] = record[key];
+            }
+            return result;
+          };
+          const cleaned = {
+            downbeatOffsets: filter(state.downbeatOffsets),
+            beatTimeOffsets: filter(state.beatTimeOffsets),
+            bpmOverrides: filter(state.bpmOverrides),
+            phraseMarks: filter(state.phraseMarks),
+            cellNotes: filter(state.cellNotes),
+            trackEditions: filter(state.trackEditions),
+            draftBoundaries: filter(state.draftBoundaries),
+            trackFormations: filter(state.trackFormations),
+            draftFormation: filter(state.draftFormation),
+            importedNotes: state.importedNotes.filter(n => validTrackIds.has(n.trackId)),
+          };
+          const orphanCount =
+            Object.keys(state.downbeatOffsets).length - Object.keys(cleaned.downbeatOffsets).length +
+            Object.keys(state.cellNotes).length - Object.keys(cleaned.cellNotes).length +
+            Object.keys(state.trackEditions).length - Object.keys(cleaned.trackEditions).length +
+            Object.keys(state.trackFormations).length - Object.keys(cleaned.trackFormations).length;
+          if (orphanCount > 0) {
+            console.log(`[Settings] Cleaned up ${orphanCount} orphaned track data entries`);
+          }
+          return cleaned;
+        }),
     }),
     {
       name: 'musicality-settings',

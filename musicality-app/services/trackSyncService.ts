@@ -199,45 +199,6 @@ export async function syncAllTracksToCloud(
   return synced;
 }
 
-// ─── Match track by file hash ────────────────────────
-
-export async function matchTrackByHash(
-  uri: string,
-  fileSize?: number,
-): Promise<AnalysisResult | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  try {
-    const hash = await computeQuickHash(uri, fileSize);
-
-    const { data, error } = await supabase.rpc(
-      'match_track_by_fingerprint',
-      { p_fingerprint: hash },
-    );
-
-    if (error || !data || (Array.isArray(data) && data.length === 0)) {
-      return null;
-    }
-
-    const row = Array.isArray(data) ? data[0] : data;
-    return {
-      bpm: row.bpm,
-      beats: row.beats ?? [],
-      downbeats: row.downbeats ?? [],
-      duration: 0,
-      beatsPerBar: row.beats_per_bar ?? 4,
-      confidence: row.confidence ?? 0,
-      sections: (row.sections ?? []) as Section[],
-      phraseBoundaries: row.phrase_boundaries ?? [],
-      waveformPeaks: row.waveform_peaks ?? [],
-      fingerprint: hash,
-    };
-  } catch {
-    return null;
-  }
-}
-
 // ─── Delete from Supabase ─────────────────────────────
 
 export async function deleteTrackFromCloud(

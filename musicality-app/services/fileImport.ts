@@ -22,6 +22,91 @@ const FORMAT_MAP: Record<string, string> = {
 
 const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'avi', 'm4v']);
 
+// ─── Audio file integrity validation ───────────────────────────
+// Detects truncated or corrupted audio files before adding to library.
+// MP3: checks MPEG sync header + verifies last bytes aren't padding/silence pattern.
+// Other formats: basic size check only.
+
+interface AudioValidationResult {
+  valid: boolean;
+  reason: string;
+}
+
+async function validateAudioFile(uri: string, fileName: string): Promise<AudioValidationResult> {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+
+  try {
+    const info = await getInfoAsync(uri);
+    const size = (info as any).size ?? 0;
+
+    // Too small to be a valid audio file (< 50KB)
+    if (size < 50 * 1024) {
+      return { valid: false, reason: 'File is too small to be a valid audio file.' };
+    }
+
+    // MP3-specific validation
+    if (ext === 'mp3') {
+      const { readAsStringAsync, EncodingType } = require('expo-file-system/legacy');
+
+      // Read beginning of file to verify MPEG sync header
+      const headerB64: string = await readAsStringAsync(uri, {
+        encoding: EncodingType.Base64,
+        length: 4096,
+        position: 0,
+      });
+      const headerBytes = atob(headerB64);
+
+      // Skip ID3v2 header if present to find MPEG frame
+      let mpegOffset = 0;
+      if (headerBytes.charCodeAt(0) === 0x49 && headerBytes.charCodeAt(1) === 0x44 && headerBytes.charCodeAt(2) === 0x33) {
+        const s0 = headerBytes.charCodeAt(6) & 0x7f;
+        const s1 = headerBytes.charCodeAt(7) & 0x7f;
+        const s2 = headerBytes.charCodeAt(8) & 0x7f;
+        const s3 = headerBytes.charCodeAt(9) & 0x7f;
+        mpegOffset = 10 + (s0 << 21 | s1 << 14 | s2 << 7 | s3);
+      }
+
+      // Verify MPEG sync word exists within readable range
+      if (mpegOffset < headerBytes.length - 1) {
+        const b0 = headerBytes.charCodeAt(mpegOffset);
+        const b1 = headerBytes.charCodeAt(mpegOffset + 1);
+        if (b0 !== 0xFF || (b1 & 0xE0) !== 0xE0) {
+          return { valid: false, reason: 'Not a valid MP3 file (MPEG sync header not found).' };
+        }
+      }
+
+      // Read a chunk from near the end of the file to check for truncation
+      const tailSize = 128;
+      const tailPos = Math.max(0, size - tailSize);
+      const tailHex: string = await readAsStringAsync(uri, {
+        encoding: EncodingType.Base64,
+        length: tailSize,
+        position: tailPos,
+      });
+      const tailBytes = atob(tailHex);
+
+      // Check if tail is all identical bytes (pattern of truncated download)
+      let identicalCount = 0;
+      const lastByte = tailBytes.charCodeAt(tailBytes.length - 1);
+      for (let i = tailBytes.length - 1; i >= 0; i--) {
+        if (tailBytes.charCodeAt(i) === lastByte) identicalCount++;
+        else break;
+      }
+
+      // If last 64+ bytes are all the same → truncated file
+      if (identicalCount >= 64) {
+        return { valid: false, reason: 'This file appears to be incomplete (download may have been interrupted).' };
+      }
+    }
+
+    return { valid: true, reason: '' };
+  } catch (e: any) {
+    console.warn(`[FileImport] Validation error: ${e?.message}`);
+    // Don't block import on validation errors — let it through
+    return { valid: true, reason: '' };
+  }
+}
+
 /** Poll until a cloud-downloaded file appears locally (max timeoutMs) */
 async function waitForFile(uri: string, timeoutMs: number): Promise<void> {
   const start = Date.now();
@@ -109,6 +194,16 @@ async function processAsset(asset: DocumentPicker.DocumentPickerAsset): Promise<
     return null;
   }
   fileUri = destFile.uri;
+
+  // Validate audio file integrity (detect truncated/corrupted files)
+  if (mediaType === 'audio') {
+    const integrity = await validateAudioFile(fileUri, asset.name);
+    if (!integrity.valid) {
+      console.warn(`[FileImport] Invalid audio file: ${asset.name} — ${integrity.reason}`);
+      try { new File(destFile.uri).delete(); } catch {}
+      throw new Error(integrity.reason);
+    }
+  }
 
   // Extract ID3 metadata (title, artist, album art)
   let metaTitle: string | undefined;
