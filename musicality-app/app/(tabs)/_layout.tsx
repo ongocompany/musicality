@@ -8,7 +8,10 @@ import { Colors } from '../../constants/theme';
 import { useMessageStore } from '../../stores/messageStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useTutorialStore } from '../../stores/tutorialStore';
 import { OnboardingOverlay } from '../../components/ui/OnboardingOverlay';
+import { TutorialOverlay } from '../../components/tutorial/TutorialOverlay';
+import { ensureDemoTrack } from '../../utils/demoTrack';
 
 const UNREAD_POLL = 10_000;
 
@@ -17,7 +20,27 @@ export default function TabLayout() {
   const { user } = useAuthStore();
   const { totalUnreadCount, fetchUnreadCount } = useMessageStore();
   const { hasSeenOnboarding, setHasSeenOnboarding } = useSettingsStore();
+  const tutorialActive = useTutorialStore((s) => s.isActive);
+  const tutorialCompleted = useTutorialStore((s) => s.hasCompleted);
+  const startTutorial = useTutorialStore((s) => s.startTutorial);
+  const demoLoadedRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Load demo track & start tutorial on first launch (after onboarding)
+  useEffect(() => {
+    if (demoLoadedRef.current) return;
+    if (!hasSeenOnboarding) return; // wait for onboarding to finish first
+
+    demoLoadedRef.current = true;
+
+    (async () => {
+      const isNewDemo = await ensureDemoTrack();
+      // Auto-start tutorial if demo was just loaded and tutorial not completed
+      if (isNewDemo && !tutorialCompleted) {
+        startTutorial();
+      }
+    })();
+  }, [hasSeenOnboarding]);
 
   // Poll unread count when logged in
   useEffect(() => {
@@ -110,6 +133,9 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
+
+      {/* Interactive Tutorial Overlay (above everything) */}
+      {tutorialActive && <TutorialOverlay />}
     </SafeAreaView>
   );
 }

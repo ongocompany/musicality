@@ -9,6 +9,7 @@
     "back": "Retour",
     "next": "Suivant",
     "skip": "Passer",
+    "prev": "Retour",
     "start": "Démarrer !",
     "ok": "OK",
     "yes": "Oui",
@@ -336,6 +337,23 @@
     "eventCount": "{{count}} événements",
     "noEvents": "Aucun événement",
     "dayNames": "Dim,Lun,Mar,Mer,Jeu,Ven,Sam"
+  },
+  "tutorial": {
+    "welcomeTitle": "Appuyez sur la chanson démo !",
+    "welcomeDesc": "« Un Solo Latido » est la chanson officielle de Ritmo.\nAppuyez dessus pour l'ouvrir dans le Lecteur.",
+    "analysisTitle": "Analyse rythmique IA terminée !",
+    "analysisDesc": "L'IA Ritmo a détecté automatiquement le BPM, les beats et les sections.\nLa grille de beats affiche chaque temps sous forme de cellule colorée.",
+    "playTitle": "Jouez et ressentez le rythme",
+    "playDesc": "Appuyez sur lecture ! Le grand chiffre compte les temps en temps réel.\nLa bordure dorée sur la grille suit le beat actuel.",
+    "gridEditTitle": "Modifiez la grille",
+    "gridEditDesc": "Appuyez longuement sur une cellule pour ajouter des notes de chorégraphie,\ndiviser/fusionner des phrases ou ajuster la structure des beats.",
+    "formationTitle": "Créez des formations",
+    "formationDesc": "Passez en mode Formation pour placer les danseurs sur scène.\nDéfinissez des images clés sur des beats spécifiques — les danseurs s'animent entre les positions !",
+    "speedTitle": "Ajustez la vitesse pour la pratique",
+    "speedDesc": "Appuyez sur le bouton de vitesse pour ralentir ou accélérer.\nUtilisez la boucle A-B pour répéter une section spécifique.",
+    "communityTitle": "Rejoignez un Crew !",
+    "communityDesc": "Trouvez des crews de danse dans Communauté, discutez dans Messages.\nPartagez vos grilles de beats et formations avec votre crew !",
+    "finish": "C'est parti !"
   },
   "profile": {
     "editProfile": "Modifier le profil",

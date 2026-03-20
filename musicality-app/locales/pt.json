@@ -9,6 +9,7 @@
     "back": "Voltar",
     "next": "Próximo",
     "skip": "Pular",
+    "prev": "Voltar",
     "start": "Começar!",
     "ok": "OK",
     "yes": "Sim",
@@ -336,6 +337,23 @@
     "eventCount": "{{count}} eventos",
     "noEvents": "Sem eventos",
     "dayNames": "Dom,Seg,Ter,Qua,Qui,Sex,Sáb"
+  },
+  "tutorial": {
+    "welcomeTitle": "Toque na música demo!",
+    "welcomeDesc": "\"Un Solo Latido\" é a música oficial do Ritmo.\nToque nela para abrir no Player.",
+    "analysisTitle": "Análise de batida por IA concluída!",
+    "analysisDesc": "A IA do Ritmo detectou automaticamente o BPM, batidas e seções da música.\nA grade de batidas mostra cada batida como uma célula colorida.",
+    "playTitle": "Reproduza e sinta a batida",
+    "playDesc": "Toque no botão de reproduzir! O número grande conta as batidas em tempo real.\nA borda dourada na grade acompanha a batida atual.",
+    "gridEditTitle": "Edite a grade",
+    "gridEditDesc": "Pressione e segure uma célula para adicionar notas de coreografia,\ndividir/unir frases ou ajustar a estrutura de batidas.",
+    "formationTitle": "Crie formações",
+    "formationDesc": "Mude para o modo Formação para posicionar dançarinos no palco.\nDefina keyframes em batidas específicas — os dançarinos animam entre as posições!",
+    "speedTitle": "Ajuste a velocidade para praticar",
+    "speedDesc": "Toque no botão de velocidade para desacelerar ou acelerar.\nUse o loop A-B para repetir uma seção específica.",
+    "communityTitle": "Junte-se a um Crew!",
+    "communityDesc": "Encontre crews de dança na Comunidade, converse em Mensagens.\nCompartilhe suas grades de batidas e formações com seu crew!",
+    "finish": "Vamos lá!"
   },
   "profile": {
     "editProfile": "Editar perfil",

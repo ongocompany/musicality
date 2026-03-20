@@ -15,6 +15,7 @@ import { FormationStageView } from '../../components/ui/FormationStageView';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useTutorialStore } from '../../stores/tutorialStore';
 import { useTapTempoStore } from '../../stores/tapTempoStore';
 import { useAudioPlayer } from '../../hooks/useAudioPlayer';
 import { useVideoPlayer } from '../../hooks/useVideoPlayer';
@@ -1910,7 +1911,17 @@ export default function PlayerScreen() {
             <Ionicons name="play-back" size={22} color={Colors.text} />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
+        <TouchableOpacity
+          style={styles.playButton}
+          onPress={togglePlay}
+          onLayout={(e) => {
+            e.target.measureInWindow((x: number, y: number, w: number, h: number) => {
+              if (w > 0 && h > 0) {
+                useTutorialStore.getState().setElementRect('playButton', { x, y, width: w, height: h });
+              }
+            });
+          }}
+        >
           <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
@@ -1921,6 +1932,13 @@ export default function PlayerScreen() {
             <TouchableOpacity
               onPress={() => setEditMode(editMode === 'formation' ? 'none' : 'formation')}
               style={styles.editModeToggle}
+              onLayout={(e) => {
+                e.target.measureInWindow((x: number, y: number, w: number, h: number) => {
+                  if (w > 0 && h > 0) {
+                    useTutorialStore.getState().setElementRect('formationToggle', { x, y, width: w, height: h });
+                  }
+                });
+              }}
             >
               <Ionicons
                 name={editMode === 'formation' ? 'people' : 'people-outline'}

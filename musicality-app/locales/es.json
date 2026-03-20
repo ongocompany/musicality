@@ -9,6 +9,7 @@
     "back": "Atrás",
     "next": "Siguiente",
     "skip": "Omitir",
+    "prev": "Atrás",
     "start": "¡Empezar!",
     "ok": "Aceptar",
     "yes": "Sí",
@@ -336,6 +337,23 @@
     "eventCount": "{{count}} eventos",
     "noEvents": "Sin eventos",
     "dayNames": "Dom,Lun,Mar,Mié,Jue,Vie,Sáb"
+  },
+  "tutorial": {
+    "welcomeTitle": "¡Toca la canción demo!",
+    "welcomeDesc": "\"Un Solo Latido\" es la canción oficial de Ritmo.\nTócala para abrirla en el Reproductor.",
+    "analysisTitle": "¡Análisis de ritmo con IA completado!",
+    "analysisDesc": "Ritmo IA detectó automáticamente el BPM, los beats y las secciones.\nLa cuadrícula de beats muestra cada golpe como una celda de color.",
+    "playTitle": "¡Reproduce y siente el ritmo!",
+    "playDesc": "¡Toca el botón de reproducir! El número grande cuenta los beats en tiempo real.\nEl borde dorado en la cuadrícula sigue el beat actual.",
+    "gridEditTitle": "Edita la cuadrícula",
+    "gridEditDesc": "Mantén presionada una celda para agregar notas de coreografía,\ndividir/unir frases o ajustar la estructura de beats.",
+    "formationTitle": "Crea formaciones",
+    "formationDesc": "Cambia al modo Formación para colocar bailarines en el escenario.\n¡Establece keyframes en beats específicos y los bailarines se animarán entre posiciones!",
+    "speedTitle": "Ajusta la velocidad para practicar",
+    "speedDesc": "Toca el botón de velocidad para ralentizar o acelerar.\nUsa el bucle A-B para repetir una sección específica.",
+    "communityTitle": "¡Únete a un Crew!",
+    "communityDesc": "Encuentra crews de baile en Comunidad, chatea en Mensajes.\n¡Comparte tus cuadrículas de beats y formaciones con tu crew!",
+    "finish": "¡Vamos!"
   },
   "profile": {
     "editProfile": "Editar perfil",

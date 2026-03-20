@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, LayoutChangeEvent, Modal, Pressable, TouchableOpacity, TextInput, Keyboard, ScrollView, NativeSyntheticEvent, NativeScrollEvent, Platform } from 'react-native';
+import { useTutorialStore } from '../../stores/tutorialStore';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { Colors, Spacing, FontSize, getPhraseColor, NoteTypeColors } from '../../constants/theme';
@@ -85,6 +86,7 @@ export function PhraseGrid({
 
   // ScrollView refs for auto-scroll
   const scrollViewRef = useRef<ScrollView>(null);
+  const gridContainerRef = useRef<View>(null);
   const userScrollingRef = useRef(false);
   const autoScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -576,7 +578,19 @@ export function PhraseGrid({
   }
 
   return (
-    <View style={[styles.container, { flex: 1 }]} onLayout={onContainerLayout}>
+    <View
+      ref={gridContainerRef}
+      style={[styles.container, { flex: 1 }]}
+      onLayout={(e) => {
+        onContainerLayout(e);
+        // Measure absolute position for tutorial spotlight
+        gridContainerRef.current?.measureInWindow((x, y, w, h) => {
+          if (w > 0 && h > 0) {
+            useTutorialStore.getState().setElementRect('phraseGrid', { x, y, width: w, height: h });
+          }
+        });
+      }}
+    >
       {/* "Selecting B" hint */}
       {repeatSelectMode && (
         <View style={styles.repeatHint}>

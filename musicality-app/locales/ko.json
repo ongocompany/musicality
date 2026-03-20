@@ -9,6 +9,7 @@
     "back": "뒤로",
     "next": "다음",
     "skip": "건너뛰기",
+    "prev": "이전",
     "start": "시작!",
     "ok": "확인",
     "yes": "예",
@@ -337,6 +338,23 @@
     "eventCount": "일정 {{count}}개",
     "noEvents": "일정이 없습니다",
     "dayNames": "일,월,화,수,목,금,토"
+  },
+  "tutorial": {
+    "welcomeTitle": "데모곡을 탭해보세요!",
+    "welcomeDesc": "\"Un Solo Latido\"는 Ritmo의 브랜드 송이에요.\n탭하면 Player 화면으로 이동해요.",
+    "analysisTitle": "AI 비트 분석 완료!",
+    "analysisDesc": "Ritmo AI가 BPM, 비트, 곡 구간을 자동으로 감지했어요.\n비트 그리드에서 각 비트가 색상 셀로 표시돼요.",
+    "playTitle": "재생하고 비트를 느껴보세요",
+    "playDesc": "재생 버튼을 탭하세요! 큰 숫자가 비트에 맞춰 실시간으로 바뀌어요.\n그리드의 금색 테두리가 현재 비트를 따라가요.",
+    "gridEditTitle": "그리드를 편집해보세요",
+    "gridEditDesc": "셀을 길게 누르면 안무 메모를 적거나,\n프레이즈를 분할/병합하고 비트 구조를 조정할 수 있어요.",
+    "formationTitle": "포메이션을 만들어보세요",
+    "formationDesc": "포메이션 모드로 전환하면 스테이지 위에 댄서를 배치할 수 있어요.\n특정 비트에 키프레임을 설정하면 댄서들이 자동으로 이동해요!",
+    "speedTitle": "속도를 조절해서 연습하세요",
+    "speedDesc": "속도 버튼을 탭하면 느리게 또는 빠르게 재생할 수 있어요.\nA-B 반복으로 특정 구간만 반복 연습할 수도 있어요.",
+    "communityTitle": "크루에 가입하세요!",
+    "communityDesc": "Community에서 댄스 크루를 찾고, Messages에서 대화하세요.\n비트 그리드와 포메이션을 크루원들과 공유할 수 있어요!",
+    "finish": "시작하기!"
   },
   "profile": {
     "editProfile": "프로필 수정",

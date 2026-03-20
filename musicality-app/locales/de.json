@@ -9,6 +9,7 @@
     "back": "Zurück",
     "next": "Weiter",
     "skip": "Überspringen",
+    "prev": "Zurück",
     "start": "Los!",
     "ok": "OK",
     "yes": "Ja",
@@ -336,6 +337,23 @@
     "eventCount": "{{count}} Termine",
     "noEvents": "Keine Termine",
     "dayNames": "So,Mo,Di,Mi,Do,Fr,Sa"
+  },
+  "tutorial": {
+    "welcomeTitle": "Tippe auf den Demo-Song!",
+    "welcomeDesc": "„Un Solo Latido\u201C ist der offizielle Song von Ritmo.\nTippe darauf, um ihn im Player zu öffnen.",
+    "analysisTitle": "KI-Beat-Analyse abgeschlossen!",
+    "analysisDesc": "Ritmo KI hat BPM, Beats und Songabschnitte automatisch erkannt.\nDas Beat-Raster zeigt jeden Beat als farbige Zelle an.",
+    "playTitle": "Abspielen und den Beat spüren",
+    "playDesc": "Tippe auf Play! Die große Zahl zählt Beats in Echtzeit.\nDer goldene Rahmen im Raster folgt dem aktuellen Beat.",
+    "gridEditTitle": "Raster bearbeiten",
+    "gridEditDesc": "Halte eine Zelle gedrückt, um Choreografie-Notizen hinzuzufügen,\nPhrasen zu teilen/verbinden oder die Beat-Struktur anzupassen.",
+    "formationTitle": "Formationen erstellen",
+    "formationDesc": "Wechsle in den Formationsmodus, um Tänzer auf der Bühne zu platzieren.\nSetze Keyframes bei bestimmten Beats — Tänzer animieren zwischen Positionen!",
+    "speedTitle": "Geschwindigkeit zum Üben anpassen",
+    "speedDesc": "Tippe auf den Geschwindigkeitsknopf zum Verlangsamen oder Beschleunigen.\nVerwende die A-B-Schleife, um einen bestimmten Abschnitt zu wiederholen.",
+    "communityTitle": "Tritt einer Crew bei!",
+    "communityDesc": "Finde Tanz-Crews in der Community, chatte in Nachrichten.\nTeile deine Beat-Raster und Formationen mit deiner Crew!",
+    "finish": "Los geht's!"
   },
   "profile": {
     "editProfile": "Profil bearbeiten",

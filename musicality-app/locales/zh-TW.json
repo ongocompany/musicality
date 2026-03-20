@@ -9,6 +9,7 @@
     "back": "返回",
     "next": "下一步",
     "skip": "跳過",
+    "prev": "上一步",
     "start": "開始！",
     "ok": "確定",
     "yes": "是",
@@ -336,6 +337,23 @@
     "eventCount": "{{count}} 場活動",
     "noEvents": "沒有活動",
     "dayNames": "日,一,二,三,四,五,六"
+  },
+  "tutorial": {
+    "welcomeTitle": "點擊演示歌曲！",
+    "welcomeDesc": "「Un Solo Latido」是Ritmo的品牌歌曲。\n點擊它在播放器中開啟。",
+    "analysisTitle": "AI節拍分析完成！",
+    "analysisDesc": "Ritmo AI自動偵測了BPM、節拍和歌曲段落。\n節拍網格將每個節拍顯示為彩色方格。",
+    "playTitle": "播放並感受節拍",
+    "playDesc": "點擊播放按鈕！大數字即時計數節拍。\n網格上的金色邊框跟隨目前節拍移動。",
+    "gridEditTitle": "編輯網格",
+    "gridEditDesc": "長按任意方格可新增編舞備註、\n拆分/合併樂句或調整節拍結構。",
+    "formationTitle": "建立隊形",
+    "formationDesc": "切換到隊形模式，將舞者放置在舞台上。\n在特定節拍設定關鍵影格——舞者會在位置之間自動動畫！",
+    "speedTitle": "調整練習速度",
+    "speedDesc": "點擊速度按鈕來減速或加速。\n使用A-B循環來重複練習特定段落。",
+    "communityTitle": "加入舞團！",
+    "communityDesc": "在社群中尋找舞蹈團隊，在訊息中聊天。\n與你的團隊分享節拍網格和隊形！",
+    "finish": "開始吧！"
   },
   "profile": {
     "editProfile": "編輯個人資料",

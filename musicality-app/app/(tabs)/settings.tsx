@@ -13,6 +13,8 @@ import { LANGUAGES, LanguageCode } from '../../i18n';
 import { exportLibraryBackup, importLibraryBackup, LibraryBackup } from '../../services/libraryBackupService';
 import { extractMetadata } from '../../modules/my-module';
 import { ensureFileAvailable } from '../../services/fileImport';
+import { useTutorialStore } from '../../stores/tutorialStore';
+import { ensureDemoTrack } from '../../utils/demoTrack';
 import { File, Directory, Paths } from 'expo-file-system/next';
 
 const LOOK_AHEAD_STEP = 25; // ms per tap
@@ -110,7 +112,10 @@ export default function SettingsScreen() {
         </View>
         <TouchableOpacity
           style={styles.row}
-          onPress={() => useSettingsStore.getState().setHasSeenOnboarding(false)}
+          onPress={async () => {
+            await ensureDemoTrack();
+            useTutorialStore.getState().startTutorial();
+          }}
         >
           <Ionicons name="help-circle-outline" size={20} color={Colors.primary} />
           <Text style={[styles.label, { color: Colors.primary }]}>{t('settings.tutorial')}</Text>

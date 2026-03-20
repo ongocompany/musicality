@@ -7,6 +7,8 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useTutorialStore } from '../../stores/tutorialStore';
+import { DEMO_TRACK_ID } from '../../utils/demoTrack';
 import { pickMediaFile, parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
 import { analyzeTrack, resumeAnalysisJob } from '../../services/analysisApi';
 // Cloud sync disabled — library is local-only
@@ -125,9 +127,26 @@ function TrackItem({
   onAnalyze: () => void;
   queuePosition?: number;  // 1, 2, 3 or undefined
 }) {
+  const viewRef = useRef<View>(null);
+  const isDemoTrack = track.id === DEMO_TRACK_ID;
+
+  // Measure demo track item position for tutorial spotlight
+  const handleLayout = useCallback(() => {
+    if (!isDemoTrack) return;
+    viewRef.current?.measureInWindow((x, y, width, height) => {
+      if (width > 0 && height > 0) {
+        useTutorialStore.getState().setElementRect('demoTrackItem', { x, y, width, height });
+      }
+    });
+  }, [isDemoTrack]);
+
   return (
     <TouchableOpacity onPress={onPress} onLongPress={onLongPress} activeOpacity={0.7}>
-      <View style={[styles.trackItem, isSelected && styles.trackItemSelected, isNowPlaying && styles.trackItemNowPlaying]}>
+      <View
+        ref={isDemoTrack ? viewRef : undefined}
+        onLayout={isDemoTrack ? handleLayout : undefined}
+        style={[styles.trackItem, isSelected && styles.trackItemSelected, isNowPlaying && styles.trackItemNowPlaying]}
+      >
         {selectMode && (
           <View style={[styles.selectCheck, isSelected && styles.selectCheckActive]}>
             {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}

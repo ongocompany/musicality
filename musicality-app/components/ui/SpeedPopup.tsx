@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity, Modal, StyleSheet, Pressable, PanResponder } from 'react-native';
 import { useState, useRef, useMemo } from 'react';
+import { useTutorialStore } from '../../stores/tutorialStore';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
 
@@ -72,7 +73,17 @@ export function SpeedPopup({ currentRate, rates, onSelectRate }: SpeedPopupProps
   return (
     <>
       {/* Trigger button */}
-      <TouchableOpacity style={styles.trigger} onPress={openDial}>
+      <TouchableOpacity
+        style={styles.trigger}
+        onPress={openDial}
+        onLayout={(e) => {
+          e.target.measureInWindow((x: number, y: number, w: number, h: number) => {
+            if (w > 0 && h > 0) {
+              useTutorialStore.getState().setElementRect('speedTrigger', { x, y, width: w, height: h });
+            }
+          });
+        }}
+      >
         <Ionicons name="speedometer-outline" size={14} color={Colors.textSecondary} />
         <Text style={[
           styles.triggerText,

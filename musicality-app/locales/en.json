@@ -9,6 +9,7 @@
     "back": "Back",
     "next": "Next",
     "skip": "Skip",
+    "prev": "Back",
     "start": "Start!",
     "ok": "OK",
     "yes": "Yes",
@@ -337,6 +338,23 @@
     "eventCount": "{{count}} events",
     "noEvents": "No events",
     "dayNames": "Sun,Mon,Tue,Wed,Thu,Fri,Sat"
+  },
+  "tutorial": {
+    "welcomeTitle": "Tap the Demo Song!",
+    "welcomeDesc": "\"Un Solo Latido\" is Ritmo's brand song.\nTap it to open in the Player.",
+    "analysisTitle": "AI Beat Analysis Complete!",
+    "analysisDesc": "Ritmo AI detected the BPM, beats, and song sections automatically.\nThe Beat Grid shows each beat as a colored cell.",
+    "playTitle": "Play & Feel the Beat",
+    "playDesc": "Tap the play button! The big number counts beats in real-time.\nThe golden border on the grid follows the current beat.",
+    "gridEditTitle": "Edit the Grid",
+    "gridEditDesc": "Long-press any cell to add choreography memos,\nsplit/merge phrases, or adjust the beat structure.",
+    "formationTitle": "Create Formations",
+    "formationDesc": "Switch to Formation mode to place dancers on stage.\nSet keyframes at specific beats — dancers animate between positions!",
+    "speedTitle": "Adjust Speed for Practice",
+    "speedDesc": "Tap the speed button to slow down or speed up.\nUse A-B Loop to repeat a specific section.",
+    "communityTitle": "Join a Crew!",
+    "communityDesc": "Find dance crews in Community, chat in Messages.\nShare your beat grids and formations with your crew!",
+    "finish": "Let's Go!"
   },
   "profile": {
     "editProfile": "Edit Profile",

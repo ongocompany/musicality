@@ -225,15 +225,39 @@ export async function fetchMyCrews(): Promise<Crew[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
-  const { data, error } = await supabase
+  // Get crews where I'm a member
+  const { data: memberData, error: memberError } = await supabase
     .from('crew_members')
     .select('crew_id, crews(*)')
     .eq('user_id', user.id);
 
-  if (error) throw new Error(error.message);
-  return (data ?? [])
+  if (memberError) throw new Error(memberError.message);
+  const memberCrews = (memberData ?? [])
     .filter((row: any) => row.crews)
     .map((row: any) => mapCrew(row.crews));
+
+  // Also get crews where I'm captain but somehow missing from crew_members
+  // (defensive: auto-repair by inserting missing crew_members row)
+  const memberCrewIds = new Set(memberCrews.map(c => c.id));
+  const { data: captainData } = await supabase
+    .from('crews')
+    .select('*')
+    .eq('captain_id', user.id)
+    .eq('is_active', true);
+
+  for (const crew of (captainData ?? [])) {
+    if (!memberCrewIds.has(crew.id)) {
+      // Auto-repair: insert missing captain into crew_members
+      await supabase.from('crew_members').insert({
+        crew_id: crew.id,
+        user_id: user.id,
+        role: 'captain',
+      }).select().maybeSingle();
+      memberCrews.push(mapCrew(crew));
+    }
+  }
+
+  return memberCrews;
 }
 
 export async function fetchDiscoverCrews(search?: string): Promise<Crew[]> {
