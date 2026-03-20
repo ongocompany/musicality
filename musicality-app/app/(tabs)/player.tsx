@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { activateKeepAwake, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRouter, useNavigation } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { PhraseGrid } from '../../components/ui/PhraseGrid';
@@ -18,7 +19,6 @@ import { useTapTempoStore } from '../../stores/tapTempoStore';
 import { useAudioPlayer } from '../../hooks/useAudioPlayer';
 import { useVideoPlayer } from '../../hooks/useVideoPlayer';
 import { useYouTubePlayer } from '../../hooks/useYouTubePlayer';
-import { useCuePlayer } from '../../hooks/useCuePlayer';
 import { analyzeTrack } from '../../services/analysisApi';
 import { usePlayerCore } from '../../hooks/usePlayerCore';
 import { usePlayerMode } from '../../hooks/usePlayerMode';
@@ -118,6 +118,7 @@ function PulsingR({ size = 14 }: { size?: number }) {
 }
 
 export default function PlayerScreen() {
+  const isFocused = useIsFocused();
   const playerCore = usePlayerCore();
   const playerMode = usePlayerMode();
   const { t } = useTranslation();
@@ -186,8 +187,6 @@ export default function PlayerScreen() {
     setTimeout(() => computeCountInfoRef.current(), 0);
   }, [rawSeekTo]);
 
-  useCuePlayer();
-
   // Tap tempo store (for YouTube inline tap tempo)
   const tapBpm = useTapTempoStore((s) => s.bpm);
   const tapPhase = useTapTempoStore((s) => s.phase);
@@ -196,8 +195,6 @@ export default function PlayerScreen() {
   const resetTapTempo = useTapTempoStore((s) => s.reset);
 
   const danceStyle = useSettingsStore((s) => s.danceStyle);
-  const cueEnabled = useSettingsStore((s) => s.cueEnabled);
-  const toggleCue = useSettingsStore((s) => s.toggleCue);
   const lookAheadMs = useSettingsStore((s) => s.lookAheadMs);
   const downbeatOffsets = useSettingsStore((s) => s.downbeatOffsets);
   const setDownbeatOffset = useSettingsStore((s) => s.setDownbeatOffset);
@@ -582,10 +579,10 @@ export default function PlayerScreen() {
 
   useEffect(() => {
     computeCountInfo(); // initial
-    if (!isPlaying) return;
+    if (!isPlaying || !isFocused) return;
     const id = setInterval(computeCountInfo, 50);
     return () => clearInterval(id);
-  }, [isPlaying, computeCountInfo]);
+  }, [isPlaying, isFocused, computeCountInfo]);
 
   // ─── Instantaneous BPM at current position ───
   const currentBpm = useMemo(() => {
@@ -834,6 +831,8 @@ export default function PlayerScreen() {
   // Uses positionRef (no re-render), updates via interval
   const [fractionalBeatIndex, setFractionalBeatIndex] = useState(0);
 
+  const needsFractionalBeat = isPlaying && isFocused && editMode === 'formation' && !!activeFormationData;
+
   useEffect(() => {
     const compute = () => {
       if (!isPlaying || !effectiveBeats || effectiveBeats.length === 0) {
@@ -858,10 +857,10 @@ export default function PlayerScreen() {
     };
 
     compute();
-    if (!isPlaying) return;
+    if (!needsFractionalBeat) return;
     const id = setInterval(compute, 50);
     return () => clearInterval(id);
-  }, [isPlaying, effectiveBeats, formationEditBeatIndex]);
+  }, [needsFractionalBeat, effectiveBeats, formationEditBeatIndex]);
 
   const handleStageConfigChange = useCallback((config: Partial<StageConfig>) => {
     setStageConfig(config);
@@ -1918,13 +1917,6 @@ export default function PlayerScreen() {
           <TouchableOpacity onPress={handleSkipForward}>
             <Ionicons name="play-forward" size={22} color={Colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={toggleCue} style={styles.cueToggle}>
-            <Ionicons
-              name={cueEnabled ? 'volume-high' : 'volume-mute'}
-              size={20}
-              color={cueEnabled ? Colors.accent : Colors.textMuted}
-            />
-          </TouchableOpacity>
           {activeFormationData && (
             <TouchableOpacity
               onPress={() => setEditMode(editMode === 'formation' ? 'none' : 'formation')}
@@ -2443,9 +2435,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginHorizontal: Spacing.md,
-  },
-  cueToggle: {
-    padding: Spacing.xs,
   },
   editModeToggle: {
     padding: Spacing.xs,

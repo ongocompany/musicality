@@ -21,12 +21,9 @@ export function useYouTubePlayer() {
   const seekingRef = useRef(false);
   const isReadyRef = useRef(false);
 
-  const {
-    currentTrack,
-    setIsPlaying,
-    setPosition,
-    setDuration,
-  } = usePlayerStore();
+  // currentTrack만 구독 — 함수(setPosition 등)는 안 바뀌므로 getState()로 호출
+  const currentTrack = usePlayerStore(s => s.currentTrack);
+  const { setIsPlaying, setPosition, setDuration } = usePlayerStore.getState();
 
   // ─── Position polling ──────────────────────────────
   const startPolling = useCallback(() => {
@@ -90,6 +87,7 @@ export function useYouTubePlayer() {
         break;
       case 'paused':
         setIsPlaying(false);
+        stopPolling();
         break;
       case 'ended':
         setIsPlaying(false);

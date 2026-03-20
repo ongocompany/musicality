@@ -19,7 +19,6 @@ import { useTapTempoStore } from '../stores/tapTempoStore';
 import { useAudioPlayer } from './useAudioPlayer';
 import { useVideoPlayer } from './useVideoPlayer';
 import { useYouTubePlayer } from './useYouTubePlayer';
-import { useCuePlayer } from './useCuePlayer';
 
 import { analyzeTrack } from '../services/analysisApi';
 import { buildPhraseNoteFile, exportPhraseNote, pickPhraseNoteFile, findMatchingTrack } from '../services/phraseNoteService';
@@ -51,8 +50,6 @@ export function usePlayerCore() {
   const audioPlayer = useAudioPlayer();
   const videoPlayer = useVideoPlayer();
   const youtubePlayer = useYouTubePlayer();
-  useCuePlayer();
-
   const togglePlay = isYouTube
     ? youtubePlayer.togglePlay
     : isVideo ? videoPlayer.togglePlay : audioPlayer.togglePlay;
@@ -69,8 +66,6 @@ export function usePlayerCore() {
 
   // ─── Settings Store ───
   const danceStyle = useSettingsStore((s) => s.danceStyle);
-  const cueEnabled = useSettingsStore((s) => s.cueEnabled);
-  const toggleCue = useSettingsStore((s) => s.toggleCue);
   const lookAheadMs = useSettingsStore((s) => s.lookAheadMs);
   const downbeatOffsets = useSettingsStore((s) => s.downbeatOffsets);
   const setDownbeatOffset = useSettingsStore((s) => s.setDownbeatOffset);
@@ -555,7 +550,7 @@ export function usePlayerCore() {
     analysis, countInfo, phraseMap, effectiveBeats, effectiveDownbeats, currentBpm,
     beatTimeOffset, bpmOverride,
     loopStart, loopEnd, loopEnabled,
-    gridScrollMode, danceStyle, cueEnabled,
+    gridScrollMode, danceStyle,
     currentCellNotes, currentBeatNote,
     activeImportedNote, trackImportedNotes, activeSource,
     canUndo,
@@ -567,7 +562,7 @@ export function usePlayerCore() {
     // Actions
     togglePlay, seekTo, setPlaybackRate,
     setIsSeeking,
-    toggleCue, toggleGridScrollMode,
+    toggleGridScrollMode,
     setBeatTimeOffset, setBpmOverride, clearBpmOverride,
     setLoopStart, setLoopEnd, clearLoop,
     setTrackAnalysisStatus, setTrackAnalysis, setTrackPendingJobId,

@@ -41,8 +41,8 @@ export function VideoViewScreen({ playerCore, playerMode }: VideoViewScreenProps
     isVideo, isYouTube,
     analysis, countInfo, phraseMap, effectiveBeats,
     loopStart, loopEnd, loopEnabled, gridScrollMode,
-    cueEnabled, currentCellNotes, currentBeatNote,
-    togglePlay, seekTo, setPlaybackRate, toggleCue,
+    currentCellNotes, currentBeatNote,
+    togglePlay, seekTo, setPlaybackRate,
     videoPlayer, youtubePlayer,
     handleGridTapBeat, handleSeekAndPlay, handleSeekOnly,
     handleSkipBack, handleSkipForward,
@@ -267,12 +267,6 @@ export function VideoViewScreen({ playerCore, playerMode }: VideoViewScreenProps
             <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
               <TouchableOpacity onPress={handleSkipForward}>
                 <Ionicons name="play-forward" size={22} color={Colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={toggleCue}>
-                <Ionicons
-                  name={cueEnabled ? 'volume-high' : 'volume-mute'} size={20}
-                  color={cueEnabled ? Colors.accent : Colors.textMuted}
-                />
               </TouchableOpacity>
             </View>
           </View>

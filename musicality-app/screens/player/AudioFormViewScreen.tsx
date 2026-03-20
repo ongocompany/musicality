@@ -43,9 +43,8 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
     currentTrack, isPlaying, position, duration, playbackRate,
     analysis, countInfo, phraseMap, effectiveBeats,
     currentBpm, loopStart, loopEnd, loopEnabled,
-    gridScrollMode, cueEnabled, currentCellNotes, currentBeatNote,
+    gridScrollMode, currentCellNotes, currentBeatNote,
     togglePlay, seekTo, setPlaybackRate,
-    toggleCue,
     handleGridTapBeat, handleSeekAndPlay, handleSeekOnly,
     handleSkipBack, handleSkipForward,
     handleSetLoopPoint, clearLoop,
@@ -186,12 +185,6 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
           <TouchableOpacity onPress={handleSkipForward}>
             <Ionicons name="play-forward" size={22} color={Colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={toggleCue}>
-            <Ionicons
-              name={cueEnabled ? 'volume-high' : 'volume-mute'} size={20}
-              color={cueEnabled ? Colors.accent : Colors.textMuted}
-            />
           </TouchableOpacity>
         </View>
       </View>)}

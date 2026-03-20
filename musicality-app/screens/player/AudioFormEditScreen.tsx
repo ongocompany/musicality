@@ -47,9 +47,9 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
     analysis, countInfo, phraseMap, effectiveBeats,
     currentBpm, beatTimeOffset, bpmOverride,
     loopStart, loopEnd, loopEnabled, gridScrollMode,
-    cueEnabled, currentCellNotes, currentBeatNote,
+    currentCellNotes, currentBeatNote,
     togglePlay, seekTo, setPlaybackRate,
-    toggleCue, setBeatTimeOffset, clearBpmOverride,
+    setBeatTimeOffset, clearBpmOverride,
     handleGridTapBeat, handleSeekAndPlay, handleSeekOnly,
     handleSkipBack, handleSkipForward,
     handleSetLoopPoint, clearLoop,
@@ -224,12 +224,6 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
           <TouchableOpacity onPress={handleSkipForward}>
             <Ionicons name="play-forward" size={22} color={Colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={toggleCue}>
-            <Ionicons
-              name={cueEnabled ? 'volume-high' : 'volume-mute'} size={20}
-              color={cueEnabled ? Colors.accent : Colors.textMuted}
-            />
           </TouchableOpacity>
           <TouchableOpacity onPress={playerMode.onFormPress} style={[styles.modeBtn, playerMode.isFormation && styles.modeBtnActive]}>
             <Ionicons name="people-outline" size={18} color={playerMode.isFormation ? Colors.primary : Colors.textMuted} />

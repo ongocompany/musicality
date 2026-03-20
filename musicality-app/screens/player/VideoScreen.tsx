@@ -54,8 +54,8 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
     analysis, countInfo, phraseMap, effectiveBeats,
     currentBpm, beatTimeOffset, bpmOverride,
     loopStart, loopEnd, loopEnabled, gridScrollMode,
-    cueEnabled, currentCellNotes, currentBeatNote, canUndo,
-    togglePlay, seekTo, setPlaybackRate, toggleCue,
+    currentCellNotes, currentBeatNote, canUndo,
+    togglePlay, seekTo, setPlaybackRate,
     setBeatTimeOffset, clearBpmOverride,
     videoPlayer, youtubePlayer,
     tapBpm, recordTap, adjustBpm, handleNowIsOne,
@@ -372,12 +372,6 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
           <TouchableOpacity onPress={handleSkipForward}>
             <Ionicons name="play-forward" size={22} color={Colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={toggleCue}>
-            <Ionicons
-              name={cueEnabled ? 'volume-high' : 'volume-mute'} size={20}
-              color={cueEnabled ? Colors.accent : Colors.textMuted}
-            />
           </TouchableOpacity>
           {hasDoneAnalysis && (
             <TouchableOpacity onPress={handleUndo} disabled={!canUndo} style={{ opacity: canUndo ? 1 : 0.3 }}>
