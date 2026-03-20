@@ -68,6 +68,10 @@ export function detectPhrasesRuleBased(
   // Deduplicate (in case ref === 0)
   const unique = [...new Set(starts)].sort((a, b) => a - b);
 
+  // Ensure beat 0 is always the first phrase start
+  // (backward iteration may not reach 0 if ref % bpp !== 0)
+  if (unique[0] !== 0) unique.unshift(0);
+
   return {
     phrases: buildPhrases(unique, beats, duration),
     beatsPerPhrase: bpp,
