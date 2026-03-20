@@ -36,15 +36,20 @@ async function validateAudioFile(uri: string, fileName: string): Promise<AudioVa
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
 
   try {
-    // Wait for file size to stabilize (cloud files may still be downloading)
-    let size = 0;
-    let prevSize = -1;
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const info = await getInfoAsync(uri);
-      size = (info as any).size ?? 0;
-      if (size > 0 && size === prevSize) break;
-      prevSize = size;
-      if (attempt < 4) await new Promise(r => setTimeout(r, 500));
+    // Get file size — local files (file://) get one check, cloud files poll until stable
+    const info = await getInfoAsync(uri);
+    let size = (info as any).size ?? 0;
+
+    if (size === 0 && !uri.startsWith('file://')) {
+      // Cloud file may still be downloading — poll until stable (max 2s)
+      let prevSize = -1;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        await new Promise(r => setTimeout(r, 500));
+        const recheck = await getInfoAsync(uri);
+        size = (recheck as any).size ?? 0;
+        if (size > 0 && size === prevSize) break;
+        prevSize = size;
+      }
     }
 
     // Too small to be a valid audio file (< 50KB)
@@ -284,53 +289,68 @@ async function processAsset(asset: DocumentPicker.DocumentPickerAsset): Promise<
   };
 }
 
+/** Guard against concurrent document picker calls */
+let _picking = false;
+
 /** Pick multiple media files at once */
 export async function pickMediaFiles(filterType?: 'audio' | 'video'): Promise<Track[]> {
-  const types = filterType === 'audio' ? AUDIO_TYPES
-    : filterType === 'video' ? ['video/*']
-    : ALL_MEDIA_TYPES;
+  if (_picking) return [];
+  _picking = true;
+  try {
+    const types = filterType === 'audio' ? AUDIO_TYPES
+      : filterType === 'video' ? ['video/*']
+      : ALL_MEDIA_TYPES;
 
-  const result = await DocumentPicker.getDocumentAsync({
-    type: types,
-    copyToCacheDirectory: true,
-    multiple: true,
-  });
+    const result = await DocumentPicker.getDocumentAsync({
+      type: types,
+      copyToCacheDirectory: true,
+      multiple: true,
+    });
 
-  if (result.canceled || !result.assets || result.assets.length === 0) {
-    return [];
-  }
-
-  console.log(`[FileImport] Processing ${result.assets.length} file(s)...`);
-  const tracks: Track[] = [];
-  for (const asset of result.assets) {
-    try {
-      const track = await processAsset(asset);
-      if (track) tracks.push(track);
-    } catch (e: any) {
-      console.warn(`[FileImport] Failed to import ${asset.name}: ${e?.message}`);
+    if (result.canceled || !result.assets || result.assets.length === 0) {
+      return [];
     }
+
+    console.log(`[FileImport] Processing ${result.assets.length} file(s)...`);
+    const tracks: Track[] = [];
+    for (const asset of result.assets) {
+      try {
+        const track = await processAsset(asset);
+        if (track) tracks.push(track);
+      } catch (e: any) {
+        console.warn(`[FileImport] Failed to import ${asset.name}: ${e?.message}`);
+      }
+    }
+    console.log(`[FileImport] Imported ${tracks.length}/${result.assets.length} files`);
+    return tracks;
+  } finally {
+    _picking = false;
   }
-  console.log(`[FileImport] Imported ${tracks.length}/${result.assets.length} files`);
-  return tracks;
 }
 
 /** Pick a single media file */
 export async function pickMediaFile(filterType?: 'audio' | 'video'): Promise<Track | null> {
-  const types = filterType === 'audio' ? AUDIO_TYPES
-    : filterType === 'video' ? ['video/*']
-    : ALL_MEDIA_TYPES;
+  if (_picking) return null;
+  _picking = true;
+  try {
+    const types = filterType === 'audio' ? AUDIO_TYPES
+      : filterType === 'video' ? ['video/*']
+      : ALL_MEDIA_TYPES;
 
-  const result = await DocumentPicker.getDocumentAsync({
-    type: types,
-    copyToCacheDirectory: true,
-    multiple: false,
-  });
+    const result = await DocumentPicker.getDocumentAsync({
+      type: types,
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
 
-  if (result.canceled || !result.assets || result.assets.length === 0) {
-    return null;
+    if (result.canceled || !result.assets || result.assets.length === 0) {
+      return null;
+    }
+
+    return processAsset(result.assets[0]);
+  } finally {
+    _picking = false;
   }
-
-  return processAsset(result.assets[0]);
 }
 
 // ─── YouTube helpers ───────────────────────────────────────────

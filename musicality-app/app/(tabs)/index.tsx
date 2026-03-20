@@ -244,13 +244,27 @@ function FolderItem({
 
 // ─── Main Screen ────────────────────────────────────
 export default function LibraryScreen() {
-  const {
-    tracks, addTrack, removeTrack, renameTrack,
-    setCurrentTrack, setTrackAnalysisStatus, setTrackAnalysis, setTrackPendingJobId,
-    folders, createFolder, renameFolder, deleteFolder, moveTracksToFolder,
-    sortBy, sortOrder, setSortBy, setSortOrder,
-    currentTrack, isPlaying,
-  } = usePlayerStore();
+  // Data selectors — only re-render when these specific values change
+  const tracks = usePlayerStore(s => s.tracks);
+  const folders = usePlayerStore(s => s.folders);
+  const currentTrack = usePlayerStore(s => s.currentTrack);
+  const isPlaying = usePlayerStore(s => s.isPlaying);
+  const sortBy = usePlayerStore(s => s.sortBy);
+  const sortOrder = usePlayerStore(s => s.sortOrder);
+  // Action selectors — functions never change, no re-render
+  const addTrack = usePlayerStore(s => s.addTrack);
+  const removeTrack = usePlayerStore(s => s.removeTrack);
+  const renameTrack = usePlayerStore(s => s.renameTrack);
+  const setCurrentTrack = usePlayerStore(s => s.setCurrentTrack);
+  const setTrackAnalysisStatus = usePlayerStore(s => s.setTrackAnalysisStatus);
+  const setTrackAnalysis = usePlayerStore(s => s.setTrackAnalysis);
+  const setTrackPendingJobId = usePlayerStore(s => s.setTrackPendingJobId);
+  const createFolder = usePlayerStore(s => s.createFolder);
+  const renameFolder = usePlayerStore(s => s.renameFolder);
+  const deleteFolder = usePlayerStore(s => s.deleteFolder);
+  const moveTracksToFolder = usePlayerStore(s => s.moveTracksToFolder);
+  const setSortBy = usePlayerStore(s => s.setSortBy);
+  const setSortOrder = usePlayerStore(s => s.setSortOrder);
   const trackEditions = useSettingsStore((s) => s.trackEditions);
   const setServerEdition = useSettingsStore((s) => s.setServerEdition);
   const setServerFormation = useSettingsStore((s) => s.setServerFormation);
@@ -370,10 +384,17 @@ export default function LibraryScreen() {
   }, [folders, displayTracks, folderTrackCounts, currentFolderId, activeTab]);
 
   // ─── Handlers ─────────────────────────────────────
+  const importingRef = useRef(false);
   const handleImport = async () => {
-    const filterType = activeTab === 'youtube' ? undefined : activeTab;
-    const track = await pickMediaFile(filterType);
-    if (track) addTrack(track);
+    if (importingRef.current) return;  // 중복 클릭 방지
+    importingRef.current = true;
+    try {
+      const filterType = activeTab === 'youtube' ? undefined : activeTab;
+      const track = await pickMediaFile(filterType);
+      if (track) addTrack(track);
+    } finally {
+      importingRef.current = false;
+    }
   };
 
   const handleAddButton = () => {
@@ -429,6 +450,11 @@ export default function LibraryScreen() {
 
   const handleAnalyzePress = (track: Track) => {
     if (track.analysisStatus === 'analyzing') return;
+    // 다른 곡이 이미 분석 중이면 무시
+    const hasAnalyzing = usePlayerStore.getState().tracks.some(
+      t => t.analysisStatus === 'analyzing',
+    );
+    if (hasAnalyzing) return;
     runAnalysis(track);
   };
 
