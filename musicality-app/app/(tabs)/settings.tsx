@@ -12,6 +12,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { LANGUAGES, LanguageCode } from '../../i18n';
 import { exportLibraryBackup, importLibraryBackup, LibraryBackup } from '../../services/libraryBackupService';
 import { extractMetadata } from '../../modules/my-module';
+import { ensureFileAvailable } from '../../services/fileImport';
 import { File, Directory, Paths } from 'expo-file-system/next';
 
 const LOOK_AHEAD_STEP = 25; // ms per tap
@@ -313,12 +314,25 @@ export default function SettingsScreen() {
               const tracks = usePlayerStore.getState().tracks;
               const audioTracks = tracks.filter(t => t.mediaType === 'audio' && t.uri);
               let updated = 0;
+              let removed = 0;
               const mediaDir = new Directory(Paths.document, 'media');
               if (!mediaDir.exists) mediaDir.create();
 
               for (const track of audioTracks) {
                 try {
-                  const meta = await extractMetadata(track.uri);
+                  // Check file exists, get valid URI (handles sandbox path changes)
+                  const validUri = await ensureFileAvailable(track);
+                  if (!validUri) {
+                    // File gone — remove from library
+                    usePlayerStore.getState().removeTrack(track.id);
+                    removed++;
+                    continue;
+                  }
+                  // Update track URI if path changed
+                  if (validUri !== track.uri) {
+                    usePlayerStore.getState().updateTrackData(track.id, { uri: validUri });
+                  }
+                  const meta = await extractMetadata(validUri);
                   if (meta?.albumArt) {
                     const artFile = new File(mediaDir, `art-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.jpg`);
                     new File(meta.albumArt.startsWith('/') ? `file://${meta.albumArt}` : meta.albumArt).copy(artFile);
@@ -327,10 +341,10 @@ export default function SettingsScreen() {
                   }
                 } catch {}
               }
-              Alert.alert(
-                t('common.done', { defaultValue: '완료' }),
-                `${updated}/${audioTracks.length} ${t('settings.albumArtUpdated', { defaultValue: '곡의 앨범아트를 갱신했습니다.' })}`,
-              );
+              const msg = removed > 0
+                ? `${updated} ${t('settings.albumArtUpdated', { defaultValue: '곡 앨범아트 갱신' })}, ${removed} ${t('settings.tracksRemoved', { defaultValue: '곡 파일 없음 제거' })}`
+                : `${updated}/${audioTracks.length} ${t('settings.albumArtUpdated', { defaultValue: '곡의 앨범아트를 갱신했습니다.' })}`;
+              Alert.alert(t('common.done', { defaultValue: '완료' }), msg);
             } catch (e: any) {
               Alert.alert(t('common.error'), e?.message || 'Failed');
             } finally {
@@ -339,11 +353,11 @@ export default function SettingsScreen() {
           }}
           disabled={reloadingArt}
         >
-          <Ionicons name="images-outline" size={20} color={reloadingArt ? Colors.textMuted : Colors.primary} />
+          <Ionicons name="refresh-outline" size={20} color={reloadingArt ? Colors.textMuted : Colors.primary} />
           <Text style={[styles.label, { color: reloadingArt ? Colors.textMuted : Colors.primary }]}>
             {reloadingArt
-              ? t('settings.reloadingAlbumArt', { defaultValue: '앨범아트 검색 중...' })
-              : t('settings.reloadAlbumArt', { defaultValue: '앨범아트 재검색' })}
+              ? t('settings.reloadingAlbumArt', { defaultValue: '라이브러리 정리 중...' })
+              : t('settings.reloadAlbumArt', { defaultValue: '라이브러리 정리 + 앨범아트 재검색' })}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
