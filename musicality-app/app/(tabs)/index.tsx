@@ -112,7 +112,7 @@ function EditionIndicators({ editions, hasFormation }: { editions?: TrackEdition
 
 function TrackItem({
   track, editions, hasFormation, isSelected, selectMode, isNowPlaying,
-  onPress, onLongPress, onAnalyze,
+  onPress, onLongPress, onAnalyze, queuePosition,
 }: {
   track: Track;
   editions?: TrackEditions;
@@ -123,6 +123,7 @@ function TrackItem({
   onPress: () => void;
   onLongPress: () => void;
   onAnalyze: () => void;
+  queuePosition?: number;  // 1, 2, 3 or undefined
 }) {
   return (
     <TouchableOpacity onPress={onPress} onLongPress={onLongPress} activeOpacity={0.7}>
@@ -150,6 +151,10 @@ function TrackItem({
             <View style={styles.analyzeButton}>
               <PulsingR size={18} />
             </View>
+          ) : typeof queuePosition === 'number' ? (
+            <View style={styles.queueBadge}>
+              <Text style={styles.queueBadgeText}>{queuePosition}</Text>
+            </View>
           ) : track.mediaType !== 'youtube' && (track.analysisStatus === 'idle' || track.analysisStatus === 'error') ? (
             <TouchableOpacity style={styles.analyzeButton} onPress={onAnalyze}>
               <Text style={{ fontSize: 18, fontWeight: '900', color: Colors.primary }}>R</Text>
@@ -165,7 +170,7 @@ function TrackItem({
 
 function SwipeableTrackItem({
   track, editions, hasFormation, isSelected, selectMode, isNowPlaying,
-  onPress, onLongPress, onAnalyze,
+  onPress, onLongPress, onAnalyze, queuePosition,
   onToggleSelect,
 }: {
   track: Track;
@@ -177,6 +182,7 @@ function SwipeableTrackItem({
   onPress: () => void;
   onLongPress: () => void;
   onAnalyze: () => void;
+  queuePosition?: number;
   onToggleSelect: (trackId: string) => void;
 }) {
   const swipeableRef = useRef<Swipeable>(null);
@@ -218,6 +224,7 @@ function SwipeableTrackItem({
         onPress={onPress}
         onLongPress={onLongPress}
         onAnalyze={onAnalyze}
+        queuePosition={queuePosition}
       />
     </Swipeable>
   );
@@ -448,24 +455,11 @@ export default function LibraryScreen() {
     Alert.alert(track.title, undefined, options);
   };
 
-  const handleAnalyzePress = (track: Track) => {
-    if (track.analysisStatus === 'analyzing') return;
-    // 다른 곡이 이미 분석 중이면 무시
-    const hasAnalyzing = usePlayerStore.getState().tracks.some(
-      t => t.analysisStatus === 'analyzing',
-    );
-    if (hasAnalyzing) return;
-    runAnalysis(track);
-  };
+  // ─── Analysis queue (max 3, process one at a time) ───
+  const [analysisQueue, setAnalysisQueue] = useState<string[]>([]);
+  const analysisRunningRef = useRef(false);
 
-  const handleReanalyze = (track: Track) => {
-    Alert.alert(t('library.reanalyzeTrack'), t('library.reanalyzeConfirm'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('library.reanalyze'), style: 'destructive', onPress: () => runAnalysis(track) },
-    ]);
-  };
-
-  const applyAnalysisResult = (trackId: string, result: import('../../types/analysis').AnalysisResult) => {
+  const applyAnalysisResult = useCallback((trackId: string, result: import('../../types/analysis').AnalysisResult) => {
     setTrackAnalysis(trackId, result);
     if (result.phraseBoundaries && result.phraseBoundaries.length > 0) {
       const boundaryBeatIndices = result.phraseBoundaries.map(ts => {
@@ -479,12 +473,21 @@ export default function LibraryScreen() {
       });
       setServerEdition(trackId, boundaryBeatIndices);
     }
-  };
+  }, [setTrackAnalysis, setServerEdition]);
 
-  const runAnalysis = async (track: Track) => {
-    setAnalyzeMenuVisible(false);
+  const processQueue = useCallback(async (queue: string[]) => {
+    if (analysisRunningRef.current || queue.length === 0) return;
+    analysisRunningRef.current = true;
+
+    const trackId = queue[0];
+    const track = usePlayerStore.getState().tracks.find(t => t.id === trackId);
+    if (!track) {
+      analysisRunningRef.current = false;
+      setAnalysisQueue(q => q.slice(1));
+      return;
+    }
+
     setTrackAnalysisStatus(track.id, 'analyzing');
-
     try {
       const result = await analyzeTrack(
         track.uri, track.title, track.format,
@@ -495,11 +498,47 @@ export default function LibraryScreen() {
       const isBackgroundError = e.name === 'AbortError'
         || e.message?.includes('aborted')
         || e.message?.includes('Network request failed');
-      if (isBackgroundError && usePlayerStore.getState().tracks.find(t => t.id === track.id)?.pendingJobId) return;
-      setTrackAnalysisStatus(track.id, 'error');
-      setTrackPendingJobId(track.id, undefined);
-      Alert.alert(t('player.analysisFailed'), e.message || t('library.analysisServerError'));
+      if (isBackgroundError && usePlayerStore.getState().tracks.find(t => t.id === track.id)?.pendingJobId) {
+        // background error with pending job — don't mark as error
+      } else {
+        setTrackAnalysisStatus(track.id, 'error');
+        setTrackPendingJobId(track.id, undefined);
+        Alert.alert(t('player.analysisFailed'), e.message || t('library.analysisServerError'));
+      }
     }
+
+    analysisRunningRef.current = false;
+    // Remove finished track and continue with next
+    setAnalysisQueue(q => q.slice(1));
+  }, [applyAnalysisResult, setTrackAnalysisStatus, setTrackPendingJobId, t]);
+
+  // Auto-process queue when it changes
+  useEffect(() => {
+    if (analysisQueue.length > 0 && !analysisRunningRef.current) {
+      processQueue(analysisQueue);
+    }
+  }, [analysisQueue, processQueue]);
+
+  const handleAnalyzePress = (track: Track) => {
+    if (track.analysisStatus === 'analyzing' || track.analysisStatus === 'done') return;
+    setAnalysisQueue(q => {
+      if (q.includes(track.id)) return q;  // already queued
+      if (q.length >= 3) return q;          // queue full
+      return [...q, track.id];
+    });
+  };
+
+  const handleReanalyze = (track: Track) => {
+    Alert.alert(t('library.reanalyzeTrack'), t('library.reanalyzeConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('library.reanalyze'), style: 'destructive', onPress: () => {
+        setAnalysisQueue(q => {
+          if (q.includes(track.id)) return q;
+          if (q.length >= 3) return q;
+          return [...q, track.id];
+        });
+      }},
+    ]);
   };
 
   // Resume pending analysis jobs when app returns to foreground
@@ -764,6 +803,7 @@ export default function LibraryScreen() {
                 onPress={() => handlePlay(item.track)}
                 onLongPress={() => handleLongPress(item.track)}
                 onAnalyze={() => handleAnalyzePress(item.track)}
+                queuePosition={analysisQueue.indexOf(item.track.id) >= 0 ? analysisQueue.indexOf(item.track.id) + 1 : undefined}
                 onToggleSelect={toggleSelect}
               />
             );
@@ -1137,6 +1177,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  queueBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  queueBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
   },
 
   // ─── Select Mode Action Bar ───────────────────────
