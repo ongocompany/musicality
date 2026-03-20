@@ -95,7 +95,8 @@
     "deleteAccountConfirm": "Alle deine Daten einschließlich Bibliothek, Crews, PhraseNote und ChoreoNote werden gelöscht. Möchtest du fortfahren?",
     "deleteAccountDone": "Die Kontolöschung ist abgeschlossen.",
     "deleteAccountFailed": "Beim Löschen des Kontos ist ein Fehler aufgetreten.",
-    "withdraw": "Löschen"
+    "withdraw": "Löschen",
+    "captainMustTransfer": "Crew-Kapitäne können ihr Konto nicht löschen. Bitte übertrage die Kapitänsrolle zuerst an ein anderes Mitglied."
   },
   "library": {
     "sortLatest": "Neueste",

@@ -134,6 +134,18 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     });
     return saved;
   },
+
+  resetAll: () => {
+    set({
+      personalEvents: [],
+      savedEvents: [],
+      crewEvents: [],
+      savedEventIds: new Set(),
+      currentYear: new Date().getFullYear(),
+      currentMonth: new Date().getMonth() + 1,
+      loading: false,
+    });
+  },
 }));
 
 function sortEvents(a: CalendarEvent, b: CalendarEvent): number {

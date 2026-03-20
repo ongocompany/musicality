@@ -95,7 +95,8 @@
     "deleteAccountConfirm": "All your data including library, crews, phrase notes and choreo notes will be deleted. Do you want to proceed?",
     "deleteAccountDone": "Account deletion is complete.",
     "deleteAccountFailed": "An error occurred while deleting the account.",
-    "withdraw": "Delete"
+    "withdraw": "Delete",
+    "captainMustTransfer": "Crew captains cannot delete their account. Please transfer the captain role to another member first."
   },
   "library": {
     "sortLatest": "Latest",

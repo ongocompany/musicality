@@ -645,6 +645,22 @@ export const useSettingsStore = create<SettingsState>()(
           }
           return cleaned;
         }),
+
+      // Reset user-specific data (logout/account switch)
+      // Keeps: language, danceStyle, UI prefs
+      // Clears: all track-specific data
+      resetUserData: () => set({
+        downbeatOffsets: {},
+        beatTimeOffsets: {},
+        bpmOverrides: {},
+        trackEditions: {},
+        cellNotes: {},
+        importedNotes: [],
+        trackFormations: {},
+        phraseMarks: {},
+        tempBoundaries: null,
+        tempFormation: null,
+      }),
     }),
     {
       name: 'musicality-settings',

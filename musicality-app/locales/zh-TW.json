@@ -95,7 +95,8 @@
     "deleteAccountConfirm": "您的所有資料（包括音樂庫、舞團、樂句筆記和編舞筆記）都將被刪除。確定要繼續嗎？",
     "deleteAccountDone": "帳號刪除完成。",
     "deleteAccountFailed": "刪除帳號時發生錯誤。",
-    "withdraw": "刪除"
+    "withdraw": "刪除",
+    "captainMustTransfer": "舞團隊長無法刪除帳號。請先將隊長轉讓給其他成員。"
   },
   "library": {
     "sortLatest": "最新",

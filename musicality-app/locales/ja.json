@@ -95,7 +95,8 @@
     "deleteAccountConfirm": "ライブラリ、クルー、フレーズノート、コレオノートなど全データが削除されます。続行しますか？",
     "deleteAccountDone": "アカウントの削除が完了しました。",
     "deleteAccountFailed": "アカウント削除中にエラーが発生しました。",
-    "withdraw": "削除"
+    "withdraw": "削除",
+    "captainMustTransfer": "クルーキャプテンはアカウントを削除できません。先に他のメンバーにキャプテンを移譲してください。"
   },
   "library": {
     "sortLatest": "新しい順",

@@ -176,14 +176,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     try {
+      // 1. Reset all stores first (before signOut clears auth context)
+      const { resetAllStores } = require('./resetAllStores');
+      await resetAllStores();
+      // 2. Sign out from Supabase
       await supabase.auth.signOut();
-      // Reset all stores to prevent cross-account data leaks
-      const { useCommunityStore } = require('./communityStore');
-      const { useSocialStore } = require('./socialStore');
-      const { useMessageStore } = require('./messageStore');
-      useCommunityStore.getState().resetAll();
-      useSocialStore.getState().clearViewing();
-      useMessageStore.getState().resetAll?.();
+      // 3. Clear auth state
       set({ user: null, session: null, guestMode: false });
     } catch (error) {
       console.error('Sign-out error:', error);

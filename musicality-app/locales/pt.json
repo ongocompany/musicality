@@ -95,7 +95,8 @@
     "deleteAccountConfirm": "Todos os seus dados, incluindo biblioteca, crews, notas de frase e notas de coreografia, serão excluídos. Deseja continuar?",
     "deleteAccountDone": "A conta foi excluída.",
     "deleteAccountFailed": "Ocorreu um erro ao excluir a conta.",
-    "withdraw": "Excluir"
+    "withdraw": "Excluir",
+    "captainMustTransfer": "Capitães de crew não podem excluir a conta. Primeiro transfira o cargo de capitão para outro membro."
   },
   "library": {
     "sortLatest": "Mais recente",

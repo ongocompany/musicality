@@ -95,7 +95,8 @@
     "deleteAccountConfirm": "您的所有数据（包括曲库、舞团、乐句笔记和编舞笔记）都将被删除。是否继续？",
     "deleteAccountDone": "账户删除完成。",
     "deleteAccountFailed": "删除账户时出错。",
-    "withdraw": "删除"
+    "withdraw": "删除",
+    "captainMustTransfer": "舞团队长无法删除账户。请先将队长转让给其他成员。"
   },
   "library": {
     "sortLatest": "最新",

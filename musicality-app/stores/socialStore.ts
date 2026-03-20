@@ -201,4 +201,19 @@ export const useSocialStore = create<SocialState>((set, get) => ({
   clearViewing: () => {
     set({ viewingProfile: null, viewingSocialContext: null, followers: [], following: [] });
   },
+
+  resetAll: () => {
+    set({
+      myProfile: null,
+      myProfileLoading: false,
+      viewingProfile: null,
+      viewingSocialContext: null,
+      viewingLoading: false,
+      followers: [],
+      following: [],
+      followListLoading: false,
+      blockedUsers: [],
+      blockedLoading: false,
+    });
+  },
 }));

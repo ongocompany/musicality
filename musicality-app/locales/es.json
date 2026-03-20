@@ -95,7 +95,8 @@
     "deleteAccountConfirm": "Todos tus datos, incluyendo biblioteca, crews, notas de frase y notas de coreografía, serán eliminados. ¿Deseas continuar?",
     "deleteAccountDone": "La cuenta ha sido eliminada.",
     "deleteAccountFailed": "Ocurrió un error al eliminar la cuenta.",
-    "withdraw": "Eliminar"
+    "withdraw": "Eliminar",
+    "captainMustTransfer": "Los capitanes de crew no pueden eliminar su cuenta. Primero transfiere el rol de capitán a otro miembro."
   },
   "library": {
     "sortLatest": "Más reciente",

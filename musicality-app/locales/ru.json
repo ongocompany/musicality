@@ -95,7 +95,8 @@
     "deleteAccountConfirm": "Все ваши данные, включая библиотеку, команды, PhraseNote и ChoreoNote, будут удалены. Продолжить?",
     "deleteAccountDone": "Удаление аккаунта завершено.",
     "deleteAccountFailed": "Произошла ошибка при удалении аккаунта.",
-    "withdraw": "Удалить"
+    "withdraw": "Удалить",
+    "captainMustTransfer": "Капитаны команды не могут удалить аккаунт. Сначала передайте роль капитана другому участнику."
   },
   "library": {
     "sortLatest": "По дате",

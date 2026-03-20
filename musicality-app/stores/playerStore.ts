@@ -225,6 +225,22 @@ export const usePlayerStore = create<PlayerState>()(
       setLoopEnd: (pos) => set({ loopEnd: pos, loopEnabled: pos !== null }),
       toggleLoop: () => set((state) => ({ loopEnabled: !state.loopEnabled })),
       clearLoop: () => set({ loopEnabled: false, loopStart: null, loopEnd: null }),
+
+      // Reset all state (logout/account switch)
+      resetAll: () => set({
+        tracks: [],
+        folders: [],
+        sortBy: 'importedAt' as const,
+        sortOrder: 'desc' as const,
+        currentTrack: null,
+        isPlaying: false,
+        position: 0,
+        duration: 0,
+        playbackRate: 1,
+        loopEnabled: false,
+        loopStart: null,
+        loopEnd: null,
+      }),
     }),
     {
       name: 'musicality-tracks',

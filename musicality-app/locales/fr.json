@@ -95,7 +95,8 @@
     "deleteAccountConfirm": "Toutes vos données, y compris la bibliothèque, les crews, les PhraseNote et les ChoreoNote, seront supprimées. Voulez-vous continuer ?",
     "deleteAccountDone": "La suppression du compte est terminée.",
     "deleteAccountFailed": "Une erreur s'est produite lors de la suppression du compte.",
-    "withdraw": "Supprimer"
+    "withdraw": "Supprimer",
+    "captainMustTransfer": "Les capitaines de crew ne peuvent pas supprimer leur compte. Veuillez d'abord transférer le rôle de capitaine à un autre membre."
   },
   "library": {
     "sortLatest": "Plus récent",

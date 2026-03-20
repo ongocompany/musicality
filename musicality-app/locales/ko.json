@@ -95,7 +95,8 @@
     "deleteAccountConfirm": "라이브러리, 크루, 프레이즈 노트, 코레오 노트 등 모든 데이터가 삭제됩니다. 진행하시겠습니까?",
     "deleteAccountDone": "계정 삭제가 완료되었습니다.",
     "deleteAccountFailed": "계정 삭제 중 오류가 발생했습니다.",
-    "withdraw": "삭제"
+    "withdraw": "삭제",
+    "captainMustTransfer": "크루 캡틴은 탈퇴할 수 없습니다. 먼저 다른 멤버에게 캡틴을 양도해주세요."
   },
   "library": {
     "sortLatest": "최신순",

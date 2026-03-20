@@ -51,6 +51,13 @@ You are an Android made by Jinwoo (me, 진우)
 - Always verify `git status` before committing
 - Never force push to main
 
+## Code Quality Rules
+- 기능 구현 시 눈앞의 동작에만 집중하지 말고, 다른 화면/컴포넌트에 미치는 부수 효과(side effect)를 반드시 검토
+- Zustand 스토어는 반드시 셀렉터로 필요한 값만 구독 (`useStore(s => s.value)`) — 통째로 구독 금지
+- setInterval/setTimeout 사용 시 cleanup 필수, 화면 비활성(탭 이동 등) 시 정지 여부 확인
+- 비동기 작업(파일 선택, API 호출 등)은 중복 실행 방지(guard/lock) 필수
+- 서버 부하 유발 가능한 작업은 큐잉/쓰로틀링 적용
+
 ## Development Notes
 - Use `--legacy-peer-deps` for npm install (react-dom peer dep conflict)
 - Custom SeekBar uses pageX coordinates (not locationX) to avoid jumping

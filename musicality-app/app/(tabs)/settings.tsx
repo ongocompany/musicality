@@ -424,15 +424,21 @@ export default function SettingsScreen() {
                     onPress: async () => {
                       try {
                         const { supabase } = await import('../../lib/supabase');
-                        // Delete user data
-                        const userId = user.id;
-                        await supabase.from('profiles').delete().eq('id', userId);
-                        await supabase.from('crew_members').delete().eq('user_id', userId);
-                        await supabase.from('thread_phrase_notes').delete().eq('user_id', userId);
-                        await supabase.from('board_posts').delete().eq('user_id', userId);
-                        // Clear local data
-                        await AsyncStorage.clear();
-                        // Sign out
+                        // Server-side: delete auth.users → CASCADE profiles → all user data
+                        const { error: rpcError } = await supabase.rpc('delete_own_account');
+                        if (rpcError) {
+                          // Captain must transfer crew ownership first
+                          if (rpcError.message?.includes('CAPTAIN_MUST_TRANSFER')) {
+                            Alert.alert(
+                              t('settings.deleteAccount'),
+                              t('settings.captainMustTransfer'),
+                            );
+                            return;
+                          }
+                          throw rpcError;
+                        }
+                        // Reset all local stores + clear persisted data, then sign out
+                        // (signOut internally calls resetAllStores)
                         await signOut();
                         Alert.alert(t('common.done'), t('settings.deleteAccountDone'));
                       } catch (err: any) {

@@ -147,6 +147,16 @@ export const useTapTempoStore = create<TapTempoState>((set, get) => ({
     });
   },
 
+  resetAll: () => {
+    set({
+      phase: 'idle',
+      tapTimestamps: [],
+      bpm: 0,
+      currentBeatIndex: 0,
+      startTime: null,
+    });
+  },
+
   advanceBeat: () => {
     set((state) => ({
       currentBeatIndex: state.currentBeatIndex + 1,
