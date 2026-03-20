@@ -6,6 +6,8 @@ import { ensureFileAvailable } from '../services/fileImport';
 export function useAudioPlayer() {
   const soundRef = useRef<Audio.Sound | null>(null);
   const seekingRef = useRef(false);
+  const positionRef = useRef(0); // High-frequency position (no re-render)
+  const positionListenersRef = useRef<Set<(pos: number) => void>>(new Set());
   const {
     currentTrack,
     isPlaying,
@@ -68,15 +70,18 @@ export function useAudioPlayer() {
     };
   }, [currentTrack?.id]);
 
-  // Playback status callback
+  // Playback status callback — updates ref (no re-render), notifies listeners
   const onPlaybackStatusUpdate = useCallback(
     (status: AVPlaybackStatus) => {
       if (!status.isLoaded) return;
 
-      // Don't update position while user is dragging the seek bar
       const store = usePlayerStore.getState();
       if (!store.isSeeking) {
-        setPosition(status.positionMillis);
+        positionRef.current = status.positionMillis;
+        // Notify listeners (SeekBar, etc.) without triggering re-render
+        for (const listener of positionListenersRef.current) {
+          listener(status.positionMillis);
+        }
       }
       if (status.durationMillis) {
         setDuration(status.durationMillis);
@@ -119,6 +124,7 @@ export function useAudioPlayer() {
         status.positionMillis >= status.durationMillis - 500
       ) {
         await soundRef.current.setPositionAsync(0);
+        positionRef.current = 0;
         setPosition(0);
       }
       await soundRef.current.playAsync();
@@ -132,7 +138,8 @@ export function useAudioPlayer() {
     try {
       seekingRef.current = true;
       await soundRef.current.setPositionAsync(posMs);
-      setPosition(posMs);
+      positionRef.current = posMs;
+      setPosition(posMs); // sync store for UI that reads from store
     } catch {
       // "Seeking interrupted" — safe to ignore
     } finally {
@@ -146,5 +153,11 @@ export function useAudioPlayer() {
     soundRef.current.setRateAsync(playbackRate, true).catch(() => {});
   }, [playbackRate]);
 
-  return { togglePlay, seekTo, sound: soundRef };
+  // Subscribe to high-frequency position updates (no re-render)
+  const onPositionUpdate = useCallback((listener: (pos: number) => void) => {
+    positionListenersRef.current.add(listener);
+    return () => { positionListenersRef.current.delete(listener); };
+  }, []);
+
+  return { togglePlay, seekTo, sound: soundRef, positionRef, onPositionUpdate };
 }

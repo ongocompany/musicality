@@ -124,7 +124,6 @@ export default function PlayerScreen() {
   const {
     currentTrack,
     isPlaying,
-    position,
     duration,
     playbackRate,
     setPlaybackRate,
@@ -140,6 +139,10 @@ export default function PlayerScreen() {
     setTrackPendingJobId,
   } = usePlayerStore();
 
+  // Position via ref (no re-render on every 100ms tick)
+  const [positionState, setPositionState] = useState(0); // only updated on beat change or seek
+  const positionRef = useRef(0);
+
   const videoAspectRatio = usePlayerStore((s) => s.videoAspectRatio);
   const navigation = useNavigation();
 
@@ -153,6 +156,14 @@ export default function PlayerScreen() {
   const audioPlayer = useAudioPlayer();
   const videoPlayer = useVideoPlayer();
   const youtubePlayer = useYouTubePlayer();
+
+  // Sync positionRef from audioPlayer (no re-render)
+  useEffect(() => {
+    if (!audioPlayer.onPositionUpdate) return;
+    return audioPlayer.onPositionUpdate((pos) => {
+      positionRef.current = pos;
+    });
+  }, [audioPlayer.onPositionUpdate]);
 
   const togglePlay = isYouTube
     ? youtubePlayer.togglePlay
@@ -535,23 +546,34 @@ export default function PlayerScreen() {
     return dbs.map(b => Math.max(0, b + offsetSec));
   }, [effectiveAnalysisData, analysis, beatTimeOffset]);
 
-  // Stable countInfo — only update reference when beatIndex/phraseIndex actually change
-  // This prevents PhraseGrid re-renders on every 50ms position tick
+  // Stable countInfo — poll positionRef instead of subscribing to position state
+  // Only triggers re-render when beatIndex or phraseIndex actually changes
   const prevCountRef = useRef<CountInfo | null>(null);
-  const countInfo = useMemo(() => {
-    // Use offset-applied beats
-    const effBeats = effectiveBeats.length > 0 ? effectiveBeats : null;
-    const effOffset = effectiveAnalysisData?.offsetBeatIndex ?? offsetBeatIndex;
-    const raw = effBeats
-      ? getPhraseCountInfo(position + lookAheadMs, effBeats, effectiveDownbeats, effOffset, danceStyle, phraseMap)
-      : null;
-    const prev = prevCountRef.current;
-    if (prev && raw && prev.beatIndex === raw.beatIndex && prev.phraseIndex === raw.phraseIndex) {
-      return prev;
-    }
-    prevCountRef.current = raw;
-    return raw;
-  }, [position, lookAheadMs, effectiveBeats, effectiveDownbeats, offsetBeatIndex, effectiveAnalysisData, danceStyle, phraseMap]);
+  const [countInfo, setCountInfo] = useState<CountInfo | null>(null);
+
+  useEffect(() => {
+    const compute = () => {
+      const effBeats = effectiveBeats.length > 0 ? effectiveBeats : null;
+      const effOffset = effectiveAnalysisData?.offsetBeatIndex ?? offsetBeatIndex;
+      const pos = positionRef.current;
+      const raw = effBeats
+        ? getPhraseCountInfo(pos + lookAheadMs, effBeats, effectiveDownbeats, effOffset, danceStyle, phraseMap)
+        : null;
+      const prev = prevCountRef.current;
+      if (prev && raw && prev.beatIndex === raw.beatIndex && prev.phraseIndex === raw.phraseIndex) {
+        return; // no change — skip setState
+      }
+      prevCountRef.current = raw;
+      setCountInfo(raw);
+      setPositionState(pos); // sync position state on beat change only
+    };
+
+    compute(); // initial
+
+    if (!isPlaying) return;
+    const id = setInterval(compute, 50); // 50ms polling during playback
+    return () => clearInterval(id);
+  }, [isPlaying, lookAheadMs, effectiveBeats, effectiveDownbeats, offsetBeatIndex, effectiveAnalysisData, danceStyle, phraseMap]);
 
   // ─── Instantaneous BPM at current position ───
   const currentBpm = useMemo(() => {
@@ -797,28 +819,37 @@ export default function PlayerScreen() {
   }, [editMode, countInfo?.beatIndex, isPlaying]);
 
   // Fractional beat index for smooth formation animation during playback
-  // position updates ~50ms → fractional beat changes continuously → smooth interpolation
-  const fractionalBeatIndex = useMemo(() => {
-    if (!isPlaying || !effectiveBeats || effectiveBeats.length === 0) {
-      return formationEditBeatIndex;
-    }
-    const posSeconds = position / 1000;
-    if (posSeconds <= effectiveBeats[0]) return 0;
-    const last = effectiveBeats.length - 1;
-    if (posSeconds >= effectiveBeats[last]) return last;
-    // Binary search for current beat
-    let lo = 0, hi = last;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >>> 1;
-      if (effectiveBeats[mid] <= posSeconds) lo = mid;
-      else hi = mid - 1;
-    }
-    if (lo >= last) return last;
-    const span = effectiveBeats[lo + 1] - effectiveBeats[lo];
-    if (span <= 0) return lo;
-    const fraction = (posSeconds - effectiveBeats[lo]) / span;
-    return lo + Math.max(0, Math.min(1, fraction));
-  }, [isPlaying, position, effectiveBeats, formationEditBeatIndex]);
+  // Uses positionRef (no re-render), updates via interval
+  const [fractionalBeatIndex, setFractionalBeatIndex] = useState(0);
+
+  useEffect(() => {
+    const compute = () => {
+      if (!isPlaying || !effectiveBeats || effectiveBeats.length === 0) {
+        setFractionalBeatIndex(formationEditBeatIndex);
+        return;
+      }
+      const posSeconds = positionRef.current / 1000;
+      if (posSeconds <= effectiveBeats[0]) { setFractionalBeatIndex(0); return; }
+      const last = effectiveBeats.length - 1;
+      if (posSeconds >= effectiveBeats[last]) { setFractionalBeatIndex(last); return; }
+      let lo = 0, hi = last;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >>> 1;
+        if (effectiveBeats[mid] <= posSeconds) lo = mid;
+        else hi = mid - 1;
+      }
+      if (lo >= last) { setFractionalBeatIndex(last); return; }
+      const span = effectiveBeats[lo + 1] - effectiveBeats[lo];
+      if (span <= 0) { setFractionalBeatIndex(lo); return; }
+      const fraction = (posSeconds - effectiveBeats[lo]) / span;
+      setFractionalBeatIndex(lo + Math.max(0, Math.min(1, fraction)));
+    };
+
+    compute();
+    if (!isPlaying) return;
+    const id = setInterval(compute, 50);
+    return () => clearInterval(id);
+  }, [isPlaying, effectiveBeats, formationEditBeatIndex]);
 
   const handleStageConfigChange = useCallback((config: Partial<StageConfig>) => {
     setStageConfig(config);
@@ -1013,7 +1044,7 @@ export default function PlayerScreen() {
   const lastBackTapRef = useRef<number>(0);
   const handleSkipBack = useCallback(() => {
     if (!phraseMap || !countInfo || !analysis) {
-      seekTo(Math.max(0, position - 10000)); // fallback: 10s
+      seekTo(Math.max(0, positionRef.current - 10000)); // fallback: 10s
       return;
     }
     const now = Date.now();
@@ -1031,19 +1062,19 @@ export default function PlayerScreen() {
       // Single tap: go to current phrase start
       seekTo(phrase.startTime * 1000);
     }
-  }, [phraseMap, countInfo, analysis, position, seekTo]);
+  }, [phraseMap, countInfo, analysis, seekTo]);
 
   // Phrase-based skip forward (go to next phrase start)
   const handleSkipForward = useCallback(() => {
     if (!phraseMap || !countInfo || !analysis) {
-      seekTo(Math.min(duration, position + 10000)); // fallback: 10s
+      seekTo(Math.min(duration, positionRef.current + 10000)); // fallback: 10s
       return;
     }
     const nextIdx = countInfo.phraseIndex + 1;
     if (nextIdx < phraseMap.phrases.length) {
       seekTo(phraseMap.phrases[nextIdx].startTime * 1000);
     }
-  }, [phraseMap, countInfo, analysis, duration, position, seekTo]);
+  }, [phraseMap, countInfo, analysis, duration, seekTo]);
 
   // A-B loop: alternating A/B point setting from grid long-press
   const handleSetLoopPoint = useCallback((beatTimeMs: number) => {
@@ -1067,13 +1098,13 @@ export default function PlayerScreen() {
         Alert.alert(t('player.bpmRequired'), t('player.setBpmFirst'));
         return;
       }
-      const synth = generateSyntheticAnalysis(tapBpm, duration, position);
+      const synth = generateSyntheticAnalysis(tapBpm, duration, positionRef.current);
       setTrackAnalysis(currentTrack.id, synth);
-      const anchorIdx = findNearestBeatIndex(position, synth.beats);
+      const anchorIdx = findNearestBeatIndex(positionRef.current, synth.beats);
       if (anchorIdx >= 0) setDownbeatOffset(currentTrack.id, anchorIdx);
     } else {
       if (!analysis) return;
-      const nearestIdx = findNearestBeatIndex(position, analysis.beats);
+      const nearestIdx = findNearestBeatIndex(positionRef.current, analysis.beats);
       if (nearestIdx >= 0) setDownbeatOffset(currentTrack.id, nearestIdx);
     }
   };
@@ -1695,7 +1726,7 @@ export default function PlayerScreen() {
             <SectionTimeline
               phrases={phraseMap.phrases}
               duration={duration > 0 ? duration / 1000 : analysis.duration}
-              currentTimeMs={position}
+              currentTimeMs={positionState}
               waveformPeaks={analysis.waveformPeaks}
               onSeek={seekTo}
               onSeekStart={() => setIsSeeking(true)}
@@ -1709,7 +1740,7 @@ export default function PlayerScreen() {
           {(!phraseMap || phraseMap.phrases.length === 0 || !analysis) && duration > 0 && (
             <View>
               <View style={styles.timeRow}>
-                <Text style={styles.timeText}>{formatTime(position)}</Text>
+                <Text style={styles.timeText}>{formatTime(positionState)}</Text>
                 <Text style={styles.timeText}>{formatTime(duration)}</Text>
               </View>
               <View
@@ -1726,7 +1757,7 @@ export default function PlayerScreen() {
                   });
                 }}
               >
-                <View style={[styles.fallbackFill, { width: `${(position / duration) * 100}%` }]} />
+                <View style={[styles.fallbackFill, { width: `${(positionState / duration) * 100}%` }]} />
               </View>
             </View>
           )}
@@ -1807,7 +1838,7 @@ export default function PlayerScreen() {
             <View style={styles.loopRow}>
               <TouchableOpacity
                 style={[styles.loopButton, loopStart !== null && styles.loopButtonActive]}
-                onPress={() => setLoopStart(loopStart !== null ? null : position)}
+                onPress={() => setLoopStart(loopStart !== null ? null : positionRef.current)}
               >
                 <Text style={[styles.loopButtonText, loopStart !== null && styles.loopButtonTextActive]}>
                   A {loopStart !== null ? formatTime(loopStart) : '---'}
@@ -1818,8 +1849,8 @@ export default function PlayerScreen() {
                 onPress={() => {
                   if (loopEnd !== null) {
                     setLoopEnd(null);
-                  } else if (loopStart !== null && position > loopStart) {
-                    setLoopEnd(position);
+                  } else if (loopStart !== null && positionRef.current > loopStart) {
+                    setLoopEnd(positionRef.current);
                   }
                 }}
               >
