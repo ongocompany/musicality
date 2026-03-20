@@ -424,12 +424,30 @@ export default function LibraryScreen() {
     setShowYouTubeInput(false);
   };
 
+  // FIX: FlatList item.track may hold a stale snapshot (e.g. analysis: undefined)
+  // even after setTrackAnalysis() updated the store's tracks array.
+  // The analysis-complete icon shows correctly (component subscribes to store directly),
+  // but tapping the stale item.track would set currentTrack WITHOUT analysis data → empty player screen.
+  // Solution: always fetch the latest track from the store by ID before setting currentTrack.
+  // ──────────────────────────────────────────────────────────────────────────
+  // DIAGNOSIS LOG: if this fix is correct, the "stale" log below should never fire.
+  // If empty player screen still occurs, check console for "[handlePlay] STALE" to confirm/deny this theory.
   const handlePlay = (track: Track) => {
     if (selectMode) {
       toggleSelect(track.id);
       return;
     }
-    setCurrentTrack(track);
+    const latest = usePlayerStore.getState().tracks.find(t => t.id === track.id);
+    if (latest) {
+      if (latest.analysisStatus !== track.analysisStatus || (latest.analysis && !track.analysis)) {
+        console.warn(`[handlePlay] STALE item detected: id=${track.id}, ` +
+          `item.status=${track.analysisStatus}, store.status=${latest.analysisStatus}, ` +
+          `item.analysis=${!!track.analysis}, store.analysis=${!!latest.analysis}`);
+      }
+      setCurrentTrack(latest);
+    } else {
+      setCurrentTrack(track);
+    }
     router.navigate('/(tabs)/player');
   };
 
