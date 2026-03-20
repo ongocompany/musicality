@@ -6,12 +6,13 @@ Stores in local SQLite + filesystem (no Supabase dependency).
 
 import os
 import uuid
+import hashlib
 import sqlite3
 import json
 from pathlib import Path
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 router = APIRouter(prefix="/labeler", tags=["labeler"])
@@ -42,10 +43,23 @@ def _get_db() -> sqlite3.Connection:
             duration REAL,
             beat_count INTEGER,
             dance_style TEXT,
+            file_hash TEXT,
+            version INTEGER DEFAULT 1,
             created_at TEXT NOT NULL
         )
     """)
     conn.commit()
+    # Add columns if they don't exist (migration for existing DBs)
+    try:
+        conn.execute("SELECT file_hash FROM submissions LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE submissions ADD COLUMN file_hash TEXT")
+        conn.commit()
+    try:
+        conn.execute("SELECT version FROM submissions LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE submissions ADD COLUMN version INTEGER DEFAULT 1")
+        conn.commit()
     return conn
 
 
@@ -57,6 +71,8 @@ async def submit_labeling(
     track_title: str = Form(...),
     mp3_file: UploadFile = File(...),
     pnote_data: str = Form(...),
+    file_hash: str = Form(None),
+    version: int = Form(1),
 ):
     """
     Receive labeling submission: mp3 + pnote JSON.
@@ -74,13 +90,17 @@ async def submit_labeling(
     with open(mp3_path, "wb") as f:
         f.write(content)
 
+    # Compute file hash server-side if not provided
+    if not file_hash:
+        file_hash = hashlib.sha256(content).hexdigest()
+
     # Parse and save pnote
     try:
         pnote = json.loads(pnote_data)
     except json.JSONDecodeError:
         raise HTTPException(400, "Invalid pnote JSON")
 
-    pnote_filename = f"{timestamp}_{safe_author}_{safe_title}.pnote.json"
+    pnote_filename = f"{timestamp}_{safe_author}_{safe_title}_v{version}.pnote.json"
     pnote_path = PNOTE_DIR / pnote_filename
     with open(pnote_path, "w", encoding="utf-8") as f:
         json.dump(pnote, f, ensure_ascii=False, indent=2)
@@ -97,11 +117,11 @@ async def submit_labeling(
     db = _get_db()
     db.execute("""
         INSERT INTO submissions (id, author, track_title, mp3_filename, pnote_filename,
-                                 bpm, duration, beat_count, dance_style, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 bpm, duration, beat_count, dance_style, file_hash, version, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         submission_id, author, track_title, mp3_filename, pnote_filename,
-        bpm, duration, beat_count, dance_style,
+        bpm, duration, beat_count, dance_style, file_hash, version,
         datetime.now(timezone.utc).isoformat(),
     ))
     db.commit()
@@ -113,6 +133,8 @@ async def submit_labeling(
         "id": submission_id,
         "mp3": mp3_filename,
         "pnote": pnote_filename,
+        "file_hash": file_hash,
+        "version": version,
         "size_mb": round(file_size_mb, 1),
     })
 
@@ -152,6 +174,46 @@ async def get_pnote(submission_id: str):
 
     with open(pnote_path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+@router.get("/verify/{submission_id}")
+async def verify_submission(submission_id: str, pnote_hash: str = Query(...)):
+    """Verify that local pnote matches server-stored pnote."""
+    db = _get_db()
+    row = db.execute(
+        "SELECT pnote_filename FROM submissions WHERE id = ?", (submission_id,)
+    ).fetchone()
+    db.close()
+
+    if not row:
+        raise HTTPException(404, "Submission not found")
+
+    pnote_path = PNOTE_DIR / row["pnote_filename"]
+    if not pnote_path.exists():
+        raise HTTPException(404, "Pnote file not found")
+
+    # Hash the server-side pnote content
+    with open(pnote_path, "rb") as f:
+        server_hash = hashlib.sha256(f.read()).hexdigest()
+
+    return {
+        "submission_id": submission_id,
+        "match": server_hash == pnote_hash,
+        "server_hash": server_hash,
+    }
+
+
+@router.get("/history/{file_hash}")
+async def track_history(file_hash: str):
+    """Get all submissions for a given file hash (version history)."""
+    db = _get_db()
+    rows = db.execute(
+        "SELECT * FROM submissions WHERE file_hash = ? ORDER BY version ASC, created_at ASC",
+        (file_hash,)
+    ).fetchall()
+    db.close()
+
+    return [dict(row) for row in rows]
 
 
 @router.get("/stats")
