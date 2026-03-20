@@ -3,6 +3,7 @@ import { View, Text, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 import { formatMessageTime } from '../../utils/timeFormat';
+import { GHOST_AVATAR, getDeletedUserName } from '../../utils/deletedUser';
 import type { Profile } from '../../types/community';
 
 interface Props {
@@ -10,12 +11,13 @@ interface Props {
   createdAt: string;
   isOwn: boolean;
   /** Group chat: show sender info (hide if consecutive from same sender) */
-  senderProfile?: Profile;
+  senderProfile?: Profile | null;
   showSender?: boolean;
 }
 
 export default function MessageBubble({ content, createdAt, isOwn, senderProfile, showSender }: Props) {
-  const hasAvatar = !isOwn && senderProfile && showSender;
+  const isDeleted = senderProfile === null;
+  const hasAvatar = !isOwn && showSender;
 
   return (
     <View style={[styles.row, isOwn && styles.rowOwn]}>
@@ -23,8 +25,10 @@ export default function MessageBubble({ content, createdAt, isOwn, senderProfile
       {!isOwn && senderProfile !== undefined && (
         <View style={styles.avatarCol}>
           {hasAvatar ? (
-            senderProfile.avatarUrl ? (
-              <Image source={{ uri: senderProfile.avatarUrl }} style={styles.avatar} />
+            isDeleted ? (
+              <Image source={GHOST_AVATAR} style={styles.avatar} />
+            ) : senderProfile!.avatarUrl ? (
+              <Image source={{ uri: senderProfile!.avatarUrl }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Ionicons name="person" size={16} color={Colors.textMuted} />
@@ -34,8 +38,10 @@ export default function MessageBubble({ content, createdAt, isOwn, senderProfile
         </View>
       )}
       <View style={{ maxWidth: '75%' }}>
-        {showSender && senderProfile && (
-          <Text style={styles.senderName}>{senderProfile.displayName}</Text>
+        {showSender && (
+          <Text style={[styles.senderName, isDeleted && styles.senderNameDeleted]}>
+            {isDeleted ? getDeletedUserName() : senderProfile?.displayName}
+          </Text>
         )}
         <View style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther]}>
           <Text style={[styles.content, isOwn ? styles.contentOwn : styles.contentOther]}>
@@ -84,6 +90,10 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     marginBottom: 2,
     marginLeft: Spacing.sm,
+  },
+  senderNameDeleted: {
+    color: Colors.textMuted,
+    fontStyle: 'italic',
   },
   bubble: {
     borderRadius: 16,

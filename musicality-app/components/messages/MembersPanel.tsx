@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
+import { GHOST_AVATAR, getDeletedUserName } from '../../utils/deletedUser';
 import type { ChatRoomMember } from '../../types/message';
 
 interface Props {
@@ -19,15 +20,17 @@ export default function MembersPanel({ members, currentUserId, isOwner, onInvite
 
     return (
       <View style={styles.memberRow}>
-        {item.profile?.avatarUrl ? (
+        {!item.profile ? (
+          <Image source={GHOST_AVATAR} style={styles.avatar} />
+        ) : item.profile.avatarUrl ? (
           <Image source={{ uri: item.profile.avatarUrl }} style={styles.avatar} />
         ) : (
           <View style={styles.avatarPlaceholder}>
             <Ionicons name="person" size={18} color={Colors.textMuted} />
           </View>
         )}
-        <Text style={styles.memberName} numberOfLines={1}>
-          {item.profile?.displayName ?? '알 수 없음'}
+        <Text style={[styles.memberName, !item.profile && { color: Colors.textMuted, fontStyle: 'italic' as const }]} numberOfLines={1}>
+          {item.profile?.displayName ?? getDeletedUserName()}
           {isMe && ' (나)'}
         </Text>
         {isItemOwner && (

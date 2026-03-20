@@ -20,7 +20,8 @@
     "error": "오류",
     "retry": "재시도",
     "comingSoon": "준비중",
-    "noData": "데이터 없음"
+    "noData": "데이터 없음",
+    "deletedUser": "탈퇴한 사용자"
   },
   "tabs": {
     "library": "라이브러리",

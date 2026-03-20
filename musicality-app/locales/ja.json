@@ -20,7 +20,8 @@
     "error": "エラー",
     "retry": "再試行",
     "comingSoon": "準備中",
-    "noData": "データなし"
+    "noData": "データなし",
+    "deletedUser": "退会したユーザー"
   },
   "tabs": {
     "library": "ライブラリ",

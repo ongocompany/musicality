@@ -20,7 +20,8 @@
     "error": "错误",
     "retry": "重试",
     "comingSoon": "即将推出",
-    "noData": "暂无数据"
+    "noData": "暂无数据",
+    "deletedUser": "已注销用户"
   },
   "tabs": {
     "library": "曲库",

@@ -20,7 +20,8 @@
     "error": "Erreur",
     "retry": "Réessayer",
     "comingSoon": "Bientôt disponible",
-    "noData": "Aucune donnée"
+    "noData": "Aucune donnée",
+    "deletedUser": "Utilisateur supprimé"
   },
   "tabs": {
     "library": "Bibliothèque",

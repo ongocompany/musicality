@@ -20,7 +20,8 @@
     "error": "錯誤",
     "retry": "重試",
     "comingSoon": "即將推出",
-    "noData": "無資料"
+    "noData": "無資料",
+    "deletedUser": "已註銷用戶"
   },
   "tabs": {
     "library": "音樂庫",

@@ -16,6 +16,7 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 import { Colors, FontSize, Spacing } from '../../constants/theme';
 import { parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
 import { usePlayerStore } from '../../stores/playerStore';
+import { GHOST_AVATAR, getDeletedUserName } from '../../utils/deletedUser';
 import type { GeneralPost } from '../../types/community';
 
 interface Props {
@@ -93,15 +94,17 @@ export default function PostItem({
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.avatar}>
-          {post.profile?.avatarUrl ? (
+          {!post.profile ? (
+            <Image source={GHOST_AVATAR} style={styles.avatarImage} />
+          ) : post.profile.avatarUrl ? (
             <Image source={{ uri: post.profile.avatarUrl }} style={styles.avatarImage} />
           ) : (
             <Ionicons name="person-circle" size={36} color={Colors.textMuted} />
           )}
         </View>
         <View style={styles.headerText}>
-          <Text style={styles.authorName}>
-            {post.profile?.displayName || t('board.unknownAuthor')}
+          <Text style={[styles.authorName, !post.profile && styles.authorNameDeleted]}>
+            {post.profile?.displayName || getDeletedUserName()}
           </Text>
           <Text style={styles.timeAgo}>{timeAgo}</Text>
         </View>
@@ -180,8 +183,8 @@ export default function PostItem({
           {replies.map((reply) => (
             <View key={reply.id} style={styles.replyItem}>
               <View style={styles.replyHeader}>
-                <Text style={styles.replyAuthor}>
-                  {reply.profile?.displayName || t('board.unknownAuthor')}
+                <Text style={[styles.replyAuthor, !reply.profile && styles.authorNameDeleted]}>
+                  {reply.profile?.displayName || getDeletedUserName()}
                 </Text>
                 <Text style={styles.replyTime}>{formatTimeAgo(reply.createdAt, t)}</Text>
               </View>
@@ -371,6 +374,10 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontWeight: '600',
     color: Colors.text,
+  },
+  authorNameDeleted: {
+    color: Colors.textMuted,
+    fontStyle: 'italic',
   },
   timeAgo: {
     fontSize: FontSize.xs,

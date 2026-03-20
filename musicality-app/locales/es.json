@@ -20,7 +20,8 @@
     "error": "Error",
     "retry": "Reintentar",
     "comingSoon": "Próximamente",
-    "noData": "Sin datos"
+    "noData": "Sin datos",
+    "deletedUser": "Usuario eliminado"
   },
   "tabs": {
     "library": "Biblioteca",
