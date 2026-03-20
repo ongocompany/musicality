@@ -78,6 +78,7 @@ export function useAudioPlayer() {
       const store = usePlayerStore.getState();
       if (!store.isSeeking) {
         positionRef.current = status.positionMillis;
+        store.setPosition(status.positionMillis); // keep store in sync for other screens
         // Notify listeners (SeekBar, etc.) without triggering re-render
         for (const listener of positionListenersRef.current) {
           listener(status.positionMillis);

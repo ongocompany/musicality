@@ -158,6 +158,7 @@ export default function PlayerScreen() {
   const youtubePlayer = useYouTubePlayer();
 
   // Sync positionRef from audioPlayer (no re-render)
+  // Also recompute countInfo on seek when paused
   useEffect(() => {
     if (!audioPlayer.onPositionUpdate) return;
     return audioPlayer.onPositionUpdate((pos) => {
@@ -170,11 +171,20 @@ export default function PlayerScreen() {
     : isVideo
       ? videoPlayer.togglePlay
       : audioPlayer.togglePlay;
-  const seekTo = isYouTube
+  const rawSeekTo = isYouTube
     ? youtubePlayer.seekTo
     : isVideo
       ? videoPlayer.seekTo
       : audioPlayer.seekTo;
+
+  // Wrap seekTo to recompute countInfo after seek (especially when paused)
+  const computeCountInfoRef = useRef<() => void>(() => {});
+  const seekTo = useCallback(async (posMs: number) => {
+    await rawSeekTo(posMs);
+    positionRef.current = posMs;
+    // Defer compute so positionRef is settled
+    setTimeout(() => computeCountInfoRef.current(), 0);
+  }, [rawSeekTo]);
 
   useCuePlayer();
 
@@ -551,29 +561,31 @@ export default function PlayerScreen() {
   const prevCountRef = useRef<CountInfo | null>(null);
   const [countInfo, setCountInfo] = useState<CountInfo | null>(null);
 
+  const computeCountInfo = useCallback(() => {
+    const effBeats = effectiveBeats.length > 0 ? effectiveBeats : null;
+    const effOffset = effectiveAnalysisData?.offsetBeatIndex ?? offsetBeatIndex;
+    const pos = positionRef.current;
+    const raw = effBeats
+      ? getPhraseCountInfo(pos + lookAheadMs, effBeats, effectiveDownbeats, effOffset, danceStyle, phraseMap)
+      : null;
+    const prev = prevCountRef.current;
+    if (prev && raw && prev.beatIndex === raw.beatIndex && prev.phraseIndex === raw.phraseIndex) {
+      setPositionState(pos); // still sync position for SeekBar
+      return;
+    }
+    prevCountRef.current = raw;
+    setCountInfo(raw);
+    setPositionState(pos);
+  }, [lookAheadMs, effectiveBeats, effectiveDownbeats, offsetBeatIndex, effectiveAnalysisData, danceStyle, phraseMap]);
+
+  computeCountInfoRef.current = computeCountInfo;
+
   useEffect(() => {
-    const compute = () => {
-      const effBeats = effectiveBeats.length > 0 ? effectiveBeats : null;
-      const effOffset = effectiveAnalysisData?.offsetBeatIndex ?? offsetBeatIndex;
-      const pos = positionRef.current;
-      const raw = effBeats
-        ? getPhraseCountInfo(pos + lookAheadMs, effBeats, effectiveDownbeats, effOffset, danceStyle, phraseMap)
-        : null;
-      const prev = prevCountRef.current;
-      if (prev && raw && prev.beatIndex === raw.beatIndex && prev.phraseIndex === raw.phraseIndex) {
-        return; // no change — skip setState
-      }
-      prevCountRef.current = raw;
-      setCountInfo(raw);
-      setPositionState(pos); // sync position state on beat change only
-    };
-
-    compute(); // initial
-
+    computeCountInfo(); // initial
     if (!isPlaying) return;
-    const id = setInterval(compute, 50); // 50ms polling during playback
+    const id = setInterval(computeCountInfo, 50);
     return () => clearInterval(id);
-  }, [isPlaying, lookAheadMs, effectiveBeats, effectiveDownbeats, offsetBeatIndex, effectiveAnalysisData, danceStyle, phraseMap]);
+  }, [isPlaying, computeCountInfo]);
 
   // ─── Instantaneous BPM at current position ───
   const currentBpm = useMemo(() => {
