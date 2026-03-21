@@ -80,8 +80,6 @@ export default function ConversationScreen() {
     // Create room with current DM partner + invitee
     const roomId = await useMessageStore.getState().createRoom(
       [userId, inviteeId],
-      undefined,
-      'dm_converted',
     );
     setShowInvite(false);
     router.replace({

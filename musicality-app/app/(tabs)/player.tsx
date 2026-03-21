@@ -5,7 +5,7 @@ import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { activateKeepAwake, deactivateKeepAwake } from 'expo-keep-awake';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useRouter, useNavigation } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { VideoOverlay } from '../../components/ui/VideoOverlay';
@@ -123,23 +123,22 @@ export default function PlayerScreen() {
   const playerCore = usePlayerCore();
   const playerMode = usePlayerMode();
   const { t } = useTranslation();
-  const {
-    currentTrack,
-    isPlaying,
-    duration,
-    playbackRate,
-    setPlaybackRate,
-    loopEnabled,
-    loopStart,
-    loopEnd,
-    setLoopStart,
-    setLoopEnd,
-    clearLoop,
-    setIsSeeking,
-    setTrackAnalysisStatus,
-    setTrackAnalysis,
-    setTrackPendingJobId,
-  } = usePlayerStore();
+  // ── playerStore: 셀렉터로 필요한 값만 구독 (position 제외!) ──
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const duration = usePlayerStore((s) => s.duration);
+  const playbackRate = usePlayerStore((s) => s.playbackRate);
+  const setPlaybackRate = usePlayerStore((s) => s.setPlaybackRate);
+  const loopEnabled = usePlayerStore((s) => s.loopEnabled);
+  const loopStart = usePlayerStore((s) => s.loopStart);
+  const loopEnd = usePlayerStore((s) => s.loopEnd);
+  const setLoopStart = usePlayerStore((s) => s.setLoopStart);
+  const setLoopEnd = usePlayerStore((s) => s.setLoopEnd);
+  const clearLoop = usePlayerStore((s) => s.clearLoop);
+  const setIsSeeking = usePlayerStore((s) => s.setIsSeeking);
+  const setTrackAnalysisStatus = usePlayerStore((s) => s.setTrackAnalysisStatus);
+  const setTrackAnalysis = usePlayerStore((s) => s.setTrackAnalysis);
+  const setTrackPendingJobId = usePlayerStore((s) => s.setTrackPendingJobId);
 
   // Position via ref (no re-render on every 100ms tick)
   const [positionState, setPositionState] = useState(0); // only updated on beat change or seek
@@ -419,7 +418,7 @@ export default function PlayerScreen() {
   // Keep screen awake while playing (sync + tag for Android reliability)
   useEffect(() => {
     if (isPlaying) {
-      activateKeepAwake('playing');
+      activateKeepAwakeAsync('playing').catch(() => {});
     } else {
       deactivateKeepAwake('playing');
     }

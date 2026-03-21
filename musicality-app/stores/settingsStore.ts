@@ -658,8 +658,6 @@ export const useSettingsStore = create<SettingsState>()(
         importedNotes: [],
         trackFormations: {},
         phraseMarks: {},
-        tempBoundaries: null,
-        tempFormation: null,
       }),
     }),
     {

@@ -18,6 +18,8 @@ import {
   TutorialStep,
   TutorialScreen,
 } from '../../stores/tutorialStore';
+import { usePlayerStore } from '../../stores/playerStore';
+import { DEMO_TRACK_ID } from '../../utils/demoTrack';
 import { TutorialSpotlight } from './TutorialSpotlight';
 
 // ─── Tab route mapping ──────────────────────────────────
@@ -53,6 +55,15 @@ export function TutorialOverlay() {
 
     const targetTab = SCREEN_TO_TAB[step.screen];
     if (targetTab && prevScreenRef.current !== step.screen) {
+      // Auto-select demo track when navigating to player tab
+      if (step.screen === 'player') {
+        const playerStore = usePlayerStore.getState();
+        const demoTrack = playerStore.tracks.find((t) => t.id === DEMO_TRACK_ID);
+        if (demoTrack && playerStore.currentTrack?.id !== DEMO_TRACK_ID) {
+          playerStore.setCurrentTrack(demoTrack);
+        }
+      }
+
       // Small delay to let the overlay mount before navigating
       const timer = setTimeout(() => {
         router.navigate(targetTab as any);

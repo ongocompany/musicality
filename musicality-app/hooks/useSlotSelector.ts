@@ -99,9 +99,17 @@ export function useSlotSelector(mode: SlotMode) {
     return () => clearTimer();
   }, []);
 
-  // ─── 슬롯 선택 ───
+  // ─── 슬롯 선택에 필요한 store 값 (selectSlot보다 먼저 선언) ───
   const clearDraft = useSettingsStore((s) => s.clearDraft);
   const clearFormationDraft = useSettingsStore((s) => s.clearFormationDraft);
+  const draftBoundaries = useSettingsStore((s) => s.draftBoundaries);
+  const draftFormation = useSettingsStore((s) => s.draftFormation);
+  const setEditionBoundaries = useSettingsStore((s) => s.setEditionBoundaries);
+  const setFormationEdition = useSettingsStore((s) => s.setFormationEdition);
+
+  const currentDraft = trackId
+    ? (mode === 'phrase' ? draftBoundaries[trackId] : draftFormation[trackId])
+    : undefined;
 
   const selectSlot = useCallback((slotId: string) => {
     if (!trackId) return;
@@ -154,15 +162,6 @@ export function useSlotSelector(mode: SlotMode) {
   const slotColor = mode === 'phrase' ? Colors.primary : '#FFB300';
 
   // ─── 자동저장: draft 변경 → 활성 슬롯에 디바운스 저장 ───
-  const draftBoundaries = useSettingsStore((s) => s.draftBoundaries);
-  const draftFormation = useSettingsStore((s) => s.draftFormation);
-  const setEditionBoundaries = useSettingsStore((s) => s.setEditionBoundaries);
-  const setFormationEdition = useSettingsStore((s) => s.setFormationEdition);
-
-  const currentDraft = trackId
-    ? (mode === 'phrase' ? draftBoundaries[trackId] : draftFormation[trackId])
-    : undefined;
-
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFirstDraftRef = useRef(true);
 

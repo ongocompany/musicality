@@ -30,9 +30,9 @@ const SPOTLIGHT_RADIUS = 12;
  */
 export function TutorialSpotlight({ targetRect }: SpotlightProps) {
   if (!targetRect) {
-    // No target — dim entire screen
+    // No target — light dim so content stays partially visible
     return (
-      <View style={styles.fullOverlay} pointerEvents="none" />
+      <View style={styles.lightOverlay} pointerEvents="none" />
     );
   }
 
@@ -96,6 +96,10 @@ const styles = StyleSheet.create({
   fullOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: OVERLAY_COLOR,
+  },
+  lightOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   dimRect: {
     position: 'absolute',

@@ -601,12 +601,12 @@ export function PhraseGrid({
       )}
 
       {/* Phrase / Page indicator — hidden to save vertical space */}
-      {false && currentPhraseInfo && (
+      {false && currentPhraseInfo != null && (
         <View style={styles.pageIndicator}>
           <Text style={styles.pageText}>
             {scrollMode
-              ? `Phrase ${currentPhraseInfo.index + 1} / ${currentPhraseInfo.total}`
-              : `Page ${currentPage + 1} / ${totalPages}  ·  Phrase ${currentPhraseInfo.index + 1} / ${currentPhraseInfo.total}`
+              ? `Phrase ${currentPhraseInfo!.index + 1} / ${currentPhraseInfo!.total}`
+              : `Page ${currentPage + 1} / ${totalPages}  ·  Phrase ${currentPhraseInfo!.index + 1} / ${currentPhraseInfo!.total}`
             }
           </Text>
         </View>

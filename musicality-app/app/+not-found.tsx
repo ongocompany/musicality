@@ -62,14 +62,15 @@ export default function NotFoundScreen() {
             // Find matching track
             const tracks = usePlayerStore.getState().tracks;
             const match = tracks.find(t =>
-              t.title === phraseNote.music.title ||
-              (phraseNote.music.fingerprint && t.analysis?.fingerprint === phraseNote.music.fingerprint)
+              t.title === phraseNote.metadata.title ||
+              (phraseNote.analysis.fingerprint && t.analysis?.fingerprint === phraseNote.analysis.fingerprint)
             );
 
-            const importedNote = {
+            const importedNote: import('../types/phraseNote').ImportedPhraseNote = {
               id: `imported-${Date.now()}`,
               trackId: match?.id ?? '',
               phraseNote,
+              importedAt: Date.now(),
               isActive: false,
             };
 

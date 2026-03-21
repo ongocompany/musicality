@@ -4,17 +4,16 @@ import {
   getInfoAsync,
   makeDirectoryAsync,
   copyAsync,
-  readAsStringAsync,
-  writeAsStringAsync,
-  EncodingType,
+  downloadAsync,
+  deleteAsync,
 } from 'expo-file-system/legacy';
 import { usePlayerStore } from '../stores/playerStore';
 import { AnalysisResult } from '../types/analysis';
 import { Track } from '../types/track';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const DEMO_ANALYSIS = require('../assets/demo/Un Solo Latido.json');
-const DEMO_MP3 = require('../assets/demo/Un Solo Latido.mp3');
+const DEMO_ANALYSIS = require('../assets/demo/UnSoloLatido.json');
+const DEMO_MP3 = require('../assets/demo/UnSoloLatido.mp3');
 
 export const DEMO_TRACK_ID = 'demo-un-solo-latido';
 const DEMO_DIR = `${documentDirectory}demo/`;
@@ -52,9 +51,21 @@ function mapServerAnalysis(raw: any): AnalysisResult {
 export async function ensureDemoTrack(): Promise<boolean> {
   const store = usePlayerStore.getState();
 
-  // Already in library?
-  const exists = store.tracks.some((t) => t.id === DEMO_TRACK_ID);
-  if (exists) return false;
+  // Already in library? Check if valid (file must exist and be > 1KB)
+  const existingTrack = store.tracks.find((t) => t.id === DEMO_TRACK_ID);
+  if (existingTrack) {
+    try {
+      const fileInfo = await getInfoAsync(existingTrack.uri);
+      if (fileInfo.exists && (fileInfo as any).size > 1024) {
+        return false; // Valid demo track already loaded
+      }
+      // Corrupt or missing — remove from library and re-add
+      console.warn('[DemoTrack] Existing demo track invalid, re-loading...');
+      store.removeTrack(DEMO_TRACK_ID);
+    } catch {
+      store.removeTrack(DEMO_TRACK_ID);
+    }
+  }
 
   try {
     // 1. Download bundled asset to local cache
@@ -77,16 +88,26 @@ export async function ensureDemoTrack(): Promise<boolean> {
     const destUri = `${DEMO_DIR}${DEMO_FILENAME}`;
 
     // 3. Copy asset to persistent document directory
+    //    Delete corrupt file if it exists but is too small (< 1KB)
     const destInfo = await getInfoAsync(destUri);
-    if (!destInfo.exists) {
-      // Read asset as base64 and write to destination (avoids copyAsync URI issues on iOS)
-      const base64 = await readAsStringAsync(asset.localUri, {
-        encoding: EncodingType.Base64,
-      });
-      await writeAsStringAsync(destUri, base64, {
-        encoding: EncodingType.Base64,
-      });
-      console.log('[DemoTrack] Copied demo file to:', destUri);
+    if (destInfo.exists && (destInfo as any).size < 1024) {
+      console.warn('[DemoTrack] Corrupt file detected, deleting:', (destInfo as any).size, 'bytes');
+      await deleteAsync(destUri, { idempotent: true });
+    }
+    if (!(await getInfoAsync(destUri)).exists) {
+      // Try copyAsync first (works in production builds)
+      // Fall back to downloadAsync (works in Metro dev mode where localUri may be HTTP)
+      const isLocalFile = asset.localUri?.startsWith('file://');
+      if (isLocalFile) {
+        await copyAsync({ from: asset.localUri!, to: destUri });
+        console.log('[DemoTrack] Copied (copyAsync) to:', destUri);
+      } else {
+        // In Metro dev mode, asset.uri is an HTTP URL — download it
+        const sourceUri = asset.localUri || asset.uri;
+        console.log('[DemoTrack] Downloading from:', sourceUri);
+        await downloadAsync(sourceUri, destUri);
+        console.log('[DemoTrack] Downloaded to:', destUri);
+      }
     }
 
     // 4. Verify file was written successfully

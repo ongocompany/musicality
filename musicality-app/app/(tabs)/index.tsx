@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Modal, Pressable, AppState, Animated } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -112,7 +112,7 @@ function EditionIndicators({ editions, hasFormation }: { editions?: TrackEdition
   );
 }
 
-function TrackItem({
+const TrackItem = React.memo(function TrackItem({
   track, editions, hasFormation, isSelected, selectMode, isNowPlaying,
   onPress, onLongPress, onAnalyze, queuePosition,
 }: {
@@ -185,11 +185,11 @@ function TrackItem({
       </View>
     </TouchableOpacity>
   );
-}
+});
 
-function SwipeableTrackItem({
+const SwipeableTrackItem = React.memo(function SwipeableTrackItem({
   track, editions, hasFormation, isSelected, selectMode, isNowPlaying,
-  onPress, onLongPress, onAnalyze, queuePosition,
+  onPlay, onLongPressTrack, onAnalyzeTrack, queuePosition,
   onToggleSelect,
 }: {
   track: Track;
@@ -198,15 +198,20 @@ function SwipeableTrackItem({
   isSelected: boolean;
   selectMode: boolean;
   isNowPlaying: boolean;
-  onPress: () => void;
-  onLongPress: () => void;
-  onAnalyze: () => void;
+  onPlay: (track: Track) => void;
+  onLongPressTrack: (track: Track) => void;
+  onAnalyzeTrack: (track: Track) => void;
   queuePosition?: number;
   onToggleSelect: (trackId: string) => void;
 }) {
   const swipeableRef = useRef<Swipeable>(null);
 
   // 오른쪽 스와이프 에디션 선택 제거 — 플레이어 내 SlotBar로 이동
+
+  // Stable callbacks — only change when track.id changes
+  const handlePress = useCallback(() => onPlay(track), [track, onPlay]);
+  const handleLongPress = useCallback(() => onLongPressTrack(track), [track, onLongPressTrack]);
+  const handleAnalyze = useCallback(() => onAnalyzeTrack(track), [track, onAnalyzeTrack]);
 
   // Right swipe → visual indicator (selection triggered on open)
   const renderLeftActions = useCallback(() => (
@@ -240,16 +245,16 @@ function SwipeableTrackItem({
         isSelected={isSelected}
         selectMode={selectMode}
         isNowPlaying={isNowPlaying}
-        onPress={onPress}
-        onLongPress={onLongPress}
-        onAnalyze={onAnalyze}
+        onPress={handlePress}
+        onLongPress={handleLongPress}
+        onAnalyze={handleAnalyze}
         queuePosition={queuePosition}
       />
     </Swipeable>
   );
-}
+});
 
-function FolderItem({
+const FolderItem = React.memo(function FolderItem({
   folder, trackCount,
   onPress, onLongPress,
 }: {
@@ -266,7 +271,7 @@ function FolderItem({
       <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
     </TouchableOpacity>
   );
-}
+});
 
 // ─── Main Screen ────────────────────────────────────
 export default function LibraryScreen() {
@@ -451,9 +456,15 @@ export default function LibraryScreen() {
   // ──────────────────────────────────────────────────────────────────────────
   // DIAGNOSIS LOG: if this fix is correct, the "stale" log below should never fire.
   // If empty player screen still occurs, check console for "[handlePlay] STALE" to confirm/deny this theory.
-  const handlePlay = (track: Track) => {
+  const handlePlay = useCallback((track: Track) => {
     if (selectMode) {
-      toggleSelect(track.id);
+      // toggleSelect is defined later, use inline logic
+      setSelectedTracks(prev => {
+        const next = new Set(prev);
+        if (next.has(track.id)) next.delete(track.id);
+        else next.add(track.id);
+        return next;
+      });
       return;
     }
     const latest = usePlayerStore.getState().tracks.find(t => t.id === track.id);
@@ -468,9 +479,9 @@ export default function LibraryScreen() {
       setCurrentTrack(track);
     }
     router.navigate('/(tabs)/player');
-  };
+  }, [selectMode, setCurrentTrack, router]);
 
-  const handleLongPress = (track: Track) => {
+  const handleLongPress = useCallback((track: Track) => {
     if (selectMode) return;
     const options: any[] = [
       {
@@ -490,7 +501,7 @@ export default function LibraryScreen() {
       { text: t('common.cancel'), style: 'cancel' },
     );
     Alert.alert(track.title, undefined, options);
-  };
+  }, [selectMode, renameTrack, removeTrack, t]);
 
   // ─── Analysis queue (max 3, process one at a time) ───
   const [analysisQueue, setAnalysisQueue] = useState<string[]>([]);
@@ -556,14 +567,14 @@ export default function LibraryScreen() {
     }
   }, [analysisQueue, processQueue]);
 
-  const handleAnalyzePress = (track: Track) => {
+  const handleAnalyzePress = useCallback((track: Track) => {
     if (track.analysisStatus === 'analyzing' || track.analysisStatus === 'done') return;
     setAnalysisQueue(q => {
       if (q.includes(track.id)) return q;  // already queued
       if (q.length >= 3) return q;          // queue full
       return [...q, track.id];
     });
-  };
+  }, []);
 
   const handleReanalyze = (track: Track) => {
     Alert.alert(t('library.reanalyzeTrack'), t('library.reanalyzeConfirm'), [
@@ -667,14 +678,14 @@ export default function LibraryScreen() {
   };
 
   // ─── Select handlers ──────────────────────────────
-  const toggleSelect = (trackId: string) => {
+  const toggleSelect = useCallback((trackId: string) => {
     setSelectedTracks(prev => {
       const next = new Set(prev);
       if (next.has(trackId)) next.delete(trackId);
       else next.add(trackId);
       return next;
     });
-  };
+  }, []);
 
   const clearSelection = () => setSelectedTracks(new Set());
 
@@ -837,9 +848,9 @@ export default function LibraryScreen() {
                 isSelected={selectedTracks.has(item.track.id)}
                 selectMode={selectMode}
                 isNowPlaying={isPlaying && currentTrack?.id === item.track.id}
-                onPress={() => handlePlay(item.track)}
-                onLongPress={() => handleLongPress(item.track)}
-                onAnalyze={() => handleAnalyzePress(item.track)}
+                onPlay={handlePlay}
+                onLongPressTrack={handleLongPress}
+                onAnalyzeTrack={handleAnalyzePress}
                 queuePosition={analysisQueue.indexOf(item.track.id) >= 0 ? analysisQueue.indexOf(item.track.id) + 1 : undefined}
                 onToggleSelect={toggleSelect}
               />
@@ -926,7 +937,7 @@ export default function LibraryScreen() {
             <Text style={styles.analyzeMenuTitle}>Analyze</Text>
             <TouchableOpacity
               style={styles.analyzeMenuOption}
-              onPress={() => analyzeTarget && runAnalysis(analyzeTarget)}
+              onPress={() => analyzeTarget && handleAnalyzePress(analyzeTarget)}
             >
               <Ionicons name="musical-notes-outline" size={22} color={Colors.primary} />
               <View style={styles.analyzeMenuOptionText}>

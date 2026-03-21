@@ -44,7 +44,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     titleKey: 'tutorial.welcomeTitle',
     descKey: 'tutorial.welcomeDesc',
     targetElement: 'demoTrackItem',
-    arrowDirection: 'down',
+    arrowDirection: 'up',
     autoAdvance: true,
   },
   {

@@ -218,6 +218,9 @@ export function VideoViewScreen({ playerCore, playerMode }: VideoViewScreenProps
                 cellNotes={currentCellNotes}
                 currentBeatNote={currentBeatNote}
                 editMode="none"
+                onSplitPhraseHere={() => {}}
+                onReArrangePhrase={() => {}}
+                onMergeWithPrevious={() => {}}
               />
             </View>
           </TouchableWithoutFeedback>

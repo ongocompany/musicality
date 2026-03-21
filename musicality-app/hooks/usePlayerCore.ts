@@ -9,7 +9,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Alert, AppState } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
-import { activateKeepAwake, deactivateKeepAwake } from 'expo-keep-awake';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { syncAllEditionsForTrack, restoreEditionsFromServer } from '../services/editionSyncService';
 import { ensureFileAvailable } from '../services/fileImport';
 
@@ -226,7 +226,7 @@ export function usePlayerCore() {
 
   // ─── Keep screen awake ───
   useEffect(() => {
-    if (isPlaying) activateKeepAwake('playing');
+    if (isPlaying) activateKeepAwakeAsync('playing').catch(() => {});
     else deactivateKeepAwake('playing');
     return () => { deactivateKeepAwake('playing'); };
   }, [isPlaying]);
