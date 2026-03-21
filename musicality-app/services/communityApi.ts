@@ -509,11 +509,14 @@ export async function fetchSongThreads(crewId: string): Promise<SongThread[]> {
   if (error) throw new Error(error.message);
   return (data ?? []).map((row) => {
     const thread = mapSongThread(row);
-    // Extract latest note format from joined notes
+    // Use actual joined notes count instead of stale post_count column
     const notes = row.thread_phrase_notes as any[] | undefined;
-    if (notes && notes.length > 0) {
-      const latest = notes[notes.length - 1];
-      thread.latestNoteFormat = latest?.phrase_note_data?.format ?? 'pnote';
+    if (notes) {
+      thread.postCount = notes.length;
+      if (notes.length > 0) {
+        const latest = notes[notes.length - 1];
+        thread.latestNoteFormat = latest?.phrase_note_data?.format ?? 'pnote';
+      }
     }
     return thread;
   });
