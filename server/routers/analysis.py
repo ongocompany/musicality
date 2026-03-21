@@ -33,6 +33,14 @@ _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 JOB_EXPIRY_SECONDS = 3600  # Clean up after 1 hour
 
+# ── Semaphore: limit concurrent analysis to prevent OOM ──────────
+# Each analysis uses ~400MB (chunked mode). 3 concurrent = ~1.2GB peak.
+# Without this, 10 concurrent = 4~5GB → server OOM/timeout.
+# Threads are created immediately (user gets job_id fast), but actual
+# analysis waits in queue until a slot opens.
+MAX_CONCURRENT_ANALYSIS = 3
+_analysis_semaphore = threading.Semaphore(MAX_CONCURRENT_ANALYSIS)
+
 
 def _cleanup_old_jobs():
     """Remove jobs older than JOB_EXPIRY_SECONDS."""
@@ -54,9 +62,17 @@ def _cleanup_old_jobs():
 
 def _run_analysis_background(job_id: str, file_path: Path,
                              file_hash: str, file_size: int, filename: str):
-    """Background thread: runs full analysis and updates job status."""
+    """
+    Background thread: waits for semaphore slot, then runs analysis.
+    Semaphore limits concurrent analysis to MAX_CONCURRENT_ANALYSIS (default 3)
+    to prevent memory overload. Threads queue up and process in order.
+    """
     try:
-        logger.info(f"[Job {job_id[:8]}] Starting analysis for {filename}...")
+        # Wait for a slot — blocks until one of MAX_CONCURRENT_ANALYSIS slots is free
+        logger.info(f"[Job {job_id[:8]}] Waiting for analysis slot ({MAX_CONCURRENT_ANALYSIS} max)...")
+        _analysis_semaphore.acquire()
+        logger.info(f"[Job {job_id[:8]}] Slot acquired, starting analysis for {filename}...")
+
         result = analyze_audio(str(file_path))
         result.file_hash = file_hash
         store_in_cache(file_hash, file_size, result)
@@ -74,6 +90,7 @@ def _run_analysis_background(job_id: str, file_path: Path,
             _jobs[job_id]["status"] = "error"
             _jobs[job_id]["error"] = str(e)
     finally:
+        _analysis_semaphore.release()  # Free slot for next queued job
         if file_path.exists():
             file_path.unlink()
 
