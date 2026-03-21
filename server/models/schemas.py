@@ -16,6 +16,17 @@ class TrackMetadata(BaseModel):
     release_id: str | None = None   # MusicBrainz release ID
 
 
+class UnstableRegion(BaseModel):
+    """A region where beat detection was unreliable (e.g. intro without clear rhythm).
+    Beats in this region have been re-spaced to stable BPM for smoother counting.
+    App should display this region as dimmed/faded to indicate lower confidence."""
+    start_time: float           # region start in seconds
+    end_time: float             # region end in seconds
+    start_beat_index: int       # first beat index in this region
+    end_beat_index: int         # last beat index (exclusive) in this region
+    original_beats: list[float] # Madmom's original (irregular) beat timestamps, preserved for reference
+
+
 class AnalysisResult(BaseModel):
     bpm: float
     beats: list[float]          # beat timestamps in seconds
@@ -30,6 +41,7 @@ class AnalysisResult(BaseModel):
     cached: bool = False  # True if result came from cache
     file_hash: str = ""  # SHA-256 hash of the uploaded file
     metadata: TrackMetadata | None = None  # auto-tagged track info (AcoustID + MusicBrainz)
+    unstable_regions: list[UnstableRegion] = []  # regions with weak beats, re-spaced to stable BPM (dimmed in app)
 
 
 class HealthResponse(BaseModel):
