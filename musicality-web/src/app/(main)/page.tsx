@@ -9,6 +9,7 @@ import { CrewCard } from '@/components/crew/crew-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/use-auth';
+import { HeroSection } from '@/components/landing/HeroSection';
 import type { Crew, MemberRole } from '@/lib/types';
 
 export default function HomePage() {
@@ -24,7 +25,7 @@ function HomeContent() {
   const [allCrews, setAllCrews] = useState<Crew[]>([]);
   const [loadingMy, setLoadingMy] = useState(true);
   const [loadingAll, setLoadingAll] = useState(true);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const supabase = createClient();
   const searchParams = useSearchParams();
   const search = searchParams.get('q') ?? '';
@@ -62,17 +63,25 @@ function HomeContent() {
   );
 
   useEffect(() => {
-    loadMyCrews();
-    loadAllCrews();
+    if (user) {
+      loadMyCrews();
+      loadAllCrews();
+    }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // React to search query changes from header
   useEffect(() => {
+    if (!user) return;
     const timer = setTimeout(() => {
       loadAllCrews(search);
     }, 300);
     return () => clearTimeout(timer);
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Show landing hero for non-logged-in users
+  if (!authLoading && !user) {
+    return <HeroSection />;
+  }
 
   // Exclude my crews from "all crews" to avoid duplicates
   const myCrewIds = new Set(myCrews.map((c) => c.id));
