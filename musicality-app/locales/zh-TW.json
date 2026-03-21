@@ -467,6 +467,7 @@
     "noPendingRequests": "沒有待處理的申請",
     "deleteCrew": "刪除舞團",
     "deleteConfirmMessage": "此操作無法還原。請輸入舞團名稱以確認：",
+    "deleteNoteConfirm": "刪除此筆記？",
     "manageCrew": "管理舞團",
     "settingsSaved": "設定已儲存。",
     "updateFailed": "更新失敗",

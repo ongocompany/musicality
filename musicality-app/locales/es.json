@@ -467,6 +467,7 @@
     "noPendingRequests": "No hay solicitudes pendientes",
     "deleteCrew": "Eliminar crew",
     "deleteConfirmMessage": "Esta acción no se puede deshacer. Para confirmar, escribe el nombre del crew exactamente:",
+    "deleteNoteConfirm": "¿Eliminar esta nota?",
     "manageCrew": "Administrar crew",
     "settingsSaved": "Ajustes guardados.",
     "updateFailed": "Error al actualizar",

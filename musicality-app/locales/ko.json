@@ -468,6 +468,7 @@
     "noPendingRequests": "대기 중인 요청이 없습니다",
     "deleteCrew": "크루 삭제",
     "deleteConfirmMessage": "이 작업은 되돌릴 수 없습니다. 확인을 위해 크루 이름을 정확히 입력하세요:",
+    "deleteNoteConfirm": "이 노트를 삭제할까요?",
     "manageCrew": "크루 관리",
     "settingsSaved": "설정이 저장되었습니다.",
     "updateFailed": "업데이트에 실패했습니다",

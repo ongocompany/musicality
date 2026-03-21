@@ -31,6 +31,7 @@ export default function SongThreadScreen() {
     loading,
     fetchThreadNotes,
     postPhraseNote,
+    deleteThreadNote,
   } = useCommunityStore();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -93,6 +94,28 @@ export default function SongThreadScreen() {
       Alert.alert(t('common.error'), err.message || t('songThread.importFailed'));
     }
   }, [tracks, thread, addImportedNote, setActiveImportedNote]);
+  const handleDeleteNote = useCallback((noteId: string) => {
+    if (!id) return;
+    Alert.alert(
+      t('common.delete'),
+      t('crew.deleteNoteConfirm'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteThreadNote(noteId, id);
+            } catch (err: any) {
+              Alert.alert(t('common.error'), err.message);
+            }
+          },
+        },
+      ],
+    );
+  }, [id, deleteThreadNote]);
+
   const notes = id ? activeThreadNotes[id] ?? [] : [];
 
   useEffect(() => {
@@ -174,6 +197,14 @@ export default function SongThreadScreen() {
                     <Text style={styles.noteDate}>
                       {new Date(note.createdAt).toLocaleDateString()}
                     </Text>
+                    {note.userId === user?.id && (
+                      <TouchableOpacity
+                        onPress={() => handleDeleteNote(note.id)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="trash-outline" size={16} color={Colors.textMuted} />
+                      </TouchableOpacity>
+                    )}
                   </View>
                   {note.description ? (
                     <Text style={styles.noteDescription}>{note.description}</Text>

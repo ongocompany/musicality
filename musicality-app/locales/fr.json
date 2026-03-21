@@ -467,6 +467,7 @@
     "noPendingRequests": "Aucune demande en attente",
     "deleteCrew": "Supprimer le crew",
     "deleteConfirmMessage": "Cette action est irréversible. Pour confirmer, tapez le nom du crew exactement :",
+    "deleteNoteConfirm": "Supprimer cette note ?",
     "manageCrew": "Gérer le crew",
     "settingsSaved": "Paramètres enregistrés.",
     "updateFailed": "Échec de la mise à jour",

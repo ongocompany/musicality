@@ -467,6 +467,7 @@
     "noPendingRequests": "保留中のリクエストはありません",
     "deleteCrew": "クルーを削除",
     "deleteConfirmMessage": "この操作は元に戻せません。確認のため、クルー名を正確に入力してください：",
+    "deleteNoteConfirm": "このノートを削除しますか？",
     "manageCrew": "クルーを管理",
     "settingsSaved": "設定を保存しました。",
     "updateFailed": "更新に失敗しました",

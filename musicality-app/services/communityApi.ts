@@ -595,6 +595,27 @@ export async function postPhraseNote(
   return note;
 }
 
+export async function deleteThreadNote(noteId: string, threadId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('thread_phrase_notes')
+    .delete()
+    .eq('id', noteId)
+    .eq('user_id', user.id);
+
+  if (error) throw new Error(error.message);
+
+  // Update thread post count
+  await supabase
+    .from('song_threads')
+    .update({
+      post_count: await getThreadPostCount(threadId),
+    })
+    .eq('id', threadId);
+}
+
 async function getThreadPostCount(threadId: string): Promise<number> {
   const { count } = await supabase
     .from('thread_phrase_notes')

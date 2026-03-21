@@ -467,6 +467,7 @@
     "noPendingRequests": "没有待处理的请求",
     "deleteCrew": "删除舞团",
     "deleteConfirmMessage": "此操作无法撤销。请输入舞团名称以确认：",
+    "deleteNoteConfirm": "删除此笔记？",
     "manageCrew": "管理舞团",
     "settingsSaved": "设置已保存。",
     "updateFailed": "更新失败",

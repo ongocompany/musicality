@@ -468,6 +468,7 @@
     "noPendingRequests": "No pending requests",
     "deleteCrew": "Delete Crew",
     "deleteConfirmMessage": "This action cannot be undone. To confirm, type the crew name exactly:",
+    "deleteNoteConfirm": "Delete this note?",
     "manageCrew": "Manage Crew",
     "settingsSaved": "Settings saved.",
     "updateFailed": "Failed to update",

@@ -467,6 +467,7 @@
     "noPendingRequests": "Keine ausstehenden Anfragen",
     "deleteCrew": "Crew löschen",
     "deleteConfirmMessage": "Dieser Vorgang kann nicht rückgängig gemacht werden. Zur Bestätigung gib den Crew-Namen genau ein:",
+    "deleteNoteConfirm": "Diese Notiz löschen?",
     "manageCrew": "Crew verwalten",
     "settingsSaved": "Einstellungen gespeichert.",
     "updateFailed": "Aktualisierung fehlgeschlagen",
