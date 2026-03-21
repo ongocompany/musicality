@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
 import { useCommunityStore } from '../../stores/communityStore';
 import { usePlayerStore } from '../../stores/playerStore';
@@ -20,6 +21,7 @@ import { findMatchingTrack, validatePhraseNote } from '../../services/phraseNote
 import { Colors, Spacing, FontSize, NoteTypeColors } from '../../constants/theme';
 
 export default function SongThreadScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { id, crewId } = useLocalSearchParams<{ id: string; crewId: string }>();
   const { user } = useAuthStore();
@@ -68,7 +70,7 @@ export default function SongThreadScreen() {
       }
 
       if (!matchedTrackId) {
-        Alert.alert('No Match', 'Add this song to your library first, then try again.');
+        Alert.alert(t('songThread.noMatch'), t('songThread.noMatchDesc'));
         return;
       }
 
@@ -86,9 +88,9 @@ export default function SongThreadScreen() {
       addImportedNote(imported);
 
       const noteLabel = pnote.format === 'cnote' ? 'ChoreoNote' : 'PhraseNote';
-      Alert.alert('Imported!', `${pnote.metadata.author}'s ${noteLabel} has been loaded.`);
+      Alert.alert(t('common.done'), t('songThread.imported', { author: pnote.metadata.author, type: noteLabel }));
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to import note');
+      Alert.alert(t('common.error'), err.message || t('songThread.importFailed'));
     }
   }, [tracks, thread, addImportedNote, setActiveImportedNote]);
   const notes = id ? activeThreadNotes[id] ?? [] : [];
@@ -107,9 +109,9 @@ export default function SongThreadScreen() {
   if (!thread) {
     return (
       <>
-        <Stack.Screen options={{ title: 'Thread' }} />
+        <Stack.Screen options={{ title: t('crew.thread') }} />
         <View style={styles.center}>
-          <Text style={styles.emptyText}>Thread not found</Text>
+          <Text style={styles.emptyText}>{t('crew.threadNotFound')}</Text>
         </View>
       </>
     );
@@ -144,7 +146,7 @@ export default function SongThreadScreen() {
             <View style={styles.threadInfoText}>
               <Text style={styles.threadTitle}>{thread.title}</Text>
               <Text style={styles.threadMeta}>
-                {thread.danceStyle} · {thread.postCount} note{thread.postCount !== 1 ? 's' : ''}
+                {thread.danceStyle} · {t('crew.noteCount', { count: thread.postCount })}
               </Text>
             </View>
           </View>
@@ -153,9 +155,9 @@ export default function SongThreadScreen() {
           {notes.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="document-text-outline" size={40} color={Colors.textMuted} />
-              <Text style={styles.emptyText}>No PhraseNotes yet</Text>
+              <Text style={styles.emptyText}>{t('crew.noPhraseNotes')}</Text>
               <Text style={styles.emptySubtext}>
-                Share a PhraseNote from the Player to start
+                {t('crew.sharePhraseNoteHint')}
               </Text>
             </View>
           ) : (
@@ -178,13 +180,13 @@ export default function SongThreadScreen() {
                   ) : null}
                   <View style={styles.notePreview}>
                     <Ionicons name={note.phraseNoteData?.format === 'cnote' ? 'people' : 'musical-note'} size={16} color={note.phraseNoteData?.format === 'cnote' ? NoteTypeColors.choreoNote : NoteTypeColors.phraseNote} />
-                    <Text style={[styles.notePreviewText, { color: note.phraseNoteData?.format === 'cnote' ? NoteTypeColors.choreoNote : NoteTypeColors.phraseNote }]}>{note.phraseNoteData?.format === 'cnote' ? 'ChoreoNote' : 'PhraseNote'} attached</Text>
+                    <Text style={[styles.notePreviewText, { color: note.phraseNoteData?.format === 'cnote' ? NoteTypeColors.choreoNote : NoteTypeColors.phraseNote }]}>{t('crew.noteAttached', { type: note.phraseNoteData?.format === 'cnote' ? 'ChoreoNote' : 'PhraseNote' })}</Text>
                     <TouchableOpacity
                       style={styles.importBtn}
                       onPress={() => handleImportNote(note.phraseNoteData, note.profile?.displayName, note.profile?.avatarUrl)}
                     >
                       <Ionicons name="download-outline" size={16} color={Colors.primary} />
-                      <Text style={styles.importBtnText}>Import</Text>
+                      <Text style={styles.importBtnText}>{t('common.import')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>

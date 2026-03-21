@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Animated, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
 import { CountDisplay } from '../../components/ui/CountDisplay';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useTapTempoStore } from '../../stores/tapTempoStore';
@@ -16,6 +17,7 @@ const DANCE_STYLE_LABELS = {
 };
 
 export default function TapTempoScreen() {
+  const { t } = useTranslation();
   const danceStyle = useSettingsStore((s) => s.danceStyle);
   const cueEnabled = useSettingsStore((s) => s.cueEnabled);
   const toggleCue = useSettingsStore((s) => s.toggleCue);
@@ -45,7 +47,7 @@ export default function TapTempoScreen() {
   const confirmBpmInput = () => {
     const value = parseInt(bpmInput, 10);
     if (isNaN(value) || value < 60 || value > 220) {
-      setBpmError('60 ~ 220 범위로 입력하세요');
+      setBpmError(t('tapTempo.bpmRangeError'));
       return;
     }
     setManualBpm(value);
@@ -159,7 +161,7 @@ export default function TapTempoScreen() {
           <Pressable onPress={openBpmModal} style={styles.bpmDisplay}>
             <Text style={[styles.bpmNumber, styles.bpmMuted]}>---</Text>
             <Text style={styles.bpmLabel}>BPM</Text>
-            <Text style={styles.bpmHint}>탭하여 직접 입력</Text>
+            <Text style={styles.bpmHint}>{t('tapTempo.tapToInput')}</Text>
           </Pressable>
         )}
       </View>
@@ -196,16 +198,16 @@ export default function TapTempoScreen() {
                 ]}
               >
                 <Ionicons name="hand-left" size={phase === 'counting' ? 32 : 48} color={Colors.text} />
-                <Text style={[styles.tapButtonText, phase === 'counting' && styles.tapButtonTextSmall]}>TAP</Text>
+                <Text style={[styles.tapButtonText, phase === 'counting' && styles.tapButtonTextSmall]}>{t('tapTempo.tap')}</Text>
               </Pressable>
             </Animated.View>
           </View>
 
           <Text style={styles.statusText}>
-            {phase === 'idle' && '박자에 맞춰 탭하세요'}
-            {phase === 'tapping' && `${tapTimestamps.length}회 탭 — 4회 이상 탭하세요`}
-            {phase === 'bpmSet' && 'BPM 설정 완료! Start를 누르세요'}
-            {phase === 'counting' && '탭하면 BPM 조정 + 1박 재동기화'}
+            {phase === 'idle' && t('tapTempo.statusIdle')}
+            {phase === 'tapping' && t('tapTempo.statusTapping', { count: tapTimestamps.length })}
+            {phase === 'bpmSet' && t('tapTempo.statusBpmSet')}
+            {phase === 'counting' && t('tapTempo.statusCounting')}
           </Text>
         </View>
       )}
@@ -215,21 +217,21 @@ export default function TapTempoScreen() {
         {phase === 'bpmSet' && (
           <Pressable style={styles.startButton} onPress={startCounting}>
             <Ionicons name="play" size={24} color="#121212" />
-            <Text style={styles.startButtonText}>Start</Text>
+            <Text style={styles.startButtonText}>{t('common.start')}</Text>
           </Pressable>
         )}
 
         {phase === 'counting' && (
           <Pressable style={styles.stopButton} onPress={stopCounting}>
             <Ionicons name="pause" size={22} color={Colors.text} />
-            <Text style={styles.stopButtonText}>Stop</Text>
+            <Text style={styles.stopButtonText}>{t('common.stop')}</Text>
           </Pressable>
         )}
 
         {phase !== 'idle' && (
           <Pressable style={styles.resetButton} onPress={reset}>
             <Ionicons name="refresh" size={18} color={Colors.error} />
-            <Text style={styles.resetButtonText}>Reset</Text>
+            <Text style={styles.resetButtonText}>{t('common.reset')}</Text>
           </Pressable>
         )}
       </View>
@@ -243,7 +245,7 @@ export default function TapTempoScreen() {
             color={cueEnabled ? Colors.accent : Colors.textMuted}
           />
           <Text style={[styles.cueText, { color: cueEnabled ? Colors.accent : Colors.textMuted }]}>
-            {cueEnabled ? 'Sound ON' : 'Sound OFF'}
+            {cueEnabled ? t('tapTempo.soundOn') : t('tapTempo.soundOff')}
           </Text>
         </Pressable>
       </View>
@@ -251,8 +253,7 @@ export default function TapTempoScreen() {
       {/* Keyboard shortcuts hint */}
       <View style={styles.hintSection}>
         <Text style={styles.hintText}>
-          외부 앱(YouTube 등)에서 음악을 재생하고{'\n'}
-          이 화면에서 박자에 맞춰 탭하세요
+          {t('tapTempo.hint')}
         </Text>
       </View>
 
@@ -265,27 +266,27 @@ export default function TapTempoScreen() {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowBpmModal(false)}>
           <Pressable style={styles.modalContent} onPress={() => {}}>
-            <Text style={styles.modalTitle}>BPM 입력</Text>
+            <Text style={styles.modalTitle}>{t('tapTempo.bpmInput')}</Text>
             <TextInput
               style={styles.modalInput}
               keyboardType="number-pad"
               value={bpmInput}
               onChangeText={(t) => { setBpmInput(t); setBpmError(''); }}
               onSubmitEditing={confirmBpmInput}
-              placeholder="예: 130"
+              placeholder={t('tapTempo.bpmPlaceholder')}
               placeholderTextColor={Colors.textMuted}
               autoFocus
               maxLength={3}
               selectTextOnFocus
             />
-            <Text style={styles.modalRange}>60 ~ 220 범위</Text>
+            <Text style={styles.modalRange}>{t('tapTempo.bpmRange')}</Text>
             {bpmError !== '' && <Text style={styles.modalError}>{bpmError}</Text>}
             <View style={styles.modalButtons}>
               <Pressable style={styles.modalCancelBtn} onPress={() => setShowBpmModal(false)}>
-                <Text style={styles.modalCancelText}>취소</Text>
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </Pressable>
               <Pressable style={styles.modalConfirmBtn} onPress={confirmBpmInput}>
-                <Text style={styles.modalConfirmText}>확인</Text>
+                <Text style={styles.modalConfirmText}>{t('common.confirm')}</Text>
               </Pressable>
             </View>
           </Pressable>

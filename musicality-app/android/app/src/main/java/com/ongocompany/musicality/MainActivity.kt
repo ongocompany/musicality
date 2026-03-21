@@ -1,6 +1,5 @@
 package com.ongocompany.musicality
 
-import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 
@@ -18,45 +17,6 @@ class MainActivity : ReactActivity() {
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
-    handleShareIntent(intent)
-  }
-
-  override fun onNewIntent(intent: Intent) {
-    super.onNewIntent(intent)
-    handleShareIntent(intent)
-  }
-
-  private fun handleShareIntent(intent: Intent) {
-    if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {
-      val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
-      val encoded = java.net.URLEncoder.encode(sharedText, "UTF-8")
-      val deepLink = "musicality://share?url=$encoded"
-      val deepIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(deepLink))
-      deepIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-      this.intent = deepIntent
-    }
-    // Handle .pnote / .cnote file open
-    if (intent.action == Intent.ACTION_VIEW && intent.data != null) {
-      val uri = intent.data.toString()
-      if (uri.endsWith(".pnote") || uri.endsWith(".cnote")) {
-        val encoded = java.net.URLEncoder.encode(uri, "UTF-8")
-        val deepLink = "musicality://import?file=$encoded"
-        val deepIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(deepLink))
-        deepIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        this.intent = deepIntent
-      }
-    }
-    // Handle .pnote / .cnote via SEND (file share)
-    if (intent.action == Intent.ACTION_SEND && intent.type == "application/octet-stream") {
-      val fileUri = intent.getParcelableExtra<android.net.Uri>(Intent.EXTRA_STREAM)
-      if (fileUri != null) {
-        val encoded = java.net.URLEncoder.encode(fileUri.toString(), "UTF-8")
-        val deepLink = "musicality://import?file=$encoded"
-        val deepIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(deepLink))
-        deepIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        this.intent = deepIntent
-      }
-    }
   }
 
   /**

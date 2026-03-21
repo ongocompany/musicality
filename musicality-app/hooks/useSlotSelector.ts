@@ -15,6 +15,7 @@ import { Colors } from '../constants/theme';
 import { EditionId } from '../types/analysis';
 import { FormationEditionId } from '../types/formation';
 import { ImportedPhraseNote } from '../types/phraseNote';
+import i18next from 'i18next';
 
 type SlotMode = 'phrase' | 'formation';
 
@@ -227,7 +228,7 @@ export function useSlotSelector(mode: SlotMode) {
         setActiveEdition(trackId, slotToUse);
         return true;
       } else {
-        Alert.alert('슬롯이 가득 찼습니다', '기존 슬롯을 삭제한 후 다시 시도해주세요.');
+        Alert.alert(i18next.t('slot.slotFull'), i18next.t('slot.slotFullDesc'));
         return false;
       }
     } else {
@@ -244,7 +245,7 @@ export function useSlotSelector(mode: SlotMode) {
         setActiveFormationEdition(trackId, slotToUse);
         return true;
       } else {
-        Alert.alert('슬롯이 가득 찼습니다', '기존 슬롯을 삭제한 후 다시 시도해주세요.');
+        Alert.alert(i18next.t('slot.slotFull'), i18next.t('slot.slotFullDesc'));
         return false;
       }
     }
@@ -256,7 +257,7 @@ export function useSlotSelector(mode: SlotMode) {
     if (!isReadOnly) return true; // 편집 가능
 
     if (isImported) {
-      Alert.alert('읽기 전용', '커뮤니티 에디션은 수정할 수 없습니다.');
+      Alert.alert(i18next.t('slot.readOnly'), i18next.t('slot.readOnlyDesc'));
       return false;
     }
 

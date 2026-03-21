@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { getLocales } from 'expo-localization';
 import { useAuthStore } from '../../stores/authStore';
@@ -42,6 +43,7 @@ function countryToFlag(code: string): string {
 }
 
 export default function ManageCrewScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuthStore();
@@ -114,18 +116,18 @@ export default function ManageCrewScreen() {
         region: editRegion,
       });
       setIsEditing(false);
-      Alert.alert('Saved', 'Crew settings updated.');
+      Alert.alert(t('common.done'), t('crew.settingsSaved'));
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update crew');
+      Alert.alert(t('common.error'), err.message || t('crew.updateFailed'));
     }
   };
 
   const handleKick = (memberId: string, memberName: string) => {
     if (!id) return;
-    Alert.alert('Remove Member', `Remove "${memberName}" from the crew?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('crew.removeMember'), t('crew.removeMemberConfirm', { name: memberName }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Remove',
+        text: t('crew.remove'),
         style: 'destructive',
         onPress: async () => {
           try {
@@ -134,7 +136,7 @@ export default function ManageCrewScreen() {
               await kickMember(id, member.userId);
             }
           } catch (err: any) {
-            Alert.alert('Error', err.message);
+            Alert.alert(t('common.error'), err.message);
           }
         },
       },
@@ -147,24 +149,24 @@ export default function ManageCrewScreen() {
     const options: any[] = [];
 
     if (member.role === 'member') {
-      options.push({ text: 'Promote to Moderator', onPress: () => changeMemberRole(id, member.userId, 'moderator').catch((e: any) => Alert.alert('Error', e.message)) });
+      options.push({ text: t('crew.promoteToModerator'), onPress: () => changeMemberRole(id, member.userId, 'moderator').catch((e: any) => Alert.alert(t('common.error'), e.message)) });
     }
     if (member.role === 'moderator') {
-      options.push({ text: 'Demote to Member', onPress: () => changeMemberRole(id, member.userId, 'member').catch((e: any) => Alert.alert('Error', e.message)) });
+      options.push({ text: t('crew.demoteToMember'), onPress: () => changeMemberRole(id, member.userId, 'member').catch((e: any) => Alert.alert(t('common.error'), e.message)) });
     }
     options.push({
-      text: 'Transfer Captain',
+      text: t('crew.transferCaptain'),
       onPress: () => {
-        Alert.alert('Transfer Captain', `Make "${memberName}" the new captain? You will become a moderator.`, [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Transfer', style: 'destructive', onPress: () => transferCaptain(id, member.userId).then(() => { Alert.alert('Done', `${memberName} is now the captain.`); router.back(); }).catch((e: any) => Alert.alert('Error', e.message)) },
+        Alert.alert(t('crew.transferCaptain'), t('crew.transferCaptainConfirm', { name: memberName }), [
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('crew.transfer'), style: 'destructive', onPress: () => transferCaptain(id, member.userId).then(() => { Alert.alert(t('common.done'), t('crew.transferDone', { name: memberName })); router.back(); }).catch((e: any) => Alert.alert(t('common.error'), e.message)) },
         ]);
       },
     });
-    options.push({ text: 'Kick from Crew', style: 'destructive', onPress: () => handleKick(member.id, memberName) });
-    options.push({ text: 'Cancel', style: 'cancel' });
+    options.push({ text: t('crew.kickFromCrew'), style: 'destructive', onPress: () => handleKick(member.id, memberName) });
+    options.push({ text: t('common.cancel'), style: 'cancel' });
 
-    Alert.alert(memberName, `Role: ${member.role}`, options);
+    Alert.alert(memberName, t('crew.role', { role: getRoleLabel(member.role) }), options);
   };
 
   const handleDeleteCrew = () => {
@@ -176,16 +178,16 @@ export default function ManageCrewScreen() {
   const confirmDeleteCrew = async () => {
     if (!id || !crew) return;
     if (deleteInput.trim() !== crew.name.trim()) {
-      Alert.alert('Name mismatch', 'Please type the exact crew name to confirm.');
+      Alert.alert(t('common.error'), t('crew.nameMismatch'));
       return;
     }
     try {
       await deleteCrew(id);
       setShowDeleteConfirm(false);
-      Alert.alert('Done', 'Crew has been deleted. Data will be retained for 30 days.');
+      Alert.alert(t('common.done'), t('crew.crewDeleted'));
       router.replace('/(tabs)/community');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to delete crew');
+      Alert.alert(t('common.error'), err.message || t('crew.deleteCrewFailed'));
     }
   };
 
@@ -195,10 +197,13 @@ export default function ManageCrewScreen() {
     member: Colors.textMuted,
   };
 
-  const ROLE_LABELS: Record<string, string> = {
-    captain: 'Captain',
-    moderator: 'Moderator',
-    member: 'Member',
+  const getRoleLabel = (role: string): string => {
+    const roleMap: Record<string, string> = {
+      captain: t('crew.captain'),
+      moderator: t('crew.moderator'),
+      member: t('crew.member'),
+    };
+    return roleMap[role] || role;
   };
 
   const handleApprove = async (requestId: string) => {
@@ -206,7 +211,7 @@ export default function ManageCrewScreen() {
       await approveRequest(requestId);
       if (id) fetchCrewMembers(id);
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      Alert.alert(t('common.error'), err.message);
     }
   };
 
@@ -214,7 +219,7 @@ export default function ManageCrewScreen() {
     try {
       await rejectRequest(requestId);
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      Alert.alert(t('common.error'), err.message);
     }
   };
 
@@ -232,9 +237,9 @@ export default function ManageCrewScreen() {
       setUploadingThumb(true);
       const publicUrl = await uploadCrewThumbnail(id, result.assets[0].uri);
       await updateCrew(id, { thumbnailUrl: publicUrl });
-      Alert.alert('Done', 'Thumbnail updated!');
+      Alert.alert(t('common.done'), t('crew.thumbnailUpdated'));
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to upload thumbnail');
+      Alert.alert(t('common.error'), err.message || t('crew.thumbnailFailed'));
     } finally {
       setUploadingThumb(false);
     }
@@ -243,9 +248,9 @@ export default function ManageCrewScreen() {
   if (!crew || !isCaptain) {
     return (
       <>
-        <Stack.Screen options={{ title: 'Manage Crew' }} />
+        <Stack.Screen options={{ title: t('crew.manageCrew') }} />
         <View style={styles.center}>
-          <Text style={styles.emptyText}>Not authorized</Text>
+          <Text style={styles.emptyText}>{t('crew.notAuthorized')}</Text>
         </View>
       </>
     );
@@ -255,7 +260,7 @@ export default function ManageCrewScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: `Manage: ${crew.name}` }} />
+      <Stack.Screen options={{ title: `${t('crew.manageCrew')}: ${crew.name}` }} />
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
@@ -276,14 +281,14 @@ export default function ManageCrewScreen() {
           </TouchableOpacity>
           <TouchableOpacity onPress={handlePickThumbnail} disabled={uploadingThumb}>
             <Text style={styles.thumbLabel}>
-              {crew.thumbnailUrl ? 'Change Thumbnail' : 'Add Thumbnail'}
+              {crew.thumbnailUrl ? t('crew.changeThumbnail') : t('crew.addThumbnail')}
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* ── Crew Settings ── */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Crew Settings</Text>
+          <Text style={styles.sectionTitle}>{t('crew.crewSettings')}</Text>
           {!isEditing ? (
             <TouchableOpacity onPress={() => setIsEditing(true)}>
               <Ionicons name="create-outline" size={20} color={Colors.primary} />
@@ -293,7 +298,7 @@ export default function ManageCrewScreen() {
               {loading.updateCrew ? (
                 <ActivityIndicator size="small" color={Colors.primary} />
               ) : (
-                <Text style={styles.saveText}>Save</Text>
+                <Text style={styles.saveText}>{t('common.save')}</Text>
               )}
             </TouchableOpacity>
           )}
@@ -302,7 +307,7 @@ export default function ManageCrewScreen() {
         {isEditing ? (
           <View style={styles.editForm}>
             <View style={styles.field}>
-              <Text style={styles.label}>Crew Name</Text>
+              <Text style={styles.label}>{t('community.crewName')}</Text>
               <TextInput
                 style={styles.input}
                 value={editName}
@@ -312,7 +317,7 @@ export default function ManageCrewScreen() {
               />
             </View>
             <View style={styles.field}>
-              <Text style={styles.label}>Description</Text>
+              <Text style={styles.label}>{t('community.descriptionLabel')}</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={editDesc}
@@ -324,24 +329,24 @@ export default function ManageCrewScreen() {
               />
             </View>
             <View style={styles.field}>
-              <Text style={styles.label}>Crew Type</Text>
+              <Text style={styles.label}>{t('community.crewType')}</Text>
               <View style={styles.toggleRow}>
                 <TouchableOpacity
                   style={[styles.toggleButton, editType === 'open' && styles.toggleActive]}
                   onPress={() => setEditType('open')}
                 >
-                  <Text style={[styles.toggleText, editType === 'open' && styles.toggleTextActive]}>Open</Text>
+                  <Text style={[styles.toggleText, editType === 'open' && styles.toggleTextActive]}>{t('community.crewTypeOpen')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.toggleButton, editType === 'closed' && styles.toggleActive]}
                   onPress={() => setEditType('closed')}
                 >
-                  <Text style={[styles.toggleText, editType === 'closed' && styles.toggleTextActive]}>Closed</Text>
+                  <Text style={[styles.toggleText, editType === 'closed' && styles.toggleTextActive]}>{t('community.crewTypeClosed')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
             <View style={styles.field}>
-              <Text style={styles.label}>Member Limit (2-200)</Text>
+              <Text style={styles.label}>{t('community.memberLimitLabel')}</Text>
               <TextInput
                 style={[styles.input, { width: 100 }]}
                 value={editLimit}
@@ -351,7 +356,7 @@ export default function ManageCrewScreen() {
               />
             </View>
             <View style={styles.field}>
-              <Text style={styles.label}>Region</Text>
+              <Text style={styles.label}>{t('community.region')}</Text>
               <View style={styles.chipRow}>
                 <TouchableOpacity
                   style={[styles.chip, editRegion === 'global' && styles.chipActive]}
@@ -359,7 +364,7 @@ export default function ManageCrewScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.chipText, editRegion === 'global' && styles.chipTextActive]}>
-                    🌐 Global
+                    🌐 {t('community.regionGlobal')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -376,11 +381,11 @@ export default function ManageCrewScreen() {
           </View>
         ) : (
           <View style={styles.infoCard}>
-            <InfoRow label="Type" value={crew.crewType === 'open' ? 'Open' : 'Closed'} />
-            <InfoRow label="Members" value={`${crew.memberCount}/${crew.memberLimit}`} />
-            <InfoRow label="Dance Style" value={crew.danceStyle} />
-            <InfoRow label="Region" value={`${countryToFlag(crew.region || 'global')} ${crew.region === 'global' ? 'Global' : crew.region || 'Global'}`} />
-            <InfoRow label="Invite Code" value={crew.inviteCode || '—'} />
+            <InfoRow label={t('crew.type')} value={crew.crewType === 'open' ? t('community.crewTypeOpen') : t('community.crewTypeClosed')} />
+            <InfoRow label={t('community.members')} value={`${crew.memberCount}/${crew.memberLimit}`} />
+            <InfoRow label={t('community.danceStyle')} value={crew.danceStyle} />
+            <InfoRow label={t('community.region')} value={`${countryToFlag(crew.region || 'global')} ${crew.region === 'global' ? t('community.regionGlobal') : crew.region || t('community.regionGlobal')}`} />
+            <InfoRow label={t('crew.inviteCode')} value={crew.inviteCode || '—'} />
           </View>
         )}
 
@@ -389,13 +394,13 @@ export default function ManageCrewScreen() {
           <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
-                Join Requests {pendingCount > 0 ? `(${pendingCount})` : ''}
+                {t('crew.joinRequests')} {pendingCount > 0 ? `(${pendingCount})` : ''}
               </Text>
             </View>
 
             {activePendingRequests.length === 0 ? (
               <View style={styles.emptyBlock}>
-                <Text style={styles.emptySubtext}>No pending requests</Text>
+                <Text style={styles.emptySubtext}>{t('crew.noPendingRequests')}</Text>
               </View>
             ) : (
               <View style={styles.listBlock}>
@@ -435,7 +440,7 @@ export default function ManageCrewScreen() {
 
         {/* ── Members ── */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Members ({activeCrewMembers.length})</Text>
+          <Text style={styles.sectionTitle}>{t('community.members')} ({activeCrewMembers.length})</Text>
         </View>
 
         <View style={styles.listBlock}>
@@ -464,11 +469,11 @@ export default function ManageCrewScreen() {
                 <View style={styles.memberInfo}>
                   <Text style={styles.memberName}>
                     {member.profile?.displayName || 'Dancer'}
-                    {isMe ? ' (You)' : ''}
+                    {isMe ? t('crew.you') : ''}
                   </Text>
                   <View style={[styles.roleBadge, { backgroundColor: roleColor + '25' }]}>
                     <Text style={[styles.roleBadgeText, { color: roleColor }]}>
-                      {ROLE_LABELS[member.role] || member.role}
+                      {getRoleLabel(member.role)}
                     </Text>
                   </View>
                 </View>
@@ -484,7 +489,7 @@ export default function ManageCrewScreen() {
         <View style={styles.dangerSection}>
           <TouchableOpacity style={styles.deleteCrewBtn} onPress={handleDeleteCrew} activeOpacity={0.7}>
             <Ionicons name="trash-outline" size={20} color={Colors.error} />
-            <Text style={styles.deleteCrewText}>Delete Crew</Text>
+            <Text style={styles.deleteCrewText}>{t('crew.deleteCrew')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -494,16 +499,16 @@ export default function ManageCrewScreen() {
         <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteConfirm(false)}>
           <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
             <Ionicons name="warning" size={32} color={Colors.error} style={{ alignSelf: 'center' }} />
-            <Text style={styles.modalTitle}>Delete Crew</Text>
+            <Text style={styles.modalTitle}>{t('crew.deleteCrew')}</Text>
             <Text style={styles.modalDesc}>
-              This action cannot be undone. To confirm, type the crew name exactly:
+              {t('crew.deleteConfirmMessage')}
             </Text>
             <Text style={styles.modalCrewName}>"{crew?.name}"</Text>
             <TextInput
               style={styles.modalInput}
               value={deleteInput}
               onChangeText={setDeleteInput}
-              placeholder="Type crew name here"
+              placeholder={t('crew.typeCrewName')}
               placeholderTextColor={Colors.textMuted}
               autoFocus
             />
@@ -512,7 +517,7 @@ export default function ManageCrewScreen() {
                 style={styles.modalCancelBtn}
                 onPress={() => setShowDeleteConfirm(false)}
               >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -522,7 +527,7 @@ export default function ManageCrewScreen() {
                 onPress={confirmDeleteCrew}
                 disabled={deleteInput.trim() !== crew?.name.trim()}
               >
-                <Text style={styles.modalDeleteText}>Delete</Text>
+                <Text style={styles.modalDeleteText}>{t('common.delete')}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>

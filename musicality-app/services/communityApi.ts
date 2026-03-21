@@ -260,7 +260,10 @@ export async function fetchMyCrews(): Promise<Crew[]> {
   return memberCrews;
 }
 
-export async function fetchDiscoverCrews(search?: string): Promise<Crew[]> {
+export async function fetchDiscoverCrews(
+  search?: string,
+  filters?: { danceStyle?: string; crewType?: string; region?: string },
+): Promise<Crew[]> {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Get my crew IDs to exclude
@@ -273,24 +276,19 @@ export async function fetchDiscoverCrews(search?: string): Promise<Crew[]> {
     myCrewIds = (memberRows ?? []).map((r: any) => r.crew_id);
   }
 
-  let query = supabase
-    .from('crews')
-    .select('*')
-    .eq('is_active', true)
-    .order('member_count', { ascending: false })
-    .limit(50);
+  // Use RPC for random ordering + server-side filtering
+  const { data, error } = await supabase.rpc('discover_crews_random', {
+    p_search: search?.trim() || null,
+    p_dance_style: filters?.danceStyle || null,
+    p_crew_type: filters?.crewType || null,
+    p_region: filters?.region || null,
+    p_exclude_ids: myCrewIds,
+    p_limit: 50,
+  });
 
-  if (search && search.trim()) {
-    query = query.ilike('name', `%${search.trim()}%`);
-  }
-
-  const { data, error } = await query;
   if (error) throw new Error(error.message);
 
-  // Filter out crews I'm already a member of
-  return (data ?? [])
-    .filter((row: any) => !myCrewIds.includes(row.id))
-    .map(mapCrew);
+  return (data ?? []).map(mapCrew);
 }
 
 export async function fetchCrewById(crewId: string): Promise<Crew | null> {

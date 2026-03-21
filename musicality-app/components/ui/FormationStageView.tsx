@@ -12,6 +12,7 @@ import {
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { Image } from 'react-native';
 import { useCommunityStore } from '../../stores/communityStore';
@@ -211,6 +212,7 @@ export function FormationStageView({
   onStageConfigChange,
   onTogglePlay,
 }: FormationStageViewProps) {
+  const { t } = useTranslation();
   const [selectedDancerIds, setSelectedDancerIds] = useState<Set<string>>(new Set());
   const [dragDancerId, setDragDancerId] = useState<string | null>(null);
   const [showSizeMenu, setShowSizeMenu] = useState(false);
@@ -1221,7 +1223,7 @@ export function FormationStageView({
               value={editingName}
               onChangeText={setEditingName}
               onSubmitEditing={handleNameConfirm}
-              placeholder="Name"
+              placeholder={t('formation.namePlaceholder')}
               placeholderTextColor={Colors.textMuted}
               autoFocus
               selectTextOnFocus

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
 import { useMessageStore } from '../../stores/messageStore';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
@@ -24,6 +25,7 @@ import type { DirectMessage } from '../../types/message';
 const POLL_INTERVAL = 10_000;
 
 export default function ConversationScreen() {
+  const { t } = useTranslation();
   const { userId, name, avatarUrl } = useLocalSearchParams<{ userId: string; name: string; avatarUrl?: string }>();
   const router = useRouter();
   const { user } = useAuthStore();
@@ -128,7 +130,7 @@ export default function ConversationScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{name || '대화'}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{name || t('messages.conversation')}</Text>
         <View style={{ width: 24 }} />
       </View>
 

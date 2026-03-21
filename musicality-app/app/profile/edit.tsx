@@ -18,13 +18,7 @@ import { Colors, FontSize, Spacing } from '../../constants/theme';
 import { useSocialStore } from '../../stores/socialStore';
 import { checkNicknameAvailable, uploadProfileAvatar } from '../../services/communityApi';
 
-const DANCE_STYLES = [
-  { key: 'bachata', label: 'Bachata' },
-  { key: 'salsa', label: 'Salsa' },
-  { key: 'kizomba', label: 'Kizomba' },
-  { key: 'zouk', label: 'Zouk' },
-  { key: 'other', label: 'Other' },
-];
+const DANCE_STYLE_KEYS = ['bachata', 'salsa', 'kizomba', 'zouk', 'other'] as const;
 
 export default function ProfileEditScreen() {
   const { t } = useTranslation();
@@ -190,7 +184,7 @@ export default function ProfileEditScreen() {
             style={[styles.input, { flex: 1 }]}
             value={nickname}
             onChangeText={handleNicknameChange}
-            placeholder="nickname"
+            placeholder={t('profile.nickname')}
             placeholderTextColor={Colors.textMuted}
             maxLength={20}
             autoCapitalize="none"
@@ -226,14 +220,14 @@ export default function ProfileEditScreen() {
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>{t('profile.danceStyle')}</Text>
         <View style={styles.styleRow}>
-          {DANCE_STYLES.map((s) => (
+          {DANCE_STYLE_KEYS.map((key) => (
             <TouchableOpacity
-              key={s.key}
-              style={[styles.styleChip, danceStyle === s.key && styles.styleChipActive]}
-              onPress={() => setDanceStyle(s.key)}
+              key={key}
+              style={[styles.styleChip, danceStyle === key && styles.styleChipActive]}
+              onPress={() => setDanceStyle(key)}
             >
-              <Text style={[styles.styleChipText, danceStyle === s.key && styles.styleChipTextActive]}>
-                {s.label}
+              <Text style={[styles.styleChipText, danceStyle === key && styles.styleChipTextActive]}>
+                {t(`danceStyle.${key}`)}
               </Text>
             </TouchableOpacity>
           ))}

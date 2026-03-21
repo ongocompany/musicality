@@ -399,7 +399,7 @@ export function usePlayerCore() {
     // Ensure file exists before uploading to server
     const validUri = await ensureFileAvailable(currentTrack);
     if (!validUri) {
-      Alert.alert('파일을 찾을 수 없습니다', '음원 파일이 삭제되었거나 접근할 수 없습니다. 다시 가져와 주세요.');
+      Alert.alert(t('playerError.fileNotFound'), t('playerError.fileNotFoundDesc'));
       return;
     }
     if (validUri !== currentTrack.uri) {
@@ -469,11 +469,11 @@ export function usePlayerCore() {
       let matchedTrackId = findMatchingTrack(tracksWithAnalysis, pnote);
       if (!matchedTrackId && currentTrack) {
         await new Promise<void>((resolve) => {
-          Alert.alert('No matching track found',
-            `Apply "${pnote.metadata.author}'s notes" to "${currentTrack.title}"?`,
+          Alert.alert(t('playerError.noMatchingTrack'),
+            t('playerError.applyNotesConfirm', { author: pnote.metadata.author, track: currentTrack.title }),
             [
-              { text: 'Cancel', style: 'cancel', onPress: () => resolve() },
-              { text: 'Apply', onPress: () => { matchedTrackId = currentTrack.id; resolve(); } },
+              { text: t('common.cancel'), style: 'cancel', onPress: () => resolve() },
+              { text: t('common.confirm'), onPress: () => { matchedTrackId = currentTrack.id; resolve(); } },
             ]);
         });
       }

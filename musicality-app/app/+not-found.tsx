@@ -6,6 +6,7 @@ import { readAsStringAsync } from 'expo-file-system/legacy';
 import { parseYouTubeUrl, createYouTubeTrack } from '../services/fileImport';
 import { decryptPhraseNote } from '../services/phraseNoteService';
 import { usePlayerStore } from '../stores/playerStore';
+import i18next from 'i18next';
 import { useSettingsStore } from '../stores/settingsStore';
 import { Colors } from '../constants/theme';
 
@@ -90,7 +91,7 @@ export default function NotFoundScreen() {
           }
         } catch (err: any) {
           console.warn('[Import] Failed:', err.message);
-          Alert.alert('가져오기 실패', '파일을 읽을 수 없습니다.');
+          Alert.alert(i18next.t('import.importFailed'), i18next.t('import.cannotReadFile'));
         }
       }
 

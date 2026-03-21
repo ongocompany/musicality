@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { useCommunityStore } from '../../stores/communityStore';
@@ -26,6 +27,7 @@ import type { CalendarEvent, CreateEventInput } from '../../types/calendar';
 type Tab = 'songs' | 'board' | 'members' | 'calendar';
 
 export default function CrewDetailScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -103,13 +105,13 @@ export default function CrewDetailScreen() {
     try {
       if (crew.crewType === 'open') {
         await joinCrew(id);
-        Alert.alert('Joined!', `Welcome to ${crew.name}!`);
+        Alert.alert(t('crew.joined'), t('crew.welcomeTo', { name: crew.name }));
       } else {
         await requestJoinCrew(id);
-        Alert.alert('Request Sent', 'The captain will review your request.');
+        Alert.alert(t('crew.requestSent'), t('crew.requestSentDesc'));
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to join');
+      Alert.alert(t('common.error'), err.message || t('crew.joinFailed'));
     }
   };
 
@@ -127,7 +129,7 @@ export default function CrewDetailScreen() {
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.center, { paddingTop: insets.top }]}>
-          <Text style={styles.emptyText}>Loading crew...</Text>
+          <Text style={styles.emptyText}>{t('crew.loadingCrew')}</Text>
         </View>
       </>
     );
@@ -200,7 +202,7 @@ export default function CrewDetailScreen() {
             <TouchableOpacity style={styles.joinButton} onPress={handleJoin} activeOpacity={0.8}>
               <Ionicons name={crew.crewType === 'open' ? 'enter-outline' : 'hand-left-outline'} size={18} color="#FFF" />
               <Text style={styles.joinButtonText}>
-                {crew.crewType === 'open' ? 'Join Crew' : 'Request to Join'}
+                {crew.crewType === 'open' ? t('crew.joinCrew') : t('crew.requestToJoin')}
               </Text>
             </TouchableOpacity>
           )}
@@ -222,7 +224,7 @@ export default function CrewDetailScreen() {
                     color={activeTab === tab ? Colors.primary : Colors.textMuted}
                   />
                   <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    {t(`crew.tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -241,8 +243,8 @@ export default function CrewDetailScreen() {
                   {activeSongThreads.length === 0 ? (
                     <View style={styles.emptyState}>
                       <Ionicons name="musical-notes-outline" size={40} color={Colors.textMuted} />
-                      <Text style={styles.emptyText}>No songs yet</Text>
-                      <Text style={styles.emptySubtext}>Share a PhraseNote from the Player to start a thread</Text>
+                      <Text style={styles.emptyText}>{t('crew.noSongs')}</Text>
+                      <Text style={styles.emptySubtext}>{t('crew.shareNote')}</Text>
                     </View>
                   ) : (
                     activeSongThreads.map((thread) => (
@@ -256,7 +258,7 @@ export default function CrewDetailScreen() {
                         <View style={styles.threadInfo}>
                           <Text style={styles.threadTitle} numberOfLines={1}>{thread.title}</Text>
                           <Text style={styles.threadMeta}>
-                            {thread.postCount} note{thread.postCount !== 1 ? 's' : ''}
+                            {t('crew.noteCount', { count: thread.postCount })}
                             {thread.bpm ? ` · ${thread.bpm} BPM` : ''}
                           </Text>
                         </View>
@@ -278,8 +280,8 @@ export default function CrewDetailScreen() {
                   {activeGeneralPosts.length === 0 ? (
                     <View style={styles.emptyState}>
                       <Ionicons name="chatbubbles-outline" size={40} color={Colors.textMuted} />
-                      <Text style={styles.emptyText}>아직 게시글이 없습니다</Text>
-                      <Text style={styles.emptySubtext}>첫 게시글을 작성해보세요!</Text>
+                      <Text style={styles.emptyText}>{t('crew.noPosts')}</Text>
+                      <Text style={styles.emptySubtext}>{t('crew.writeFirstPost')}</Text>
                     </View>
                   ) : (
                     activeGeneralPosts.map((post) => (
@@ -309,14 +311,14 @@ export default function CrewDetailScreen() {
                       activeOpacity={0.7}
                     >
                       <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-                      <Text style={styles.addEventText}>일정 추가</Text>
+                      <Text style={styles.addEventText}>{t('crew.addEvent')}</Text>
                     </TouchableOpacity>
                   )}
                   {crewEvents.length === 0 ? (
                     <View style={styles.emptyState}>
                       <Ionicons name="calendar-outline" size={40} color={Colors.textMuted} />
-                      <Text style={styles.emptyText}>일정이 없습니다</Text>
-                      <Text style={styles.emptySubtext}>캡틴이나 모더레이터가 일정을 추가할 수 있습니다</Text>
+                      <Text style={styles.emptyText}>{t('crew.noEvents')}</Text>
+                      <Text style={styles.emptySubtext}>{t('crew.noEventsHint')}</Text>
                     </View>
                   ) : (
                     crewEvents.map((event) => {
@@ -329,9 +331,9 @@ export default function CrewDetailScreen() {
                           isSaved={savedEventIds.has(event.id)}
                           onEdit={canManage ? (e) => { setEditingEvent(e); setShowEventForm(true); } : undefined}
                           onDelete={canManage ? (eventId) => {
-                            Alert.alert('일정 삭제', '이 일정을 삭제하시겠습니까?', [
-                              { text: '취소', style: 'cancel' },
-                              { text: '삭제', style: 'destructive', onPress: () => deleteCrewEventAction(eventId) },
+                            Alert.alert(t('crew.deleteEvent'), t('crew.deleteEventConfirm'), [
+                              { text: t('common.cancel'), style: 'cancel' },
+                              { text: t('common.delete'), style: 'destructive', onPress: () => deleteCrewEventAction(eventId) },
                             ]);
                           } : undefined}
                           onToggleSave={(eventId) => toggleSaveEvent(eventId)}
@@ -364,7 +366,7 @@ export default function CrewDetailScreen() {
                         </Text>
                         {member.role === 'captain' && (
                           <View style={styles.captainBadge}>
-                            <Text style={styles.captainBadgeText}>Captain</Text>
+                            <Text style={styles.captainBadgeText}>{t('crew.captain')}</Text>
                           </View>
                         )}
                       </View>

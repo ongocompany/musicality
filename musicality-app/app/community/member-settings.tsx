@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../stores/authStore';
@@ -24,6 +25,7 @@ import {
 } from '../../services/communityApi';
 
 export default function MemberSettingsScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id: crewId } = useLocalSearchParams<{ id: string }>();
@@ -75,7 +77,7 @@ export default function MemberSettingsScreen() {
       await updateProfile({ avatarUrl: url });
       setAvatarUrl(url);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to upload avatar');
+      Alert.alert(t('common.error'), err.message || t('crew.avatarFailed'));
     } finally {
       setUploadingAvatar(false);
     }
@@ -87,9 +89,9 @@ export default function MemberSettingsScreen() {
     try {
       await updateProfile({ displayName: displayName.trim() });
       setOriginalName(displayName.trim());
-      Alert.alert('Saved', 'Profile updated!');
+      Alert.alert(t('common.done'), t('crew.profileSaved'));
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save');
+      Alert.alert(t('common.error'), err.message || t('crew.profileSaveFailed'));
     } finally {
       setSaving(false);
     }
@@ -98,12 +100,12 @@ export default function MemberSettingsScreen() {
   const handleLeave = () => {
     if (!crewId || !crew) return;
     Alert.alert(
-      'Leave Crew',
-      `Are you sure you want to leave "${crew.name}"?`,
+      t('crew.leaveCrew'),
+      t('crew.leaveCrewConfirm', { name: crew.name }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Leave',
+          text: t('crew.leave'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -111,7 +113,7 @@ export default function MemberSettingsScreen() {
               // Go back to community list
               router.dismissAll();
             } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to leave crew');
+              Alert.alert(t('common.error'), err.message || t('crew.leaveCrewFailed'));
             }
           },
         },
@@ -129,7 +131,7 @@ export default function MemberSettingsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
           <Ionicons name="chevron-back" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Settings</Text>
+        <Text style={styles.headerTitle}>{t('crew.mySettings')}</Text>
         <View style={styles.headerButton} />
       </View>
 
@@ -165,17 +167,17 @@ export default function MemberSettingsScreen() {
                     <Ionicons name="camera" size={14} color="#FFF" />
                   </View>
                 </TouchableOpacity>
-                <Text style={styles.avatarHint}>Tap to change photo</Text>
+                <Text style={styles.avatarHint}>{t('crew.tapChangePhoto')}</Text>
               </View>
 
               {/* Display Name */}
               <View style={styles.field}>
-                <Text style={styles.label}>Display Name</Text>
+                <Text style={styles.label}>{t('profile.displayName')}</Text>
                 <TextInput
                   style={styles.input}
                   value={displayName}
                   onChangeText={setDisplayName}
-                  placeholder="Your display name"
+                  placeholder={t('crew.displayNamePlaceholder')}
                   placeholderTextColor={Colors.textMuted}
                   maxLength={30}
                 />
@@ -192,20 +194,20 @@ export default function MemberSettingsScreen() {
                 {saving ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
-                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                  <Text style={styles.saveButtonText}>{t('crew.saveChanges')}</Text>
                 )}
               </TouchableOpacity>
 
               {/* Crew Info */}
               {crew && (
                 <View style={styles.crewInfoSection}>
-                  <Text style={styles.sectionTitle}>Crew</Text>
+                  <Text style={styles.sectionTitle}>{t('crew.crewSection')}</Text>
                   <View style={styles.crewInfoCard}>
                     <Ionicons name="people" size={20} color={Colors.primary} />
                     <View style={styles.crewInfoText}>
                       <Text style={styles.crewName}>{crew.name}</Text>
                       <Text style={styles.crewMeta}>
-                        {crew.memberCount} members · {crew.danceStyle}
+                        {crew.memberCount} {t('community.members').toLowerCase()} · {crew.danceStyle}
                       </Text>
                     </View>
                   </View>
@@ -221,7 +223,7 @@ export default function MemberSettingsScreen() {
                     activeOpacity={0.7}
                   >
                     <Ionicons name="exit-outline" size={18} color={Colors.error} />
-                    <Text style={styles.leaveButtonText}>Leave Crew</Text>
+                    <Text style={styles.leaveButtonText}>{t('crew.leaveCrew')}</Text>
                   </TouchableOpacity>
                 </View>
               )}

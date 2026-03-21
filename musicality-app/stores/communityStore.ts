@@ -36,7 +36,7 @@ interface CommunityState {
 
   // ─── Crew Lifecycle ───────────────────
   fetchMyCrews: () => Promise<void>;
-  fetchDiscoverCrews: (search?: string) => Promise<void>;
+  fetchDiscoverCrews: (search?: string, filters?: { danceStyle?: string; crewType?: string; region?: string }) => Promise<void>;
   createCrew: (input: CreateCrewInput) => Promise<string>;
   joinCrew: (crewId: string) => Promise<void>;
   leaveCrew: (crewId: string) => Promise<void>;
@@ -137,9 +137,9 @@ export const useCommunityStore = create<CommunityState>()(
         })();
       },
 
-      fetchDiscoverCrews: async (search?: string) => {
+      fetchDiscoverCrews: async (search?: string, filters?: { danceStyle?: string; crewType?: string; region?: string }) => {
         await withLoading(set, 'discover', async () => {
-          const crews = await api.fetchDiscoverCrews(search);
+          const crews = await api.fetchDiscoverCrews(search, filters);
           set({ discoverCrews: crews });
         })();
       },
