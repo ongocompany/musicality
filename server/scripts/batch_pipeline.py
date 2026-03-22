@@ -76,7 +76,7 @@ DURATION_MAX = 480   # 8분
 MIN_AUDIO_QUALITY = 128
 BPM_BACHATA = (120, 150)
 BPM_SALSA = (150, 210)
-BPM_ALLOWED = (115, 215)  # 넓은 범위 (바차타+살사 모두 포함)
+BPM_ALLOWED = (100, 215)  # 바차타 센수알(100~) + 살사(~210) 포함
 MIN_CONFIDENCE = 0.3
 MIN_BEATS = 50
 
