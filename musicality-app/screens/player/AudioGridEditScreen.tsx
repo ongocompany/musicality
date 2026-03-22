@@ -114,9 +114,10 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
               <View style={styles.countWithArt}>
                 <Image
                   source={{ uri: currentTrack.thumbnailUri }}
-                  style={styles.countArt}
-                  resizeMode="contain"
+                  style={[StyleSheet.absoluteFillObject, { top: 0, bottom: undefined, height: '200%' }]}
+                  resizeMode="cover"
                 />
+                <View style={styles.artOverlay} />
                 <CountDisplay count={countInfo?.count ?? '--'} color={countColor} size="large" />
               </View>
             ) : (
@@ -283,15 +284,15 @@ const styles = StyleSheet.create({
   },
   countSection: { flex: 1, alignItems: 'center' },
   countWithArt: {
-    flexDirection: 'row',
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.md,
+    overflow: 'hidden',
+    marginBottom: 20,
   },
-  countArt: {
-    width: 120,
-    height: 120,
-    borderRadius: 16,
+  artOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   seekSection: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   focusHandle: {
