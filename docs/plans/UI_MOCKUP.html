@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ritmo UI Refactor Mockup v5</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+  .top-nav {
+    position: sticky; top: 0; z-index: 100;
+    background: #16213e; border-bottom: 1px solid #333;
+    padding: 12px 20px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .top-nav h1 { font-size: 18px; color: #BB86FC; margin-right: 8px; white-space: nowrap; }
+  .top-nav .ver { font-size: 10px; color: #666; margin-right: 12px; }
+  .mode-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .mode-tab {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: 1px solid #444; background: transparent; color: #999;
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .mode-tab:hover { border-color: #BB86FC; color: #ddd; }
+  .mode-tab.active { background: #BB86FC; color: #fff; border-color: #BB86FC; }
+  .mode-tab.audio { border-color: #03DAC6; }
+  .mode-tab.audio.active { background: #03DAC6; color: #121212; border-color: #03DAC6; }
+  .mode-tab.video { border-color: #FF6B6B; }
+  .mode-tab.video.active { background: #FF6B6B; color: #fff; border-color: #FF6B6B; }
+
+  .size-toggle { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .size-btn {
+    padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;
+    border: 1px solid #555; background: transparent; color: #aaa;
+  }
+  .size-btn.active { background: #333; color: #fff; border-color: #888; }
+
+  .main-area {
+    display: flex; justify-content: center; align-items: flex-start;
+    padding: 30px 20px; gap: 40px; flex-wrap: wrap;
+  }
+
+  .phone-wrapper { text-align: center; }
+  .phone-label {
+    font-size: 12px; color: #888; margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .phone-label .dim { color: #666; font-size: 10px; }
+  .phone-frame {
+    border: 3px solid #444; border-radius: 28px;
+    overflow: hidden; background: #121212;
+    position: relative; transition: all 0.3s ease;
+  }
+  .phone-frame.small { width: 320px; height: 580px; }
+  .phone-frame.large { width: 393px; height: 740px; }
+  .phone-notch {
+    width: 120px; height: 24px; background: #000; border-radius: 0 0 16px 16px;
+    margin: 0 auto; position: relative; z-index: 5;
+  }
+  .phone-content {
+    display: flex; flex-direction: column; height: calc(100% - 24px); overflow: hidden;
+  }
+
+  /* ─── Header ─── */
+  .screen-header {
+    display: flex; align-items: center; padding: 6px 10px; gap: 5px;
+    border-bottom: 1px solid #1e1e1e; flex-shrink: 0;
+  }
+  .screen-header .icon { font-size: 13px; }
+  .screen-header .title {
+    flex: 1; font-size: 12px; font-weight: 600; color: #e0e0e0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .header-badge {
+    padding: 2px 7px; border-radius: 10px; font-size: 9px; font-weight: 700;
+    background: rgba(187,134,252,0.2); color: #BB86FC;
+  }
+  .header-slot {
+    padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: 800;
+    border: 1.5px solid rgba(187,134,252,0.5); color: #BB86FC;
+    background: rgba(187,134,252,0.08);
+    display: flex; align-items: center; gap: 2px;
+  }
+  .header-slot .auto-dot {
+    width: 4px; height: 4px; border-radius: 50%; background: #4CAF50;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .header-btn {
+    width: 26px; height: 26px; border-radius: 13px; background: rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: center; font-size: 11px; cursor: pointer;
+  }
+  .header-btn.settings { color: #999; font-size: 13px; }
+
+  /* ─── Settings modal ─── */
+  .modal-overlay {
+    position: absolute; inset: 0; z-index: 50;
+    background: rgba(0,0,0,0.7); display: none;
+    align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-sheet {
+    width: 100%; background: #1e1e2e; border-radius: 16px 16px 0 0;
+    padding: 16px; max-height: 70%;
+  }
+  .modal-handle { width: 36px; height: 4px; background: #444; border-radius: 2px; margin: 0 auto 12px; }
+  .modal-title { font-size: 14px; font-weight: 700; color: #ddd; margin-bottom: 12px; }
+  .modal-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 8px; border-radius: 8px; cursor: pointer; transition: background 0.2s;
+  }
+  .modal-item:hover { background: rgba(255,255,255,0.05); }
+  .modal-item .mi-icon { font-size: 18px; width: 28px; text-align: center; }
+  .modal-item .mi-text { flex: 1; }
+  .modal-item .mi-label { font-size: 12px; color: #ddd; }
+  .modal-item .mi-desc { font-size: 9px; color: #888; margin-top: 1px; }
+  .modal-item .mi-value { font-size: 11px; color: #BB86FC; }
+  .modal-divider { height: 1px; background: #333; margin: 8px 0; }
+
+  /* ─── Count display ─── */
+  .count-display {
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; color: #FF6B6B;
+    text-shadow: 0 0 20px rgba(255,107,107,0.3);
+    flex-shrink: 0; transition: all 0.3s;
+  }
+  .count-display.large { font-size: 140px; padding: 14px 0; }
+  .count-display.medium { font-size: 90px; padding: 10px 0; }
+  .count-display.small-count { font-size: 56px; padding: 5px 0; }
+
+  /* ─── Formation stage ─── */
+  .formation-stage {
+    margin: 4px 8px; border-radius: 8px;
+    background: rgba(255,255,255,0.03); border: 1px solid #2a2a2a;
+    position: relative; overflow: hidden; flex-shrink: 0; transition: all 0.3s;
+  }
+  .stage-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 25% 25%;
+  }
+  .dancer {
+    position: absolute; width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; color: #fff; transition: all 0.5s ease; cursor: grab;
+  }
+  .dancer.d1 { background: #FF6B6B; }
+  .dancer.d2 { background: #4ECDC4; }
+  .dancer.d3 { background: #FFE66D; color: #333; }
+  .dancer.d4 { background: #A8E6CF; color: #333; }
+  .dancer-name { position: absolute; bottom: -12px; font-size: 7px; color: #888; white-space: nowrap; }
+
+  .stage-toolbar {
+    display: flex; gap: 4px; padding: 4px 8px; justify-content: center; flex-shrink: 0;
+  }
+  .stage-tool-btn {
+    padding: 3px 10px; border-radius: 12px; font-size: 10px;
+    background: rgba(255,255,255,0.08); color: #ccc; border: 1px solid #333; cursor: pointer;
+  }
+  .stage-tool-btn.primary { background: rgba(187,134,252,0.2); color: #BB86FC; border-color: rgba(187,134,252,0.4); }
+
+  /* ─── Phrase grid ─── */
+  .phrase-grid {
+    flex: 1; min-height: 60px;
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 4px 8px; overflow: hidden;
+  }
+  .phrase-row { display: flex; gap: 2px; flex: 1; }
+  .grid-cell {
+    flex: 1; border-radius: 4px; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.7);
+    position: relative; min-height: 20px; transition: all 0.2s;
+  }
+  .grid-cell.active { box-shadow: 0 0 8px rgba(255,255,255,0.3); transform: scale(1.05); }
+  .grid-cell .note-dot {
+    position: absolute; top: 2px; right: 2px;
+    width: 4px; height: 4px; border-radius: 50%; background: #FFD700;
+  }
+  .grid-cell .formation-dot {
+    position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+    width: 4px; height: 4px; border-radius: 50%; background: #FF6B6B;
+  }
+  .pc0 { background: rgba(255,107,107,0.25); }
+  .pc1 { background: rgba(255,159,67,0.25); }
+  .pc2 { background: rgba(255,230,109,0.2); }
+  .pc3 { background: rgba(78,205,196,0.25); }
+  .pc4 { background: rgba(69,162,255,0.25); }
+  .pc5 { background: rgba(150,111,214,0.25); }
+  .pc6 { background: rgba(238,130,238,0.25); }
+  .pc0.active { background: rgba(255,107,107,0.6); }
+  .pc3.active { background: rgba(78,205,196,0.6); }
+
+  /* ─── Seek ─── */
+  .seek-section { padding: 5px 10px; flex-shrink: 0; }
+  .waveform {
+    height: 26px; border-radius: 4px; background: rgba(255,255,255,0.03);
+    position: relative; overflow: hidden;
+  }
+  .waveform-bars { display: flex; align-items: flex-end; height: 100%; gap: 1px; padding: 0 2px; }
+  .waveform-bar { flex: 1; background: rgba(187,134,252,0.3); border-radius: 1px 1px 0 0; min-width: 1px; }
+  .waveform-progress {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 35%;
+    background: linear-gradient(90deg, rgba(187,134,252,0.15), rgba(187,134,252,0.05));
+    border-right: 2px solid #BB86FC;
+  }
+  .time-row { display: flex; justify-content: space-between; padding-top: 2px; font-size: 9px; color: #666; }
+
+  /* ─── Controls ─── */
+  .control-bar {
+    display: flex; align-items: center; justify-content: center;
+    padding: 8px 12px; gap: 8px;
+    border-top: 1px solid #1e1e1e; flex-shrink: 0;
+    background: rgba(18,18,18,0.95);
+  }
+  .control-bar .side { display: flex; align-items: center; gap: 8px; flex: 1; }
+  .control-bar .side.right { justify-content: flex-start; }
+  .control-bar .side.left { justify-content: flex-end; }
+  .ctrl-btn {
+    font-size: 15px; color: #ccc; cursor: pointer;
+    width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  }
+  .ctrl-btn.active { color: #BB86FC; }
+  .ctrl-btn.accent { color: #03DAC6; }
+  .play-btn {
+    width: 44px; height: 44px; border-radius: 22px;
+    background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #fff; flex-shrink: 0;
+  }
+  .speed-badge {
+    font-size: 10px; color: #888; background: rgba(255,255,255,0.05);
+    padding: 2px 6px; border-radius: 8px;
+  }
+
+  /* ─── Mode segment (🔢 👥) ─── */
+  .mode-segment {
+    display: flex; border-radius: 8px; overflow: hidden;
+    border: 1.5px solid #333; flex-shrink: 0;
+  }
+  .mode-seg-btn {
+    width: 32px; height: 28px; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; cursor: pointer; transition: all 0.2s;
+    background: rgba(255,255,255,0.04); border: none; position: relative;
+    user-select: none; -webkit-user-select: none;
+  }
+  .mode-seg-btn + .mode-seg-btn { border-left: 1px solid #333; }
+  /* view = teal bg */
+  .mode-seg-btn.sel-view {
+    background: rgba(3,218,198,0.2); box-shadow: inset 0 0 8px rgba(3,218,198,0.15);
+  }
+  .mode-seg-btn.sel-view::after {
+    content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+    width: 4px; height: 4px; border-radius: 50%; background: #03DAC6;
+  }
+  /* edit = purple bg */
+  .mode-seg-btn.sel-edit {
+    background: rgba(187,134,252,0.25); box-shadow: inset 0 0 8px rgba(187,134,252,0.2);
+  }
+  .mode-seg-btn.sel-edit::after {
+    content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+    width: 4px; height: 4px; border-radius: 50%; background: #BB86FC;
+  }
+
+  /* ─── Long press hint toast ─── */
+  .lp-hint {
+    position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+    background: rgba(30,30,46,0.95); border: 1px solid #444; border-radius: 8px;
+    padding: 6px 12px; font-size: 10px; color: #ccc; white-space: nowrap;
+    pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 20;
+  }
+  .lp-hint.show { opacity: 1; }
+  .lp-hint .hint-key { color: #BB86FC; font-weight: 700; }
+  .lp-hint .hint-sep { color: #555; margin: 0 4px; }
+
+  /* ─── Video ─── */
+  .video-section {
+    background: #000; position: relative; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; transition: all 0.3s;
+  }
+  .video-placeholder { font-size: 11px; color: #666; text-align: center; }
+  .video-overlay {
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    font-size: 48px; font-weight: 900; color: rgba(255,255,255,0.7);
+    text-shadow: 0 0 20px rgba(0,0,0,0.8);
+  }
+  .video-collapse-handle {
+    text-align: center; padding: 3px; color: #666; font-size: 10px; cursor: pointer; flex-shrink: 0;
+  }
+
+  /* ─── Mode indicator ─── */
+  .mode-indicator {
+    position: absolute; top: 28px; right: 8px; z-index: 10;
+    padding: 2px 8px; border-radius: 8px; font-size: 8px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .mode-indicator.view { background: rgba(3,218,198,0.2); color: #03DAC6; }
+  .mode-indicator.edit { background: rgba(187,134,252,0.2); color: #BB86FC; }
+  .mode-indicator.form-view { background: rgba(255,215,0,0.15); color: #FFD700; }
+  .mode-indicator.form-edit { background: rgba(255,107,107,0.15); color: #FF6B6B; }
+
+  /* ─── Description ─── */
+  .desc-panel {
+    margin-top: 12px; padding: 12px 16px; border-radius: 12px;
+    background: rgba(255,255,255,0.03); border: 1px solid #2a2a2a;
+    max-width: 420px; font-size: 12px; line-height: 1.6; color: #999; text-align: left;
+  }
+  .desc-panel h3 { color: #ddd; font-size: 13px; margin-bottom: 6px; }
+  .desc-panel .highlight { color: #BB86FC; font-weight: 600; }
+  .desc-panel .tag {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    font-size: 10px; font-weight: 600; margin: 0 2px;
+  }
+  .desc-panel .tag.new { background: rgba(76,175,80,0.15); color: #4CAF50; }
+  .desc-panel .tag.removed { background: rgba(244,67,54,0.1); color: #F44336; }
+  .desc-panel .tag.moved { background: rgba(255,165,0,0.15); color: #FFA500; }
+
+  .compare-banner {
+    text-align: center; padding: 8px; font-size: 11px; color: #888;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+  }
+  .compare-banner .arrow { color: #BB86FC; font-size: 16px; }
+
+  .changelog {
+    max-width: 860px; margin: 0 auto 30px; padding: 0 20px;
+  }
+  .changelog-box {
+    background: rgba(187,134,252,0.05); border: 1px solid rgba(187,134,252,0.15);
+    border-radius: 12px; padding: 16px 20px;
+  }
+  .changelog-box h2 { font-size: 14px; color: #BB86FC; margin-bottom: 10px; }
+  .changelog-box .item {
+    display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px;
+    font-size: 12px; color: #ccc; line-height: 1.5;
+  }
+  .changelog-box .item .emoji { font-size: 14px; flex-shrink: 0; }
+
+  .saved-rows {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700;
+    background: rgba(76,175,80,0.15); color: #4CAF50;
+  }
+
+  /* ─── Interactive demo area ─── */
+  .demo-area {
+    max-width: 860px; margin: 0 auto 20px; padding: 0 20px;
+  }
+  .demo-box {
+    background: rgba(3,218,198,0.05); border: 1px solid rgba(3,218,198,0.15);
+    border-radius: 12px; padding: 16px 20px; text-align: center;
+  }
+  .demo-box h2 { font-size: 14px; color: #03DAC6; margin-bottom: 8px; }
+  .demo-box p { font-size: 12px; color: #999; margin-bottom: 12px; line-height: 1.5; }
+  .demo-segment-wrap {
+    display: flex; justify-content: center; gap: 40px; margin-bottom: 12px; flex-wrap: wrap;
+  }
+  .demo-segment-item { text-align: center; }
+  .demo-segment-item .label { font-size: 10px; color: #666; margin-top: 6px; }
+  .demo-mode-segment {
+    display: inline-flex; border-radius: 10px; overflow: hidden;
+    border: 2px solid #444;
+  }
+  .demo-seg-btn {
+    width: 48px; height: 40px; display: flex; align-items: center; justify-content: center;
+    font-size: 20px; cursor: pointer; transition: all 0.2s;
+    background: rgba(255,255,255,0.04); border: none; position: relative;
+    user-select: none; -webkit-user-select: none;
+  }
+  .demo-seg-btn + .demo-seg-btn { border-left: 1.5px solid #444; }
+  .demo-seg-btn.sel-view {
+    background: rgba(3,218,198,0.25); box-shadow: inset 0 0 12px rgba(3,218,198,0.2);
+  }
+  .demo-seg-btn.sel-view::after {
+    content: 'view'; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
+    font-size: 7px; font-weight: 700; color: #03DAC6; letter-spacing: 0.5px;
+  }
+  .demo-seg-btn.sel-edit {
+    background: rgba(187,134,252,0.3); box-shadow: inset 0 0 12px rgba(187,134,252,0.25);
+  }
+  .demo-seg-btn.sel-edit::after {
+    content: 'edit'; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
+    font-size: 7px; font-weight: 700; color: #BB86FC; letter-spacing: 0.5px;
+  }
+  .demo-result {
+    font-size: 13px; color: #ddd; font-weight: 600;
+    padding: 8px 16px; border-radius: 8px; background: rgba(255,255,255,0.05);
+    display: inline-block; transition: all 0.3s;
+  }
+</style>
+</head>
+<body>
+
+<div class="top-nav">
+  <h1>Ritmo UI Mockup</h1>
+  <span class="ver">v5 — 롱프레스 모드 토글</span>
+  <div class="mode-tabs">
+    <div class="mode-tab audio active" data-mode="audio-view">Audio View</div>
+    <div class="mode-tab audio" data-mode="audio-grid-edit">Audio Edit</div>
+    <div class="mode-tab audio" data-mode="audio-form-view">Form View</div>
+    <div class="mode-tab audio" data-mode="audio-form-edit">Form Edit</div>
+    <div class="mode-tab video" data-mode="video-view">Video View</div>
+    <div class="mode-tab video" data-mode="video-grid-edit">Video Edit</div>
+  </div>
+  <div class="size-toggle">
+    <span style="font-size:11px;color:#888">Phone:</span>
+    <div class="size-btn active" data-size="both">Both</div>
+    <div class="size-btn" data-size="small">Small</div>
+    <div class="size-btn" data-size="large">Large</div>
+  </div>
+</div>
+
+<div class="changelog">
+  <div class="changelog-box">
+    <h2>v5 변경사항 — 롱프레스 모드 토글</h2>
+    <div class="item"><span class="emoji">🎯</span><span><b>모드 전환 = [🔢 | 👥] 세그먼트 하나</b> — 탭=View, 롱프레스=Edit. 색상으로 현재 상태 구분 (teal=view, purple=edit)</span></div>
+    <div class="item"><span class="emoji">🗑️</span><span><b>✏️ 버튼 제거</b> — 별도 edit 토글 불필요. 롱프레스가 edit 진입을 겸함</span></div>
+    <div class="item"><span class="emoji">⚙️</span><span><b>기존 v4 유지</b> — ⚙️ 설정 모달, [S] 슬롯, ↩ undo (edit only), 자동저장</span></div>
+    <div class="item"><span class="emoji">📏</span><span><b>컨트롤바 더 심플</b> — 모드 세그먼트 + 스피드 + 재생 + 볼륨 + undo</span></div>
+  </div>
+</div>
+
+<!-- Interactive demo -->
+<div class="demo-area">
+  <div class="demo-box">
+    <h2>Interactive Demo — 직접 눌러보세요!</h2>
+    <p>🔢 or 👥 <b>클릭</b> = View 모드 &nbsp;|&nbsp; <b>길게 누르기 (0.5초)</b> = Edit 모드<br>
+    <span style="color:#03DAC6">■ Teal = View</span> &nbsp; <span style="color:#BB86FC">■ Purple = Edit</span></p>
+    <div class="demo-segment-wrap">
+      <div class="demo-segment-item">
+        <div class="demo-mode-segment">
+          <div class="demo-seg-btn sel-view" id="demoGrid" data-type="grid">🔢</div>
+          <div class="demo-seg-btn" id="demoForm" data-type="form">👥</div>
+        </div>
+        <div class="label">컨트롤바의 모드 세그먼트</div>
+      </div>
+    </div>
+    <div class="demo-result" id="demoResult">현재: <span style="color:#03DAC6">Grid View</span> (Audio View)</div>
+  </div>
+</div>
+
+<div class="compare-banner">
+  <span>Small Android (360×640)</span>
+  <span class="arrow">vs</span>
+  <span>iPhone 17 Pro Max (393×852)</span>
+</div>
+
+<div class="main-area" id="mainArea"></div>
+
+<script>
+// ─── Demo interaction ───
+(function(){
+  let demoState = { type: 'grid', mode: 'view' }; // grid|form, view|edit
+  let lpTimer = null;
+  const modeMap = {
+    'grid-view': { label: 'Grid View', screen: 'Audio View', color: '#03DAC6' },
+    'grid-edit': { label: 'Grid Edit', screen: 'Audio Grid Edit', color: '#BB86FC' },
+    'form-view': { label: 'Form View', screen: 'Audio Form View', color: '#FFD700' },
+    'form-edit': { label: 'Form Edit', screen: 'Audio Form Edit', color: '#FF6B6B' }
+  };
+  const tabMap = { 'grid-view':'audio-view', 'grid-edit':'audio-grid-edit', 'form-view':'audio-form-view', 'form-edit':'audio-form-edit' };
+
+  function updateDemo() {
+    const key = demoState.type + '-' + demoState.mode;
+    const info = modeMap[key];
+    const g = document.getElementById('demoGrid');
+    const f = document.getElementById('demoForm');
+    g.className = 'demo-seg-btn' + (demoState.type==='grid' ? (demoState.mode==='view'?' sel-view':' sel-edit') : '');
+    f.className = 'demo-seg-btn' + (demoState.type==='form' ? (demoState.mode==='view'?' sel-view':' sel-edit') : '');
+    document.getElementById('demoResult').innerHTML = `현재: <span style="color:${info.color}">${info.label}</span> (${info.screen})`;
+    // sync phone mockup
+    const tabKey = tabMap[key];
+    const tab = document.querySelector(`.mode-tab[data-mode="${tabKey}"]`);
+    if(tab) { document.querySelectorAll('.mode-tab').forEach(x=>x.classList.remove('active')); tab.classList.add('active'); cur=tabKey; render(); }
+  }
+
+  ['demoGrid','demoForm'].forEach(id => {
+    const el = document.getElementById(id);
+    const type = el.dataset.type;
+
+    function startPress(e) {
+      e.preventDefault();
+      lpTimer = setTimeout(() => { lpTimer='long'; demoState.type=type; demoState.mode='edit'; updateDemo(); }, 500);
+    }
+    function endPress(e) {
+      e.preventDefault();
+      if(lpTimer && lpTimer !== 'long') { clearTimeout(lpTimer); demoState.type=type; demoState.mode='view'; updateDemo(); }
+      lpTimer = null;
+    }
+    el.addEventListener('mousedown', startPress);
+    el.addEventListener('mouseup', endPress);
+    el.addEventListener('mouseleave', () => { if(lpTimer && lpTimer!=='long') clearTimeout(lpTimer); lpTimer=null; });
+    el.addEventListener('touchstart', startPress, {passive:false});
+    el.addEventListener('touchend', endPress, {passive:false});
+  });
+})();
+
+// ─── Phone mockup rendering ───
+function wb(n) { let h=''; for(let i=0;i<n;i++){const v=15+Math.sin(i*.3)*30+Math.random()*25; h+=`<div class="waveform-bar" style="height:${v}%"></div>`;} return h; }
+
+function gr(rows, cols, notes, fdots) {
+  const c=['pc0','pc0','pc0','pc0','pc0','pc0','pc0','pc0','pc1','pc1','pc1','pc1','pc1','pc1','pc1','pc1','pc2','pc2','pc2','pc2','pc2','pc2','pc2','pc2','pc3','pc3','pc3','pc3','pc3','pc3','pc3','pc3','pc4','pc4','pc4','pc4','pc4','pc4','pc4','pc4','pc5','pc5','pc5','pc5','pc5','pc5','pc5','pc5','pc6','pc6','pc6','pc6','pc6','pc6','pc6','pc6'];
+  let h='',ci=0;
+  for(let r=0;r<rows;r++){h+='<div class="phrase-row">';for(let k=0;k<cols;k++){const cc=c[ci%c.length],act=r===1&&k===2,cnt=(ci%8)+1;const nd=notes&&(ci===5||ci===13||ci===21)?'<div class="note-dot"></div>':'';const fd=fdots&&(ci%8===0)?'<div class="formation-dot"></div>':'';h+=`<div class="grid-cell ${cc}${act?' active':''}">${cnt}${nd}${fd}</div>`;ci++;}h+='</div>';}
+  return h;
+}
+
+function ds(pos){const nm=['수현','지민','하늘','윤서'];return pos.map((p,i)=>`<div class="dancer d${i+1}" style="left:${p[0]}%;top:${p[1]}%">${String.fromCharCode(65+i)}<div class="dancer-name">${nm[i]}</div></div>`).join('');}
+
+function hdr(o={}) {
+  const ic = o.video ? '🎬' : '🎵';
+  let r = '';
+  if (o.edit) {
+    r += `<div class="header-slot">S <div class="auto-dot"></div></div>`;
+    r += `<div class="header-badge">128 BPM</div>`;
+    r += `<div class="header-btn settings" title="Settings" onclick="toggleModal(this)">⚙</div>`;
+  } else {
+    r += `<div class="header-badge">128 BPM</div>`;
+  }
+  return `<div class="screen-header"><span class="icon">${ic}</span><span class="title">Aventura - Obsesión</span>${r}</div>`;
+}
+
+function seek(s) {
+  return `<div class="seek-section"><div class="waveform"><div class="waveform-bars">${wb(s==='small'?60:80)}</div><div class="waveform-progress"></div></div><div class="time-row"><span>1:23</span><span>3:45</span></div></div>`;
+}
+
+function ctrl(o={}) {
+  let l='';
+  // Mode segment: [🔢 | 👥]
+  const gridCls = o.gridSel ? (o.gridEdit ? ' sel-edit' : ' sel-view') : '';
+  const formCls = o.formSel ? (o.formEdit ? ' sel-edit' : ' sel-view') : '';
+  l += `<div class="mode-segment">`;
+  l += `<div class="mode-seg-btn${gridCls}">🔢</div>`;
+  l += `<div class="mode-seg-btn${formCls}">👥</div>`;
+  l += `</div>`;
+  l += `<div class="speed-badge">1.0x</div><div class="ctrl-btn">⏮</div>`;
+  let r = `<div class="ctrl-btn">⏭</div><div class="ctrl-btn accent">🔊</div>`;
+  if(o.undo) r += `<div class="ctrl-btn active" title="Undo" style="color:#BB86FC">↩</div>`;
+  // Long press hint
+  let hint = `<div class="lp-hint"><span class="hint-key">탭</span>=View <span class="hint-sep">|</span> <span class="hint-key">길게</span>=Edit</div>`;
+  return `<div class="control-bar" style="position:relative"><div class="side left">${l}</div><div class="play-btn">▶</div><div class="side right">${r}</div>${hint}</div>`;
+}
+
+function smodal() {
+  return `<div class="modal-overlay" id="settingsModal">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">⚙️ 트랙 설정</div>
+      <div class="modal-item"><div class="mi-icon">🎯</div><div class="mi-text"><div class="mi-label">비트 미세조정</div><div class="mi-desc">비트 타이밍 ±ms 단위 조절</div></div><div class="mi-value">0ms</div></div>
+      <div class="modal-item"><div class="mi-icon">📤</div><div class="mi-text"><div class="mi-label">내보내기 (Export)</div><div class="mi-desc">PhraseNote / ChoreoNote 공유</div></div></div>
+      <div class="modal-item"><div class="mi-icon">📥</div><div class="mi-text"><div class="mi-label">가져오기 (Import)</div><div class="mi-desc">다른 사람의 노트 불러오기</div></div></div>
+      <div class="modal-divider"></div>
+      <div class="modal-item"><div class="mi-icon">🔄</div><div class="mi-text"><div class="mi-label">재분석</div><div class="mi-desc">서버에서 비트 다시 분석</div></div></div>
+      <div class="modal-item"><div class="mi-icon">🎵</div><div class="mi-text"><div class="mi-label">BPM 수동 설정</div><div class="mi-desc">분석된 BPM 직접 수정</div></div><div class="mi-value">128</div></div>
+      <div class="modal-divider"></div>
+      <div class="modal-item" style="color:#F44336"><div class="mi-icon">🗑️</div><div class="mi-text"><div class="mi-label" style="color:#F44336">전체 리셋</div><div class="mi-desc">모든 편집 내용 초기화</div></div></div>
+    </div>
+  </div>`;
+}
+
+// ─── Screens ───
+const S = {
+  'audio-view': {
+    ind: {t:'VIEW',c:'view'},
+    desc: `<h3>Audio View — 🔢 탭</h3>
+      카운트(大) + 그리드. 가장 기본 화면.<br>
+      <span class="tag new">컨트롤바</span> [🔢·👥] 세그먼트 — 🔢이 <span style="color:#03DAC6">teal</span> 활성<br><br>
+      <span class="tag new">결과</span> 소형폰 그리드 <b>7~8행</b>`,
+    fn: (s) => {
+      const r = s==='small' ? 8 : 10;
+      return hdr({})+`<div class="count-display large">5</div><div class="phrase-grid">${gr(r,8,0,0)}</div>`+seek(s)+ctrl({gridSel:1});
+    }
+  },
+  'audio-grid-edit': {
+    ind: {t:'GRID EDIT',c:'edit'},
+    desc: `<h3>Audio Grid Edit — 🔢 롱프레스</h3>
+      <span class="tag new">헤더</span> [S] + ⚙️<br>
+      <span class="tag new">컨트롤바</span> 🔢이 <span style="color:#BB86FC">purple</span> 활성 + ↩ undo<br><br>
+      <span class="highlight">⚙️ 버튼</span>을 눌러보세요!<br><br>
+      <span class="tag new">결과</span> Edit에서도 소형폰 <b>7행</b>`,
+    fn: (s) => {
+      const r = s==='small' ? 7 : 9;
+      return hdr({edit:1})+`<div class="count-display small-count">5</div><div class="phrase-grid">${gr(r,8,1,0)}</div>`+seek(s)+ctrl({gridSel:1,gridEdit:1,undo:1})+smodal();
+    }
+  },
+  'audio-form-view': {
+    ind: {t:'FORM VIEW',c:'form-view'},
+    desc: `<h3>Audio Form View — 👥 탭</h3>
+      <span class="tag new">컨트롤바</span> 👥이 <span style="color:#03DAC6">teal</span> 활성<br>
+      스테이지 애니메이션 감상. 편집 도구 없음.<br><br>
+      <span class="tag new">결과</span> 스테이지 + 그리드 4~6행`,
+    fn: (s) => {
+      const sh=s==='small'?160:210, r=s==='small'?4:6;
+      return hdr({})+`<div class="formation-stage" style="height:${sh}px"><div class="stage-grid"></div>${ds([[20,25],[65,25],[20,65],[65,65]])}</div><div class="phrase-grid">${gr(r,8,0,1)}</div>`+seek(s)+ctrl({formSel:1});
+    }
+  },
+  'audio-form-edit': {
+    ind: {t:'FORM EDIT',c:'form-edit'},
+    desc: `<h3>Audio Form Edit — 👥 롱프레스</h3>
+      <span class="tag new">헤더</span> [S] + ⚙️<br>
+      <span class="tag new">컨트롤바</span> 👥이 <span style="color:#BB86FC">purple</span> 활성 + ↩ undo<br>
+      <span class="tag new">[🎯 배치]</span> 모달로 패턴/프리셋<br><br>
+      댄서 드래그 + 최소 도구`,
+    fn: (s) => {
+      const sh=s==='small'?140:190, r=s==='small'?3:5;
+      return hdr({edit:1})+`<div class="formation-stage" style="height:${sh}px"><div class="stage-grid"></div>${ds([[15,20],[70,20],[25,60],[60,60]])}</div><div class="stage-toolbar"><div class="stage-tool-btn primary">🎯 배치</div></div><div class="phrase-grid">${gr(r,8,1,1)}</div>`+seek(s)+ctrl({formSel:1,formEdit:1,undo:1})+smodal();
+    }
+  },
+  'video-view': {
+    ind: {t:'VIEW',c:'view'},
+    desc: `<h3>Video View — 🔢 탭</h3>비디오 + 그리드 읽기 전용.<br>🔢 <span style="color:#03DAC6">teal</span> 활성`,
+    fn: (s) => {
+      const vh=s==='small'?130:170, r=s==='small'?5:7;
+      return hdr({video:1})+`<div class="video-section" style="height:${vh}px"><div class="video-placeholder"><div style="font-size:32px;margin-bottom:4px">🎬</div>Aventura - Obsesión</div><div class="video-overlay">5</div></div><div class="video-collapse-handle">▲ 접기</div><div class="phrase-grid">${gr(r,8,0,0)}</div>`+seek(s)+ctrl({gridSel:1});
+    }
+  },
+  'video-grid-edit': {
+    ind: {t:'GRID EDIT',c:'edit'},
+    desc: `<h3>Video Grid Edit — 🔢 롱프레스</h3><span class="tag new">헤더</span> [S] + ⚙️<br>🔢 <span style="color:#BB86FC">purple</span> + ↩ undo`,
+    fn: (s) => {
+      const vh=s==='small'?110:150, r=s==='small'?4:6;
+      return hdr({video:1,edit:1})+`<div class="video-section" style="height:${vh}px"><div class="video-placeholder"><div style="font-size:28px;margin-bottom:4px">🎬</div>Aventura - Obsesión</div><div class="video-overlay">5</div></div><div class="video-collapse-handle">▲ 접기</div><div class="phrase-grid">${gr(r,8,1,0)}</div>`+seek(s)+ctrl({gridSel:1,gridEdit:1,undo:1})+smodal();
+    }
+  }
+};
+
+let cur='audio-view', sz='both';
+
+function render() {
+  const a=document.getElementById('mainArea'), m=S[cur];
+  let h='';
+  if(sz==='both'||sz==='small') h+=`<div class="phone-wrapper"><div class="phone-label">Small Android <span class="dim">(360×640)</span></div><div class="phone-frame small"><div class="phone-notch"></div><div class="phone-content"><div class="mode-indicator ${m.ind.c}">${m.ind.t}</div>${m.fn('small')}</div></div><div class="desc-panel">${m.desc}</div></div>`;
+  if(sz==='both'||sz==='large') h+=`<div class="phone-wrapper"><div class="phone-label">iPhone 17 Pro Max <span class="dim">(393×852)</span></div><div class="phone-frame large"><div class="phone-notch"></div><div class="phone-content"><div class="mode-indicator ${m.ind.c}">${m.ind.t}</div>${m.fn('large')}</div></div></div>`;
+  a.innerHTML=h;
+  // Show long press hints briefly
+  document.querySelectorAll('.lp-hint').forEach(h => { h.classList.add('show'); setTimeout(()=>h.classList.remove('show'), 3000); });
+}
+
+window.toggleModal=function(b){const p=b.closest('.phone-content'),m=p.querySelector('.modal-overlay');if(m)m.classList.toggle('show');};
+document.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('show');});
+
+document.querySelectorAll('.mode-tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.mode-tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); cur=t.dataset.mode; render();
+}));
+document.querySelectorAll('.size-btn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.size-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); sz=b.dataset.size;
+  document.querySelector('.compare-banner').style.display=sz==='both'?'flex':'none'; render();
+}));
+
+render();
+</script>
+</body>
+</html>

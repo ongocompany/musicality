@@ -68,7 +68,7 @@ DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "analysis_cac
 
 
 # AcoustID
-ACOUSTID_API_KEY = "5urpeh7f0F"
+ACOUSTID_API_KEY = os.getenv("ACOUSTID_API_KEY", "5urpeh7f0F")
 
 # Filters
 DURATION_MIN = 90    # 1.5분

@@ -4,12 +4,13 @@ Chromaprint fingerprint -> AcoustID -> MusicBrainz recording -> album art
 """
 
 import logging
+import os
 import time
 import requests
 
 logger = logging.getLogger(__name__)
 
-ACOUSTID_API_KEY = "5urpeh7f0F"
+ACOUSTID_API_KEY = os.getenv("ACOUSTID_API_KEY", "5urpeh7f0F")
 ACOUSTID_URL = "https://api.acoustid.org/v2/lookup"
 COVERART_URL = "https://coverartarchive.org/release"
 
