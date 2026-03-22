@@ -514,7 +514,7 @@ export function usePlayerCore() {
         text: t('player.shareToCrew'),
         onPress: () => {
           const trackId = currentTrack.id;
-          const offset = downbeatOffsets[trackId] ?? 0;
+          const offset = downbeatOffsets[trackId] ?? activeImportedNote?.phraseNote.analysis.downbeatOffset ?? 0;
           const boundaries = phraseMap.phrases.map(p => p.startBeatIndex);
           const notes = cellNotes[trackId] ?? {};
           const pnote = buildPhraseNoteFile({
@@ -538,7 +538,7 @@ export function usePlayerCore() {
         text: t('player.externalShare'),
         onPress: async () => {
           const trackId = currentTrack.id;
-          const offset = downbeatOffsets[trackId] ?? 0;
+          const offset = downbeatOffsets[trackId] ?? activeImportedNote?.phraseNote.analysis.downbeatOffset ?? 0;
           const boundaries = phraseMap.phrases.map(p => p.startBeatIndex);
           const notes = cellNotes[trackId] ?? {};
           const { useAuthStore } = await import('../stores/authStore');
@@ -558,7 +558,7 @@ export function usePlayerCore() {
       },
       { text: t('common.cancel'), style: 'cancel' },
     ]);
-  }, [currentTrack, analysis, phraseMap, downbeatOffsets, cellNotes, danceStyle, router]);
+  }, [currentTrack, analysis, phraseMap, downbeatOffsets, cellNotes, danceStyle, router, activeImportedNote]);
 
   // ─── Return ───
   return {

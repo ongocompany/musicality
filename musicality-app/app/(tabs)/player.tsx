@@ -894,7 +894,7 @@ export default function PlayerScreen() {
         text: t('player.shareToCrew'),
         onPress: () => {
           const trackId = currentTrack.id;
-          const offset = downbeatOffsets[trackId] ?? 0;
+          const offset = downbeatOffsets[trackId] ?? activeImportedNote?.phraseNote.analysis.downbeatOffset ?? 0;
           const boundaries = phraseMap.phrases.map(p => p.startBeatIndex);
           const notes = cellNotes[trackId] ?? {};
           const pnote = buildPhraseNoteFile({
@@ -925,7 +925,7 @@ export default function PlayerScreen() {
         onPress: async () => {
           if (!currentTrack || !analysis || !phraseMap) return;
           const trackId = currentTrack.id;
-          const offset = downbeatOffsets[trackId] ?? 0;
+          const offset = downbeatOffsets[trackId] ?? activeImportedNote?.phraseNote.analysis.downbeatOffset ?? 0;
           const boundaries = phraseMap.phrases.map(p => p.startBeatIndex);
           const notes = cellNotes[trackId] ?? {};
           const { useAuthStore } = await import('../../stores/authStore');
@@ -953,7 +953,7 @@ export default function PlayerScreen() {
       },
       { text: t('common.cancel'), style: 'cancel' },
     ]);
-  }, [currentTrack, analysis, phraseMap, downbeatOffsets, cellNotes, danceStyle, router]);
+  }, [currentTrack, analysis, phraseMap, downbeatOffsets, cellNotes, danceStyle, router, activeImportedNote]);
 
   const handleShareConfirm = useCallback(async () => {
     if (!currentTrack || !analysis || !phraseMap) return;
@@ -984,7 +984,7 @@ export default function PlayerScreen() {
         Alert.alert(t('player.shareError'), err?.message || t('player.failedToSharePhraseNote'));
       }
     }
-  }, [currentTrack, analysis, phraseMap, downbeatOffsets, cellNotes, danceStyle, shareAuthorName]);
+  }, [currentTrack, analysis, phraseMap, downbeatOffsets, cellNotes, danceStyle, shareAuthorName, activeImportedNote]);
 
   // ─── Edition picker active state ───
   // 'source' = 'mine' (original/user editions) or 'imported-{noteId}'
