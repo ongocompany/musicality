@@ -53,7 +53,7 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
     handleGridTapBeat, handleSeekAndPlay, handleSeekOnly,
     handleSkipBack, handleSkipForward,
     handleSetLoopPoint, clearLoop,
-    handleReArrangePhrase, handleSplitPhraseHere, handleMergeWithPrevious,
+    handleReArrangePhrase, handleReArrangePhraseLocal, handleSplitPhraseHere, handleMergeWithPrevious,
     handleSetCellNote, handleClearCellNote,
     handleSharePhraseNote, runAnalysis,
   } = playerCore;
@@ -151,6 +151,7 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
               isPlaying={isPlaying}
               onTapBeat={handleGridTapBeat}
               onReArrangePhrase={slot.isReadOnly ? () => { slot.tryEdit(); } : handleReArrangePhrase}
+              onReArrangePhraseLocal={slot.isReadOnly ? () => { slot.tryEdit(); } : handleReArrangePhraseLocal}
               onSplitPhraseHere={slot.isReadOnly ? () => { slot.tryEdit(); } : handleSplitPhraseHere}
               onSetLoopPoint={handleSetLoopPoint}
               onClearLoop={clearLoop}

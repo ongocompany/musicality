@@ -153,6 +153,8 @@
     "enterMemo": "메모 입력 (최대 30자)",
     "splitPhrase": "프레이즈 분할",
     "reArrangePhrase": "프레이즈 재배치",
+    "reArrangePhraseAll": "여기가 1 (전곡)",
+    "reArrangePhraseLocal": "여기가 1 (이 프레이즈만)",
     "deletePhrase": "프레이즈 삭제",
     "formation": "포메이션",
     "editMode": "편집 모드",

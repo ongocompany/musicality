@@ -48,7 +48,7 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
     handleGridTapBeat, handleSeekAndPlay, handleSeekOnly,
     handleSkipBack, handleSkipForward,
     handleSetLoopPoint, clearLoop, setLoopStart, setLoopEnd,
-    handleReArrangePhrase, handleSplitPhraseHere, handleMergeWithPrevious,
+    handleReArrangePhrase, handleReArrangePhraseLocal, handleSplitPhraseHere, handleMergeWithPrevious,
   } = playerCore;
 
   const autoHideMs = useSettingsStore((s) => s.autoHideMs);
@@ -112,6 +112,7 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
                 isPlaying={isPlaying}
                 onTapBeat={handleGridTapBeat}
                 onReArrangePhrase={handleReArrangePhrase}
+                onReArrangePhraseLocal={handleReArrangePhraseLocal}
                 onSplitPhraseHere={handleSplitPhraseHere}
                 onSetLoopPoint={handleSetLoopPoint}
                 onClearLoop={clearLoop}

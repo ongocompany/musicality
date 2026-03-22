@@ -153,6 +153,8 @@
     "enterMemo": "Notiz eingeben (max. 30 Zeichen)",
     "splitPhrase": "Phrase teilen",
     "reArrangePhrase": "Phrase neu anordnen",
+    "reArrangePhraseAll": "Ab hier zählen (ganzer Song)",
+    "reArrangePhraseLocal": "Ab hier zählen (nur diese Phrase)",
     "deletePhrase": "Phrase löschen",
     "formation": "Formation",
     "editMode": "Bearbeitungsmodus",

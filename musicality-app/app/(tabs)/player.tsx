@@ -648,6 +648,23 @@ export default function PlayerScreen() {
     setDraftBoundaries(currentTrack.id, newBoundaries);
   }, [currentTrack, analysis, phraseMap, setDraftBoundaries, pushUndo]);
 
+  // Re-arrange phrase locally: split here but keep subsequent boundaries unchanged
+  const handleReArrangePhraseLocal = useCallback((globalBeatIndex: number) => {
+    if (!currentTrack || !analysis || !phraseMap) return;
+    const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+    const phraseIdx = phraseMap.phrases.findIndex(p =>
+      globalBeatIndex >= p.startBeatIndex && globalBeatIndex < p.endBeatIndex
+    );
+    if (phraseIdx < 0) return;
+    const offset = globalBeatIndex - phraseMap.phrases[phraseIdx].startBeatIndex;
+    if (offset === 0) return;
+    // Only split the current phrase — keep all subsequent boundaries unchanged
+    const newBoundaries = [...currentBoundaries];
+    newBoundaries.splice(phraseIdx + 1, 0, globalBeatIndex);
+    pushUndo(currentTrack.id, currentBoundaries);
+    setDraftBoundaries(currentTrack.id, newBoundaries);
+  }, [currentTrack, analysis, phraseMap, setDraftBoundaries, pushUndo]);
+
   // Paused tap: seek to beat and start playback (preview)
   const handleSeekAndPlay = useCallback((beatTimeMs: number) => {
     seekTo(beatTimeMs);
@@ -1383,6 +1400,7 @@ export default function PlayerScreen() {
                   isPlaying={isPlaying}
                   onTapBeat={handleGridTapBeat}
                   onReArrangePhrase={handleReArrangePhrase}
+                  onReArrangePhraseLocal={handleReArrangePhraseLocal}
                   onSplitPhraseHere={handleSplitPhraseHere}
                   onSetLoopPoint={handleSetLoopPoint}
                   onClearLoop={clearLoop}
@@ -1500,6 +1518,7 @@ export default function PlayerScreen() {
                   isPlaying={isPlaying}
                   onTapBeat={handleGridTapBeat}
                   onReArrangePhrase={handleReArrangePhrase}
+                  onReArrangePhraseLocal={handleReArrangePhraseLocal}
                   onSplitPhraseHere={handleSplitPhraseHere}
                   onSetLoopPoint={handleSetLoopPoint}
                   onClearLoop={clearLoop}
@@ -1570,6 +1589,7 @@ export default function PlayerScreen() {
                 isPlaying={isPlaying}
                 onTapBeat={handleGridTapBeat}
                 onReArrangePhrase={handleReArrangePhrase}
+                onReArrangePhraseLocal={handleReArrangePhraseLocal}
                 onSplitPhraseHere={handleSplitPhraseHere}
                 onSetLoopPoint={handleSetLoopPoint}
                 onClearLoop={clearLoop}

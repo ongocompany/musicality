@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, LayoutChangeEvent, Modal, Pressable, TouchableOpacity, TextInput, Keyboard, ScrollView, NativeSyntheticEvent, NativeScrollEvent, Platform } from 'react-native';
+import { View, Text, StyleSheet, LayoutChangeEvent, Modal, Pressable, TouchableOpacity, TextInput, Keyboard, ScrollView, NativeSyntheticEvent, NativeScrollEvent, Platform, Animated } from 'react-native';
 import { useTutorialStore } from '../../stores/tutorialStore';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
@@ -19,6 +19,7 @@ interface PhraseGridProps {
   onTapBeat: (globalBeatIndex: number) => void;
   onSplitPhraseHere: (globalBeatIndex: number) => void;
   onReArrangePhrase: (globalBeatIndex: number) => void;
+  onReArrangePhraseLocal: (globalBeatIndex: number) => void;
   onSetLoopPoint: (beatTimeMs: number) => void;
   onClearLoop: () => void;
   onSeekAndPlay: (beatTimeMs: number) => void;
@@ -54,7 +55,7 @@ const RENDER_BUFFER_ROWS = 4; // extra rows rendered above/below visible area
 
 export function PhraseGrid({
   countInfo, phraseMap, hasAnalysis, beats, isPlaying,
-  onTapBeat, onSplitPhraseHere, onReArrangePhrase, onSetLoopPoint, onClearLoop,
+  onTapBeat, onSplitPhraseHere, onReArrangePhrase, onReArrangePhraseLocal, onSetLoopPoint, onClearLoop,
   onSeekAndPlay, onSeekOnly, onMergeWithPrevious,
   loopStart, loopEnd, rows, scrollMode,
   cellNotes, onSetCellNote, onClearCellNote,
@@ -96,12 +97,46 @@ export function PhraseGrid({
   // Track the beat where the last phrase action was performed (for scroll anchor)
   const actionBeatRef = useRef<number>(-1);
 
+  // ─── Phrase action animation ───
+  const [cellTranslates, setCellTranslates] = useState<Map<number, { x: Animated.Value; y: Animated.Value }>>(new Map());
+  const [colorOverrides, setColorOverrides] = useState<Map<number, string>>(new Map());
+  const [showBeatNumbers, setShowBeatNumbers] = useState<Set<number>>(new Set());
+  const [highlightCellIndex, setHighlightCellIndex] = useState<number>(-1);
+  const snapshotRef = useRef<{
+    beatPositions: Map<number, { row: number; col: number }>;
+    beatColors: Map<number, string>;
+    actionBeat: number;
+  } | null>(null);
+  const colorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const numberTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear highlight when user taps any cell or starts playback
+  useEffect(() => {
+    if (isPlaying) setHighlightCellIndex(-1);
+  }, [isPlaying]);
+
+  // Take layout snapshot before phrase action
+  const takeSnapshot = useCallback((actionBeat: number) => {
+    setHighlightCellIndex(-1); // clear previous highlight
+    const positions = new Map<number, { row: number; col: number }>();
+    const colors = new Map<number, string>();
+    for (let i = 0; i < visualCells.length; i++) {
+      const beat = visualCells[i];
+      if (beat < 0) continue;
+      positions.set(beat, { row: Math.floor(i / COLS), col: i % COLS });
+      colors.set(beat, getCellPhraseColor(i));
+    }
+    snapshotRef.current = { beatPositions: positions, beatColors: colors, actionBeat };
+  }, [visualCells, getCellPhraseColor]);
+
   // Cleanup timeouts
   useEffect(() => {
     return () => {
       if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
       if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
       if (autoScrollTimerRef.current) clearTimeout(autoScrollTimerRef.current);
+      if (colorTimerRef.current) clearTimeout(colorTimerRef.current);
+      if (numberTimerRef.current) clearTimeout(numberTimerRef.current);
     };
   }, []);
 
@@ -179,6 +214,116 @@ export function PhraseGrid({
 
   const totalVisualCells = visualCells.length > 0 ? visualCells.length : CELLS_PER_PAGE;
   const totalDataRows = Math.ceil(totalVisualCells / COLS);
+
+  // ─── Phrase action animation trigger ───
+  useEffect(() => {
+    if (!snapshotRef.current || cellSize <= 0) return;
+    const snapshot = snapshotRef.current;
+    snapshotRef.current = null;
+
+    const step = cellSize + CELL_GAP;
+    const translates = new Map<number, { x: Animated.Value; y: Animated.Value }>();
+    const overrides = new Map<number, string>();
+    const beatNumbers = new Set<number>();
+    const animEntries: { cellIndex: number; dist: number; x: Animated.Value; y: Animated.Value }[] = [];
+
+    for (let i = 0; i < visualCells.length; i++) {
+      const beat = visualCells[i];
+      if (beat < 0) continue;
+      const oldPos = snapshot.beatPositions.get(beat);
+      if (!oldPos) continue;
+
+      const newRow = Math.floor(i / COLS);
+      const newCol = i % COLS;
+      const dx = (oldPos.col - newCol) * step;
+      const dy = (oldPos.row - newRow) * step;
+
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
+        // Position didn't change — check if color changed
+        const oldColor = snapshot.beatColors.get(beat);
+        const newColor = getCellPhraseColor(i);
+        if (oldColor && oldColor !== newColor) {
+          overrides.set(i, oldColor);
+          beatNumbers.add(i);
+        }
+        continue;
+      }
+
+      const x = new Animated.Value(dx);
+      const y = new Animated.Value(dy);
+      translates.set(i, { x, y });
+      beatNumbers.add(i);
+
+      // Keep old color during movement
+      const oldColor = snapshot.beatColors.get(beat);
+      if (oldColor) overrides.set(i, oldColor);
+
+      // Distance from action point for stagger ordering
+      const dist = Math.abs(beat - snapshot.actionBeat);
+      animEntries.push({ cellIndex: i, dist, x, y });
+    }
+
+    if (animEntries.length === 0 && overrides.size === 0) return;
+
+    // Sort by distance from action beat (ripple effect)
+    animEntries.sort((a, b) => a.dist - b.dist);
+
+    setCellTranslates(translates);
+    setColorOverrides(overrides);
+    setShowBeatNumbers(beatNumbers);
+
+    // Haptic feedback at animation start
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Position animation — staggered spring
+    const posAnims = animEntries.map(({ x, y }) =>
+      Animated.parallel([
+        Animated.spring(x, { toValue: 0, friction: 7, tension: 90, useNativeDriver: true }),
+        Animated.spring(y, { toValue: 0, friction: 7, tension: 90, useNativeDriver: true }),
+      ])
+    );
+
+    // Find the cell index of the action beat (for scroll + highlight after animation)
+    const actionCellIndex = beatToVisualCell.get(snapshot.actionBeat) ?? -1;
+
+    if (posAnims.length > 0) {
+      Animated.stagger(20, posAnims).start(() => {
+        setCellTranslates(new Map());
+        // Scroll to action beat and set persistent highlight
+        if (actionCellIndex >= 0) {
+          const targetRow = Math.floor(actionCellIndex / COLS);
+          if (scrollViewRef.current && rowHeight > 0) {
+            const targetOffset = Math.max(0, (targetRow - SCROLL_ANCHOR_ROW) * rowHeight);
+            scrollViewRef.current.scrollTo({ y: targetOffset, animated: true });
+          }
+          setRenderStartRow(Math.max(0, targetRow - SCROLL_ANCHOR_ROW - RENDER_BUFFER_ROWS));
+          setHighlightCellIndex(actionCellIndex);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+      });
+    } else if (actionCellIndex >= 0) {
+      // No position animation but color changed — still scroll + highlight
+      const targetRow = Math.floor(actionCellIndex / COLS);
+      if (scrollViewRef.current && rowHeight > 0) {
+        const targetOffset = Math.max(0, (targetRow - SCROLL_ANCHOR_ROW) * rowHeight);
+        scrollViewRef.current.scrollTo({ y: targetOffset, animated: true });
+      }
+      setRenderStartRow(Math.max(0, targetRow - SCROLL_ANCHOR_ROW - RENDER_BUFFER_ROWS));
+      setHighlightCellIndex(actionCellIndex);
+    }
+
+    // Color snap — partway through animation, reveal new colors
+    if (colorTimerRef.current) clearTimeout(colorTimerRef.current);
+    colorTimerRef.current = setTimeout(() => {
+      setColorOverrides(new Map());
+    }, 280);
+
+    // Beat numbers — keep showing a bit longer then hide
+    if (numberTimerRef.current) clearTimeout(numberTimerRef.current);
+    numberTimerRef.current = setTimeout(() => {
+      setShowBeatNumbers(new Set());
+    }, 600);
+  }, [visualCells, cellSize, getCellPhraseColor]);
 
   // ─── Reset render window when phrase layout changes (e.g. split/re-arrange) ───
   const prevVisualCellsRef = useRef(visualCells);
@@ -374,6 +519,9 @@ export function PhraseGrid({
     const globalBeat = cellToGlobalBeat(cellIndex);
     if (globalBeat < 0) return;
 
+    // Clear phrase action highlight on any tap
+    setHighlightCellIndex(-1);
+
     // Flash effect
     setFlashCellIndex(cellIndex);
     if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
@@ -411,6 +559,12 @@ export function PhraseGrid({
     const globalBeat = cellToGlobalBeat(cellIndex);
     if (globalBeat < 0) return;
 
+    // Clear previous highlight and seek to this cell
+    setHighlightCellIndex(-1);
+    if (globalBeat < beats.length) {
+      onSeekOnly(beats[globalBeat] * 1000);
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     if (repeatSelectMode) {
@@ -434,20 +588,32 @@ export function PhraseGrid({
   const handleSplitPhraseHere = useCallback(() => {
     if (menuGlobalBeat < 0) return;
     console.log(`[Grid] split at beat=${menuGlobalBeat}, cellIdx=${menuCellIndex}`);
+    takeSnapshot(menuGlobalBeat);
     actionBeatRef.current = menuGlobalBeat;
     onSplitPhraseHere(menuGlobalBeat);
     setMenuVisible(false);
     setMenuCellIndex(-1);
-  }, [menuGlobalBeat, menuCellIndex, onSplitPhraseHere]);
+  }, [menuGlobalBeat, menuCellIndex, onSplitPhraseHere, takeSnapshot]);
 
   const handleReArrangePhrase = useCallback(() => {
     if (menuGlobalBeat < 0) return;
-    console.log(`[Grid] rearrange at beat=${menuGlobalBeat}, cellIdx=${menuCellIndex}`);
+    console.log(`[Grid] rearrange(all) at beat=${menuGlobalBeat}, cellIdx=${menuCellIndex}`);
+    takeSnapshot(menuGlobalBeat);
     actionBeatRef.current = menuGlobalBeat;
     onReArrangePhrase(menuGlobalBeat);
     setMenuVisible(false);
     setMenuCellIndex(-1);
-  }, [menuGlobalBeat, menuCellIndex, onReArrangePhrase]);
+  }, [menuGlobalBeat, menuCellIndex, onReArrangePhrase, takeSnapshot]);
+
+  const handleReArrangePhraseLocal = useCallback(() => {
+    if (menuGlobalBeat < 0) return;
+    console.log(`[Grid] rearrange(local) at beat=${menuGlobalBeat}, cellIdx=${menuCellIndex}`);
+    takeSnapshot(menuGlobalBeat);
+    actionBeatRef.current = menuGlobalBeat;
+    onReArrangePhraseLocal(menuGlobalBeat);
+    setMenuVisible(false);
+    setMenuCellIndex(-1);
+  }, [menuGlobalBeat, menuCellIndex, onReArrangePhraseLocal, takeSnapshot]);
 
   const handleRepeatFromHere = useCallback(() => {
     if (menuGlobalBeat < 0 || menuGlobalBeat >= beats.length) return;
@@ -466,11 +632,12 @@ export function PhraseGrid({
   const handleMergeWithPrevious = useCallback(() => {
     if (menuGlobalBeat < 0) return;
     console.log(`[Grid] merge at beat=${menuGlobalBeat}, cellIdx=${menuCellIndex}`);
+    takeSnapshot(menuGlobalBeat);
     actionBeatRef.current = menuGlobalBeat;
     onMergeWithPrevious(menuGlobalBeat);
     setMenuVisible(false);
     setMenuCellIndex(-1);
-  }, [menuGlobalBeat, menuCellIndex, onMergeWithPrevious]);
+  }, [menuGlobalBeat, menuCellIndex, onMergeWithPrevious, takeSnapshot]);
 
   // ─── Cell note menu handlers ───
   const menuHasNote = useMemo(() => {
@@ -638,12 +805,14 @@ export function PhraseGrid({
               {containerWidth > 0 && cellSize > 0 && Array.from({ length: renderEndCell - renderStartCell }, (_, idx) => {
                     const i = renderStartCell + idx;
                     const beatForKey = i < visualCells.length ? visualCells[i] : -1;
+                    const anim = cellTranslates.get(i);
+                    const overrideColor = colorOverrides.get(i);
                     return (
                       <PhraseGridCell
                         key={`${beatForKey}:${i}`}
                         cellIndex={i}
                         state={getCellState(i)}
-                        color={getCellPhraseColor(i)}
+                        color={overrideColor ?? getCellPhraseColor(i)}
                         size={cellSize}
                         isFlashing={flashCellIndex === i}
                         onPress={handleCellTap}
@@ -654,6 +823,10 @@ export function PhraseGrid({
                         hasFormation={getCellHasFormation(i)}
                         beatCount={getCellBeatCount(i)}
                         phraseLabel={getCellPhraseLabel(i)}
+                        animTranslateX={anim?.x}
+                        animTranslateY={anim?.y}
+                        showBeatNumber={showBeatNumbers.has(i)}
+                        isHighlighted={highlightCellIndex === i}
                       />
                     );
               })}
@@ -751,11 +924,16 @@ export function PhraseGrid({
             {/* Non-formation mode: phrase editing options */}
             {editMode !== 'formation' && (
               <>
-                {/* Re-arrange phrases — paused + not first cell of phrase */}
+                {/* "Count from here" — paused + not first cell of phrase */}
                 {!isPlaying && !isFirstCellOfPhrase && (
-                  <TouchableOpacity style={styles.menuOption} onPress={handleReArrangePhrase}>
-                    <Text style={styles.menuOptionText}>{t('player.reArrangePhrase')}</Text>
-                  </TouchableOpacity>
+                  <>
+                    <TouchableOpacity style={styles.menuOption} onPress={handleReArrangePhraseLocal}>
+                      <Text style={styles.menuOptionText}>{t('player.reArrangePhraseLocal')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.menuOption} onPress={handleReArrangePhrase}>
+                      <Text style={styles.menuOptionText}>{t('player.reArrangePhraseAll')}</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
 
                 {/* Split phrase here — paused + not first cell of phrase */}

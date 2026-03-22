@@ -62,7 +62,7 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
     handleGridTapBeat, handleSeekAndPlay, handleSeekOnly,
     handleSkipBack, handleSkipForward, handleUndo,
     handleSetLoopPoint, clearLoop,
-    handleReArrangePhrase, handleSplitPhraseHere, handleMergeWithPrevious,
+    handleReArrangePhrase, handleReArrangePhraseLocal, handleSplitPhraseHere, handleMergeWithPrevious,
     handleSetCellNote, handleClearCellNote,
     handleSharePhraseNote, runAnalysis,
   } = playerCore;
@@ -264,6 +264,7 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
               isPlaying={isPlaying}
               onTapBeat={(idx) => { handleGridTapBeat(idx); focus.scheduleAutoHide(); }}
               onReArrangePhrase={slot.isReadOnly ? () => { slot.tryEdit(); } : handleReArrangePhrase}
+              onReArrangePhraseLocal={slot.isReadOnly ? () => { slot.tryEdit(); } : handleReArrangePhraseLocal}
               onSplitPhraseHere={slot.isReadOnly ? () => { slot.tryEdit(); } : handleSplitPhraseHere}
               onSetLoopPoint={handleSetLoopPoint}
               onClearLoop={clearLoop}

@@ -153,6 +153,8 @@
     "enterMemo": "Enter memo (max 30 chars)",
     "splitPhrase": "Split Phrase",
     "reArrangePhrase": "Rearrange Phrase",
+    "reArrangePhraseAll": "Count from here (entire song)",
+    "reArrangePhraseLocal": "Count from here (this phrase only)",
     "deletePhrase": "Delete Phrase",
     "formation": "Formation",
     "editMode": "Edit Mode",

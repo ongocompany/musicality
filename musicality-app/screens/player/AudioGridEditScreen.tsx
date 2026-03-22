@@ -55,7 +55,7 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
     handleGridTapBeat, handleSeekAndPlay, handleSeekOnly,
     handleSkipBack, handleSkipForward, handleUndo,
     handleSetLoopPoint, clearLoop,
-    handleReArrangePhrase, handleSplitPhraseHere, handleMergeWithPrevious,
+    handleReArrangePhrase, handleReArrangePhraseLocal, handleSplitPhraseHere, handleMergeWithPrevious,
     handleSetCellNote, handleClearCellNote,
     handleSharePhraseNote, runAnalysis,
   } = playerCore;
@@ -132,6 +132,7 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
                 isPlaying={isPlaying}
                 onTapBeat={handleGridTapBeat}
                 onReArrangePhrase={slot.isReadOnly ? () => { slot.tryEdit(); } : handleReArrangePhrase}
+                onReArrangePhraseLocal={slot.isReadOnly ? () => { slot.tryEdit(); } : handleReArrangePhraseLocal}
                 onSplitPhraseHere={slot.isReadOnly ? () => { slot.tryEdit(); } : handleSplitPhraseHere}
                 onSetLoopPoint={handleSetLoopPoint}
                 onClearLoop={clearLoop}

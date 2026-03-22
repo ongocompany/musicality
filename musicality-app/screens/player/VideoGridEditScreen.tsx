@@ -52,7 +52,7 @@ export function VideoGridEditScreen({ playerCore, playerMode }: VideoGridEditScr
     handleGridTapBeat, handleSeekAndPlay, handleSeekOnly,
     handleSkipBack, handleSkipForward, handleUndo,
     handleSetLoopPoint, clearLoop,
-    handleReArrangePhrase, handleSplitPhraseHere, handleMergeWithPrevious,
+    handleReArrangePhrase, handleReArrangePhraseLocal, handleSplitPhraseHere, handleMergeWithPrevious,
     handleSetCellNote, handleClearCellNote,
     handleSharePhraseNote, runAnalysis,
   } = playerCore;
@@ -200,6 +200,7 @@ export function VideoGridEditScreen({ playerCore, playerMode }: VideoGridEditScr
               isPlaying={isPlaying}
               onTapBeat={handleGridTapBeat}
               onReArrangePhrase={handleReArrangePhrase}
+              onReArrangePhraseLocal={handleReArrangePhraseLocal}
               onSplitPhraseHere={handleSplitPhraseHere}
               onSetLoopPoint={handleSetLoopPoint}
               onClearLoop={clearLoop}

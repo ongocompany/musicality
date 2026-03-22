@@ -47,7 +47,7 @@ export function VideoViewScreen({ playerCore, playerMode }: VideoViewScreenProps
     handleGridTapBeat, handleSeekAndPlay, handleSeekOnly,
     handleSkipBack, handleSkipForward,
     handleSetLoopPoint, clearLoop,
-    handleReArrangePhrase, handleSplitPhraseHere, handleMergeWithPrevious,
+    handleReArrangePhrase, handleReArrangePhraseLocal, handleSplitPhraseHere, handleMergeWithPrevious,
   } = playerCore;
 
   // ─── Controls overlay (탭하면 잠시 표시 → 자동 숨김) ───
@@ -220,6 +220,7 @@ export function VideoViewScreen({ playerCore, playerMode }: VideoViewScreenProps
                 editMode="none"
                 onSplitPhraseHere={() => {}}
                 onReArrangePhrase={() => {}}
+                onReArrangePhraseLocal={() => {}}
                 onMergeWithPrevious={() => {}}
               />
             </View>

@@ -285,6 +285,22 @@ export function usePlayerCore() {
     setDraftBoundaries(currentTrack.id, newBoundaries);
   }, [currentTrack, analysis, phraseMap, setDraftBoundaries, pushUndo]);
 
+  const handleReArrangePhraseLocal = useCallback((globalBeatIndex: number) => {
+    if (!currentTrack || !analysis || !phraseMap) return;
+    const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
+    const phraseIdx = phraseMap.phrases.findIndex(p =>
+      globalBeatIndex >= p.startBeatIndex && globalBeatIndex < p.endBeatIndex
+    );
+    if (phraseIdx < 0) return;
+    const offset = globalBeatIndex - phraseMap.phrases[phraseIdx].startBeatIndex;
+    if (offset === 0) return;
+    // Only split the current phrase — keep all subsequent boundaries unchanged
+    const newBoundaries = [...currentBoundaries];
+    newBoundaries.splice(phraseIdx + 1, 0, globalBeatIndex);
+    pushUndo(currentTrack.id, currentBoundaries);
+    setDraftBoundaries(currentTrack.id, newBoundaries);
+  }, [currentTrack, analysis, phraseMap, setDraftBoundaries, pushUndo]);
+
   const handleSplitPhraseHere = useCallback((globalBeatIndex: number) => {
     if (!currentTrack || !analysis || !phraseMap) return;
     const currentBoundaries = phraseMap.phrases.map(p => p.startBeatIndex);
@@ -571,7 +587,7 @@ export function usePlayerCore() {
     runAnalysis,
 
     // Handlers
-    handleGridTapBeat, handleReArrangePhrase, handleSplitPhraseHere,
+    handleGridTapBeat, handleReArrangePhrase, handleReArrangePhraseLocal, handleSplitPhraseHere,
     handleMergeWithPrevious, handleSeekAndPlay, handleSeekOnly,
     handleSetCellNote, handleClearCellNote,
     handleSkipBack, handleSkipForward,

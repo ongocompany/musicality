@@ -153,6 +153,8 @@
     "enterMemo": "输入备注（最多30字）",
     "splitPhrase": "分割乐句",
     "reArrangePhrase": "重新排列乐句",
+    "reArrangePhraseAll": "从这里开始计数 (全曲)",
+    "reArrangePhraseLocal": "从这里开始计数 (仅此乐句)",
     "deletePhrase": "删除乐句",
     "formation": "队形",
     "editMode": "编辑模式",

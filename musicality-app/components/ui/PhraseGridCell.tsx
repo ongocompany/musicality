@@ -18,9 +18,14 @@ interface PhraseGridCellProps {
   hasFormation?: boolean;      // show formation indicator (top-left dot)
   beatCount?: number;          // 1-8 count shown inside the cell
   phraseLabel?: string | null; // phrase number shown in first column cell
+  // Animation props for phrase rearrange/split/merge
+  animTranslateX?: Animated.Value;
+  animTranslateY?: Animated.Value;
+  showBeatNumber?: boolean;    // force show beat count during animation
+  isHighlighted?: boolean;     // persistent highlight ring after phrase action
 }
 
-function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel, hasNote, hasFormation, beatCount, phraseLabel }: PhraseGridCellProps) {
+function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel, hasNote, hasFormation, beatCount, phraseLabel, animTranslateX, animTranslateY, showBeatNumber, isHighlighted }: PhraseGridCellProps) {
   const handlePress = useCallback(() => onPress(cellIndex), [onPress, cellIndex]);
   const handleLongPress = useCallback(() => onLongPress(cellIndex), [onLongPress, cellIndex]);
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -63,6 +68,8 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
     prevStateRef.current = state;
   }, [state]);
 
+  const hasAnimTransform = !!(animTranslateX || animTranslateY);
+
   if (state === 'hidden') {
     return <View style={{ width: size, height: size, margin: GAP / 2 }} />;
   }
@@ -77,14 +84,25 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
   const opacity = isPlayed ? 0.5 : 1;
   const isCurrent = state === 'current';
 
-  return (
-    <View style={{
+  const OuterContainer = hasAnimTransform ? Animated.View : View;
+  const outerStyle: any[] = [
+    {
       width: size,
       height: size,
       margin: GAP / 2,
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+  ];
+  if (hasAnimTransform) {
+    const transforms: any[] = [];
+    if (animTranslateX) transforms.push({ translateX: animTranslateX });
+    if (animTranslateY) transforms.push({ translateY: animTranslateY });
+    outerStyle.push({ zIndex: 10, transform: transforms });
+  }
+
+  return (
+    <OuterContainer style={outerStyle}>
       {/* Glow layers — simplified on Android for performance */}
       {isCurrent && Platform.OS === 'android' && (
         <Animated.View
@@ -182,8 +200,8 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
               height: size - (isCurrent ? 4 : 0),
               backgroundColor,
               opacity,
-              borderWidth: isCurrent ? 2 : isPlayed ? 1.5 : 0,
-              borderColor: isCurrent ? '#FFFFFF' : isPlayed ? color : 'transparent',
+              borderWidth: isHighlighted ? 2.5 : isCurrent ? 2 : isPlayed ? 1.5 : 0,
+              borderColor: isHighlighted ? '#FFD700' : isCurrent ? '#FFFFFF' : isPlayed ? color : 'transparent',
             },
           ]}
           onPress={handlePress}
@@ -191,17 +209,20 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
           delayLongPress={400}
           activeOpacity={0.7}
         >
-          {/* Beat count (1-8) — only on current (pulsing) cell */}
-          {beatCount != null && state === 'current' && (
+          {/* Beat count (1-8) — on current cell or during animation */}
+          {beatCount != null && (state === 'current' || showBeatNumber) && (
             <Text style={[
               styles.beatCount,
-              { fontSize: Math.max(12, Math.round(size * 0.6)) },
+              {
+                fontSize: Math.max(12, Math.round(size * (showBeatNumber && state !== 'current' ? 0.45 : 0.6))),
+                opacity: showBeatNumber && state !== 'current' ? 0.9 : 0.8,
+              },
             ]}>
               {beatCount}
             </Text>
           )}
           {/* Phrase beat number label — first column of each row */}
-          {phraseLabel != null && state !== 'current' && (
+          {phraseLabel != null && state !== 'current' && !showBeatNumber && (
             <Text style={[
               styles.phraseLabel,
               {
@@ -230,7 +251,7 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
           )}
         </TouchableOpacity>
       </Animated.View>
-    </View>
+    </OuterContainer>
   );
 }
 

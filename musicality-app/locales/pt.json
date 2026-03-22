@@ -153,6 +153,8 @@
     "enterMemo": "Digite uma anotação (máx. 30 caracteres)",
     "splitPhrase": "Dividir frase",
     "reArrangePhrase": "Reorganizar frase",
+    "reArrangePhraseAll": "Contar daqui (toda a música)",
+    "reArrangePhraseLocal": "Contar daqui (apenas esta frase)",
     "deletePhrase": "Excluir frase",
     "formation": "Formação",
     "editMode": "Modo de edição",

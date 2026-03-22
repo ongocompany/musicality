@@ -153,6 +153,8 @@
     "enterMemo": "Введите заметку (макс. 30 символов)",
     "splitPhrase": "Разделить фразу",
     "reArrangePhrase": "Переставить фразу",
+    "reArrangePhraseAll": "Считать отсюда (вся песня)",
+    "reArrangePhraseLocal": "Считать отсюда (только эта фраза)",
     "deletePhrase": "Удалить фразу",
     "formation": "Формация",
     "editMode": "Режим редактирования",

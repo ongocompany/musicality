@@ -153,6 +153,8 @@
     "enterMemo": "Saisir un mémo (30 caractères max)",
     "splitPhrase": "Diviser la phrase",
     "reArrangePhrase": "Réorganiser la phrase",
+    "reArrangePhraseAll": "Compter d'ici (tout le morceau)",
+    "reArrangePhraseLocal": "Compter d'ici (cette phrase uniquement)",
     "deletePhrase": "Supprimer la phrase",
     "formation": "Formation",
     "editMode": "Mode édition",

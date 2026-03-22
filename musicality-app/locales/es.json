@@ -153,6 +153,8 @@
     "enterMemo": "Escribe una nota (máx. 30 caracteres)",
     "splitPhrase": "Dividir frase",
     "reArrangePhrase": "Reorganizar frase",
+    "reArrangePhraseAll": "Contar desde aquí (toda la canción)",
+    "reArrangePhraseLocal": "Contar desde aquí (solo esta frase)",
     "deletePhrase": "Eliminar frase",
     "formation": "Formación",
     "editMode": "Modo edición",

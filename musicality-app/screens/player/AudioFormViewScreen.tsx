@@ -48,7 +48,7 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
     handleGridTapBeat, handleSeekAndPlay, handleSeekOnly,
     handleSkipBack, handleSkipForward,
     handleSetLoopPoint, clearLoop,
-    handleReArrangePhrase, handleSplitPhraseHere, handleMergeWithPrevious,
+    handleReArrangePhrase, handleReArrangePhraseLocal, handleSplitPhraseHere, handleMergeWithPrevious,
   } = playerCore;
 
   const formation = useFormationEditor({
@@ -111,6 +111,7 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
                 isPlaying={isPlaying}
                 onTapBeat={handleGridTapBeat}
                 onReArrangePhrase={handleReArrangePhrase}
+                onReArrangePhraseLocal={handleReArrangePhraseLocal}
                 onSplitPhraseHere={handleSplitPhraseHere}
                 onSetLoopPoint={handleSetLoopPoint}
                 onClearLoop={clearLoop}

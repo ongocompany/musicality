@@ -153,6 +153,8 @@
     "enterMemo": "メモを入力（最大30文字）",
     "splitPhrase": "フレーズを分割",
     "reArrangePhrase": "フレーズを並び替え",
+    "reArrangePhraseAll": "ここから1 (全曲)",
+    "reArrangePhraseLocal": "ここから1 (このフレーズのみ)",
     "deletePhrase": "フレーズを削除",
     "formation": "フォーメーション",
     "editMode": "編集モード",
