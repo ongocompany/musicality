@@ -506,6 +506,12 @@
   "slot": {
     "slotFull": "Espacios llenos",
     "slotFullDesc": "Elimina un espacio existente e intenta de nuevo.",
+    "slot": "Ranura",
+    "overwrite": "Sobrescribir",
+    "overwriteTitle": "Sobrescribir ranura",
+    "overwriteDesc": "La ranura {{slot}} ya tiene una edición. Si la sobrescribes, se perderá. ¿Continuar?",
+    "copyToSlot": "Copiar a mi ranura",
+    "copyToSlotDesc": "¿Dónde copiar? Podrás editar después de copiar.",
     "readOnly": "Solo lectura",
     "readOnlyDesc": "Las ediciones de la comunidad no se pueden editar."
   },

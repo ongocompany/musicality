@@ -506,6 +506,12 @@
   "slot": {
     "slotFull": "槽位已满",
     "slotFullDesc": "删除现有槽位后重试。",
+    "slot": "槽位",
+    "overwrite": "覆盖",
+    "overwriteTitle": "覆盖槽位",
+    "overwriteDesc": "槽位{{slot}}已有版本。覆盖后原版本将被替换。继续吗？",
+    "copyToSlot": "复制到我的槽位",
+    "copyToSlotDesc": "复制到哪里？复制后可以编辑。",
     "readOnly": "只读",
     "readOnlyDesc": "社区版本无法编辑。"
   },

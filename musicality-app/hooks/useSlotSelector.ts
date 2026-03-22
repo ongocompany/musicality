@@ -195,6 +195,39 @@ export function useSlotSelector(mode: SlotMode) {
   // ─── 진입 시: 개인 에디션 있으면 마지막 사용 슬롯 유지, 없으면 R(S) 유지 ───
   // 편집은 tryEdit()에서 처리
 
+  // Imported note 데이터를 지정 슬롯에 복제 → 그 슬롯으로 전환
+  const copyImportedToSlot = useCallback((slotId: string): boolean => {
+    if (!trackId || !activeImported) return false;
+    const pn = activeImported.phraseNote;
+
+    // Clear draft before switching
+    if (mode === 'phrase') clearDraft(trackId);
+    else clearFormationDraft(trackId);
+
+    // Deactivate imported note
+    setActiveImportedNote(trackId, null);
+
+    if (mode === 'phrase') {
+      const boundaries = pn.phrases?.boundaries ?? [];
+      setEditionBoundaries(trackId, slotId as EditionId, [...boundaries]);
+      setActiveEdition(trackId, slotId as EditionId);
+      return true;
+    } else {
+      const formData = pn.formation;
+      if (formData) {
+        setFormationEdition(trackId, slotId as FormationEditionId, JSON.parse(JSON.stringify(formData)));
+        setActiveFormationEdition(trackId, slotId as FormationEditionId);
+        return true;
+      }
+      // No formation data in imported note — copy phrase boundaries instead
+      const boundaries = pn.phrases?.boundaries ?? [];
+      setEditionBoundaries(trackId, slotId as EditionId, [...boundaries]);
+      setActiveEdition(trackId, slotId as EditionId);
+      return true;
+    }
+  }, [trackId, mode, activeImported, setActiveImportedNote,
+      setEditionBoundaries, setFormationEdition, setActiveEdition, setActiveFormationEdition, clearDraft, clearFormationDraft]);
+
   // R 데이터를 지정(또는 빈) 슬롯에 복제 → 그 슬롯으로 전환
   const createSlotFromServer = useCallback((targetSlot?: string): boolean => {
     if (!trackId) return false;
@@ -252,12 +285,55 @@ export function useSlotSelector(mode: SlotMode) {
   }, [trackId, mode, editions, formations, activeSlot, isReadOnly, currentDraft,
       setEditionBoundaries, setFormationEdition, setActiveEdition, setActiveFormationEdition, clearDraft, clearFormationDraft]);
 
-  // ─── R 슬롯에서 편집 시도 시 처리 ───
+  // ─── R/imported 슬롯에서 편집 시도 시 처리 ───
   const tryEdit = useCallback((): boolean => {
     if (!isReadOnly) return true; // 편집 가능
 
     if (isImported) {
-      Alert.alert(i18next.t('slot.readOnly'), i18next.t('slot.readOnlyDesc'));
+      // Show slot selection dialog to copy imported data
+      const usedIds = new Set(
+        mode === 'phrase'
+          ? (editions?.userEditions.map(e => e.id) ?? [])
+          : (formations?.userEditions.map(e => e.id) ?? [])
+      );
+      const slots = ['1', '2', '3'] as const;
+
+      const buttons = slots.map(id => {
+        const isEmpty = !usedIds.has(id);
+        const label = isEmpty
+          ? `${i18next.t('slot.slot')} ${id}`
+          : `${i18next.t('slot.slot')} ${id} (${i18next.t('slot.overwrite')})`;
+        return {
+          text: label,
+          onPress: () => {
+            if (isEmpty) {
+              copyImportedToSlot(id);
+            } else {
+              // Confirm overwrite
+              Alert.alert(
+                i18next.t('slot.overwriteTitle'),
+                i18next.t('slot.overwriteDesc', { slot: id }),
+                [
+                  { text: i18next.t('common.cancel'), style: 'cancel' },
+                  {
+                    text: i18next.t('common.confirm'),
+                    style: 'destructive',
+                    onPress: () => copyImportedToSlot(id),
+                  },
+                ]
+              );
+            }
+          },
+        };
+      });
+
+      buttons.push({ text: i18next.t('common.cancel'), onPress: () => {} });
+
+      Alert.alert(
+        i18next.t('slot.copyToSlot'),
+        i18next.t('slot.copyToSlotDesc'),
+        buttons
+      );
       return false;
     }
 
@@ -268,7 +344,7 @@ export function useSlotSelector(mode: SlotMode) {
     }
 
     return false;
-  }, [isReadOnly, isImported, isServerSlot, createSlotFromServer]);
+  }, [isReadOnly, isImported, isServerSlot, createSlotFromServer, copyImportedToSlot, mode, editions, formations]);
 
   // ─── 초기화: 현재 슬롯을 R 데이터로 복원 ───
   const resetSlotToServer = useCallback(() => {

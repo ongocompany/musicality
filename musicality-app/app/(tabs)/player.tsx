@@ -1018,6 +1018,8 @@ export default function PlayerScreen() {
   // ─── Import PhraseNote flow ───
   const handleImportPhraseNote = useCallback(async () => {
     try {
+      // Delay to let settings modal fully close before opening document picker
+      await new Promise(r => setTimeout(r, 400));
       const pnote = await pickPhraseNoteFile();
       if (!pnote) return; // cancelled
 

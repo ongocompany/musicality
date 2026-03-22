@@ -506,6 +506,12 @@
   "slot": {
     "slotFull": "スロット満杯",
     "slotFullDesc": "既存のスロットを削除してもう一度試してください。",
+    "slot": "スロット",
+    "overwrite": "上書き",
+    "overwriteTitle": "スロットを上書き",
+    "overwriteDesc": "スロット{{slot}}に既存のエディションがあります。上書きすると既存のエディションが削除されます。続行しますか？",
+    "copyToSlot": "マイスロットにコピー",
+    "copyToSlotDesc": "どこにコピーしますか？コピー後に編集できます。",
     "readOnly": "読み取り専用",
     "readOnlyDesc": "コミュニティ版は編集できません。"
   },

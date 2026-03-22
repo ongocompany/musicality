@@ -508,7 +508,13 @@
     "slotFull": "Slots Full",
     "slotFullDesc": "Delete an existing slot and try again.",
     "readOnly": "Read Only",
-    "readOnlyDesc": "Community editions cannot be edited."
+    "readOnlyDesc": "Community editions cannot be edited.",
+    "slot": "Slot",
+    "overwrite": "Overwrite",
+    "overwriteTitle": "Overwrite Slot",
+    "overwriteDesc": "Slot {{slot}} already has an edition. Overwriting will replace it. Continue?",
+    "copyToSlot": "Copy to My Slot",
+    "copyToSlotDesc": "Where to copy? You can edit after copying."
   },
   "playerError": {
     "fileNotFound": "File Not Found",

@@ -506,6 +506,12 @@
   "slot": {
     "slotFull": "Emplacements pleins",
     "slotFullDesc": "Supprimez un emplacement existant et réessayez.",
+    "slot": "Emplacement",
+    "overwrite": "Écraser",
+    "overwriteTitle": "Écraser l'emplacement",
+    "overwriteDesc": "L'emplacement {{slot}} a déjà une édition. L'écraser supprimera l'existante. Continuer ?",
+    "copyToSlot": "Copier vers mon emplacement",
+    "copyToSlotDesc": "Où copier ? Vous pourrez modifier après la copie.",
     "readOnly": "Lecture seule",
     "readOnlyDesc": "Les éditions communautaires ne peuvent pas être modifiées."
   },

@@ -506,6 +506,12 @@
   "slot": {
     "slotFull": "Alle Plätze belegt",
     "slotFullDesc": "Lösche einen vorhandenen Platz und versuche es erneut.",
+    "slot": "Slot",
+    "overwrite": "Überschreiben",
+    "overwriteTitle": "Slot überschreiben",
+    "overwriteDesc": "Slot {{slot}} hat bereits eine Edition. Beim Überschreiben geht die vorhandene verloren. Fortfahren?",
+    "copyToSlot": "In meinen Slot kopieren",
+    "copyToSlotDesc": "Wohin kopieren? Nach dem Kopieren können Sie bearbeiten.",
     "readOnly": "Schreibgeschützt",
     "readOnlyDesc": "Community-Editionen können nicht bearbeitet werden."
   },

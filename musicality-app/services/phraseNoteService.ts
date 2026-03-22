@@ -169,11 +169,24 @@ export function validatePhraseNote(data: unknown): string | null {
  * Open document picker and read a .pnote file.
  * Returns parsed PhraseNoteFile or null if cancelled/invalid.
  */
+let _pickingInProgress = false;
 export async function pickPhraseNoteFile(): Promise<PhraseNoteFile | null> {
-  const result = await DocumentPicker.getDocumentAsync({
-    type: ['application/octet-stream', 'application/json', '*/*'],
-    copyToCacheDirectory: true,
-  });
+  if (_pickingInProgress) {
+    console.warn('[PhraseNote] Document picking already in progress, ignoring');
+    return null;
+  }
+  _pickingInProgress = true;
+  let result;
+  try {
+    result = await DocumentPicker.getDocumentAsync({
+      type: ['application/octet-stream', 'application/json', '*/*'],
+      copyToCacheDirectory: true,
+    });
+  } catch (err) {
+    _pickingInProgress = false;
+    throw err;
+  }
+  _pickingInProgress = false;
 
   if (result.canceled || !result.assets || result.assets.length === 0) {
     return null;

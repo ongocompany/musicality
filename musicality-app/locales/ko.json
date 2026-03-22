@@ -508,7 +508,13 @@
     "slotFull": "슬롯이 가득 찼습니다",
     "slotFullDesc": "기존 슬롯을 삭제한 후 다시 시도해주세요.",
     "readOnly": "읽기 전용",
-    "readOnlyDesc": "커뮤니티 에디션은 수정할 수 없습니다."
+    "readOnlyDesc": "커뮤니티 에디션은 수정할 수 없습니다.",
+    "slot": "슬롯",
+    "overwrite": "덮어쓰기",
+    "overwriteTitle": "슬롯 덮어쓰기",
+    "overwriteDesc": "슬롯 {{slot}}에 기존 에디션이 있습니다. 덮어쓰면 기존 에디션이 사라집니다. 진행할까요?",
+    "copyToSlot": "내 슬롯으로 복사",
+    "copyToSlotDesc": "어디로 복사할까요? 복사 후 수정할 수 있습니다."
   },
   "playerError": {
     "fileNotFound": "파일을 찾을 수 없습니다",

@@ -479,6 +479,8 @@ export function usePlayerCore() {
 
   const handleImportPhraseNote = useCallback(async () => {
     try {
+      // Delay to let settings modal fully close before opening document picker
+      await new Promise(r => setTimeout(r, 400));
       const pnote = await pickPhraseNoteFile();
       if (!pnote) return;
       const tracksWithAnalysis = tracks.filter(t => t.analysis).map(t => ({ id: t.id, analysis: t.analysis! }));

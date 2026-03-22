@@ -506,6 +506,12 @@
   "slot": {
     "slotFull": "Espaços cheios",
     "slotFullDesc": "Exclua um espaço existente e tente novamente.",
+    "slot": "Slot",
+    "overwrite": "Sobrescrever",
+    "overwriteTitle": "Sobrescrever slot",
+    "overwriteDesc": "O slot {{slot}} já tem uma edição. Sobrescrever substituirá a existente. Continuar?",
+    "copyToSlot": "Copiar para meu slot",
+    "copyToSlotDesc": "Para onde copiar? Você pode editar após copiar.",
     "readOnly": "Somente leitura",
     "readOnlyDesc": "As edições da comunidade não podem ser editadas."
   },

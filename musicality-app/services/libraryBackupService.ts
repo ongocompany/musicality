@@ -85,11 +85,24 @@ export async function exportLibraryBackup(backup: LibraryBackup): Promise<void> 
 }
 
 // ─── Import ───
+let _backupPickingInProgress = false;
 export async function importLibraryBackup(): Promise<LibraryBackup | null> {
-  const result = await DocumentPicker.getDocumentAsync({
-    type: ['application/octet-stream', '*/*'],
-    copyToCacheDirectory: true,
-  });
+  if (_backupPickingInProgress) {
+    console.warn('[LibraryBackup] Document picking already in progress, ignoring');
+    return null;
+  }
+  _backupPickingInProgress = true;
+  let result;
+  try {
+    result = await DocumentPicker.getDocumentAsync({
+      type: ['application/octet-stream', '*/*'],
+      copyToCacheDirectory: true,
+    });
+  } catch (err) {
+    _backupPickingInProgress = false;
+    throw err;
+  }
+  _backupPickingInProgress = false;
 
   if (result.canceled || !result.assets || result.assets.length === 0) {
     return null;
