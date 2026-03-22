@@ -21,11 +21,12 @@ interface PhraseGridCellProps {
   // Animation props for phrase rearrange/split/merge
   animTranslateX?: Animated.Value;
   animTranslateY?: Animated.Value;
+  animScale?: Animated.Value;  // wave scale animation
   showBeatNumber?: boolean;    // force show beat count during animation
   isHighlighted?: boolean;     // persistent highlight ring after phrase action
 }
 
-function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel, hasNote, hasFormation, beatCount, phraseLabel, animTranslateX, animTranslateY, showBeatNumber, isHighlighted }: PhraseGridCellProps) {
+function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPress, onLongPress, repeatMarker, rowLabel, hasNote, hasFormation, beatCount, phraseLabel, animTranslateX, animTranslateY, animScale, showBeatNumber, isHighlighted }: PhraseGridCellProps) {
   const handlePress = useCallback(() => onPress(cellIndex), [onPress, cellIndex]);
   const handleLongPress = useCallback(() => onLongPress(cellIndex), [onLongPress, cellIndex]);
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -33,42 +34,59 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
   const prevStateRef = useRef<CellState>(state);
 
   // Punch + glow animation when becoming 'current'
+  const scaleAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const glowAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   useEffect(() => {
     if (state === 'current' && prevStateRef.current !== 'current') {
+      // Stop any in-flight animation before starting new one
+      scaleAnimRef.current?.stop();
+      glowAnimRef.current?.stop();
+
       if (Platform.OS === 'android') {
         // Android: lightweight timing instead of spring (reduces JS thread load)
         scaleAnim.setValue(1.2);
-        Animated.timing(scaleAnim, {
+        const anim = Animated.timing(scaleAnim, {
           toValue: 1.05,
           duration: 150,
           useNativeDriver: true,
-        }).start();
+        });
+        scaleAnimRef.current = anim;
+        anim.start(({ finished }) => { if (finished) scaleAnimRef.current = null; });
       } else {
         // iOS: full spring bounce
         scaleAnim.setValue(1.35);
-        Animated.spring(scaleAnim, {
+        const anim = Animated.spring(scaleAnim, {
           toValue: 1.05,
           friction: 4,
           tension: 280,
           useNativeDriver: true,
-        }).start();
+        });
+        scaleAnimRef.current = anim;
+        anim.start(({ finished }) => { if (finished) scaleAnimRef.current = null; });
       }
 
       // Glow pulse: 1 → 0.2
       glowAnim.setValue(1);
-      Animated.timing(glowAnim, {
+      const glowA = Animated.timing(glowAnim, {
         toValue: 0.2,
         duration: Platform.OS === 'android' ? 300 : 500,
         useNativeDriver: true,
-      }).start();
+      });
+      glowAnimRef.current = glowA;
+      glowA.start(({ finished }) => { if (finished) glowAnimRef.current = null; });
     } else if (state !== 'current' && prevStateRef.current === 'current') {
+      // Stop in-flight spring FIRST, then reset — prevents spring from overwriting
+      scaleAnimRef.current?.stop();
+      scaleAnimRef.current = null;
+      glowAnimRef.current?.stop();
+      glowAnimRef.current = null;
       scaleAnim.setValue(1);
       glowAnim.setValue(0);
     }
     prevStateRef.current = state;
   }, [state]);
 
-  const hasAnimTransform = !!(animTranslateX || animTranslateY);
+  const hasAnimTransform = !!(animTranslateX || animTranslateY || animScale);
 
   if (state === 'hidden') {
     return <View style={{ width: size, height: size, margin: GAP / 2 }} />;
@@ -98,6 +116,7 @@ function PhraseGridCellInner({ cellIndex, state, color, size, isFlashing, onPres
     const transforms: any[] = [];
     if (animTranslateX) transforms.push({ translateX: animTranslateX });
     if (animTranslateY) transforms.push({ translateY: animTranslateY });
+    if (animScale) transforms.push({ scale: animScale });
     outerStyle.push({ zIndex: 10, transform: transforms });
   }
 

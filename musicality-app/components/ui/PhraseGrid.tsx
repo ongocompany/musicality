@@ -98,6 +98,7 @@ export function PhraseGrid({
   const actionBeatRef = useRef<number>(-1);
 
   // ─── Phrase action animation ───
+  const animGenRef = useRef(0); // generation counter to invalidate stale animation callbacks
   const [cellTranslates, setCellTranslates] = useState<Map<number, { x: Animated.Value; y: Animated.Value }>>(new Map());
   const [colorOverrides, setColorOverrides] = useState<Map<number, string>>(new Map());
   const [showBeatNumbers, setShowBeatNumbers] = useState<Set<number>>(new Set());
@@ -109,25 +110,29 @@ export function PhraseGrid({
   } | null>(null);
   const colorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const numberTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Clear highlight when user taps any cell or starts playback
   useEffect(() => {
     if (isPlaying) setHighlightCellIndex(-1);
   }, [isPlaying]);
 
-  // Take layout snapshot before phrase action
+  // Take layout snapshot before phrase action (reads refs to avoid stale closure)
   const takeSnapshot = useCallback((actionBeat: number) => {
+    animGenRef.current += 1; // invalidate any in-flight animation callbacks
     setHighlightCellIndex(-1); // clear previous highlight
+    const currentCells = visualCellsRef.current;
+    const currentGetColor = getCellPhraseColorRef.current;
     const positions = new Map<number, { row: number; col: number }>();
     const colors = new Map<number, string>();
-    for (let i = 0; i < visualCells.length; i++) {
-      const beat = visualCells[i];
+    for (let i = 0; i < currentCells.length; i++) {
+      const beat = currentCells[i];
       if (beat < 0) continue;
       positions.set(beat, { row: Math.floor(i / COLS), col: i % COLS });
-      colors.set(beat, getCellPhraseColor(i));
+      colors.set(beat, currentGetColor(i));
     }
     snapshotRef.current = { beatPositions: positions, beatColors: colors, actionBeat };
-  }, [visualCells, getCellPhraseColor]);
+  }, []);
 
   // Cleanup timeouts
   useEffect(() => {
@@ -137,6 +142,7 @@ export function PhraseGrid({
       if (autoScrollTimerRef.current) clearTimeout(autoScrollTimerRef.current);
       if (colorTimerRef.current) clearTimeout(colorTimerRef.current);
       if (numberTimerRef.current) clearTimeout(numberTimerRef.current);
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     };
   }, []);
 
@@ -191,6 +197,11 @@ export function PhraseGrid({
     return { visualCells: cells, beatToVisualCell: b2vc };
   }, [beats.length, phraseMap]);
 
+  // Always-current ref for takeSnapshot (avoids stale closure)
+  const visualCellsRef = useRef(visualCells);
+  visualCellsRef.current = visualCells;
+  const getCellPhraseColorRef = useRef<(cellIndex: number) => string>(() => '#888');
+
   // Cell size (width-based, uniform spacing)
   const cellSize = useMemo(() => {
     if (containerWidth <= 0) return 0;
@@ -219,12 +230,27 @@ export function PhraseGrid({
   useEffect(() => {
     if (!snapshotRef.current || cellSize <= 0) return;
     const snapshot = snapshotRef.current;
+
+    // Check if any beat actually moved position or changed color
+    let hasChanges = false;
+    for (let i = 0; i < visualCells.length; i++) {
+      const beat = visualCells[i];
+      if (beat < 0) continue;
+      const oldPos = snapshot.beatPositions.get(beat);
+      if (!oldPos) { hasChanges = true; break; }
+      const newRow = Math.floor(i / COLS);
+      const newCol = i % COLS;
+      if (oldPos.row !== newRow || oldPos.col !== newCol) { hasChanges = true; break; }
+      const oldColor = snapshot.beatColors.get(beat);
+      if (oldColor && oldColor !== getCellPhraseColor(i)) { hasChanges = true; break; }
+    }
+    if (!hasChanges) return; // Layout hasn't changed yet — keep snapshot for next render
+
     snapshotRef.current = null;
 
     const step = cellSize + CELL_GAP;
     const translates = new Map<number, { x: Animated.Value; y: Animated.Value }>();
     const overrides = new Map<number, string>();
-    const beatNumbers = new Set<number>();
     const animEntries: { cellIndex: number; dist: number; x: Animated.Value; y: Animated.Value }[] = [];
 
     for (let i = 0; i < visualCells.length; i++) {
@@ -239,20 +265,13 @@ export function PhraseGrid({
       const dy = (oldPos.row - newRow) * step;
 
       if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
-        // Position didn't change — check if color changed
-        const oldColor = snapshot.beatColors.get(beat);
-        const newColor = getCellPhraseColor(i);
-        if (oldColor && oldColor !== newColor) {
-          overrides.set(i, oldColor);
-          beatNumbers.add(i);
-        }
+        // Position didn't change — just snap color silently
         continue;
       }
 
       const x = new Animated.Value(dx);
       const y = new Animated.Value(dy);
       translates.set(i, { x, y });
-      beatNumbers.add(i);
 
       // Keep old color during movement
       const oldColor = snapshot.beatColors.get(beat);
@@ -263,19 +282,45 @@ export function PhraseGrid({
       animEntries.push({ cellIndex: i, dist, x, y });
     }
 
-    if (animEntries.length === 0 && overrides.size === 0) return;
+    // Find the cell index of the action beat (for scroll + highlight)
+    const actionCellIndex = beatToVisualCell.get(snapshot.actionBeat) ?? -1;
+
+    // Auto-clear highlight after brief display
+    const scheduleHighlightClear = () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = setTimeout(() => setHighlightCellIndex(-1), 1500);
+    };
+
+    if (animEntries.length === 0) {
+      // No position changes (e.g. merge with 8-multiple phrase) — just highlight action cell
+      if (actionCellIndex >= 0) {
+        const targetRow = Math.floor(actionCellIndex / COLS);
+        if (scrollViewRef.current && rowHeight > 0) {
+          const targetOffset = Math.max(0, (targetRow - SCROLL_ANCHOR_ROW) * rowHeight);
+          scrollViewRef.current.scrollTo({ y: targetOffset, animated: true });
+        }
+        setRenderStartRow(Math.max(0, targetRow - SCROLL_ANCHOR_ROW - RENDER_BUFFER_ROWS));
+        setHighlightCellIndex(actionCellIndex);
+        scheduleHighlightClear();
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      return;
+    }
 
     // Sort by distance from action beat (ripple effect)
     animEntries.sort((a, b) => a.dist - b.dist);
 
     setCellTranslates(translates);
     setColorOverrides(overrides);
-    setShowBeatNumbers(beatNumbers);
+    // Only show beat number on the action cell
+    if (actionCellIndex >= 0) {
+      setShowBeatNumbers(new Set([actionCellIndex]));
+    }
 
     // Haptic feedback at animation start
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    // Position animation — staggered spring
+    // Position animation — staggered spring (only for cells that actually moved)
     const posAnims = animEntries.map(({ x, y }) =>
       Animated.parallel([
         Animated.spring(x, { toValue: 0, friction: 7, tension: 90, useNativeDriver: true }),
@@ -283,46 +328,31 @@ export function PhraseGrid({
       ])
     );
 
-    // Find the cell index of the action beat (for scroll + highlight after animation)
-    const actionCellIndex = beatToVisualCell.get(snapshot.actionBeat) ?? -1;
-
-    if (posAnims.length > 0) {
-      Animated.stagger(20, posAnims).start(() => {
-        setCellTranslates(new Map());
-        // Scroll to action beat and set persistent highlight
-        if (actionCellIndex >= 0) {
-          const targetRow = Math.floor(actionCellIndex / COLS);
-          if (scrollViewRef.current && rowHeight > 0) {
-            const targetOffset = Math.max(0, (targetRow - SCROLL_ANCHOR_ROW) * rowHeight);
-            scrollViewRef.current.scrollTo({ y: targetOffset, animated: true });
-          }
-          setRenderStartRow(Math.max(0, targetRow - SCROLL_ANCHOR_ROW - RENDER_BUFFER_ROWS));
-          setHighlightCellIndex(actionCellIndex);
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const thisGen = animGenRef.current;
+    Animated.stagger(20, posAnims).start(() => {
+      // Skip if a newer action has started while this animation was in-flight
+      if (animGenRef.current !== thisGen) return;
+      setCellTranslates(new Map());
+      setShowBeatNumbers(new Set());
+      // Scroll to action beat and briefly highlight
+      if (actionCellIndex >= 0) {
+        const targetRow = Math.floor(actionCellIndex / COLS);
+        if (scrollViewRef.current && rowHeight > 0) {
+          const targetOffset = Math.max(0, (targetRow - SCROLL_ANCHOR_ROW) * rowHeight);
+          scrollViewRef.current.scrollTo({ y: targetOffset, animated: true });
         }
-      });
-    } else if (actionCellIndex >= 0) {
-      // No position animation but color changed — still scroll + highlight
-      const targetRow = Math.floor(actionCellIndex / COLS);
-      if (scrollViewRef.current && rowHeight > 0) {
-        const targetOffset = Math.max(0, (targetRow - SCROLL_ANCHOR_ROW) * rowHeight);
-        scrollViewRef.current.scrollTo({ y: targetOffset, animated: true });
+        setRenderStartRow(Math.max(0, targetRow - SCROLL_ANCHOR_ROW - RENDER_BUFFER_ROWS));
+        setHighlightCellIndex(actionCellIndex);
+        scheduleHighlightClear();
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
-      setRenderStartRow(Math.max(0, targetRow - SCROLL_ANCHOR_ROW - RENDER_BUFFER_ROWS));
-      setHighlightCellIndex(actionCellIndex);
-    }
+    });
 
     // Color snap — partway through animation, reveal new colors
     if (colorTimerRef.current) clearTimeout(colorTimerRef.current);
     colorTimerRef.current = setTimeout(() => {
       setColorOverrides(new Map());
     }, 280);
-
-    // Beat numbers — keep showing a bit longer then hide
-    if (numberTimerRef.current) clearTimeout(numberTimerRef.current);
-    numberTimerRef.current = setTimeout(() => {
-      setShowBeatNumbers(new Set());
-    }, 600);
   }, [visualCells, cellSize, getCellPhraseColor]);
 
   // ─── Reset render window when phrase layout changes (e.g. split/re-arrange) ───
@@ -458,6 +488,7 @@ export function PhraseGrid({
     }
     return Colors.textMuted;
   }, [phraseMap, visualCells]);
+  getCellPhraseColorRef.current = getCellPhraseColor;
 
   // Per-cell row label: first column shows song-wide sequential row number
   const getCellRowLabel = useCallback((cellIndex: number): string | null => {
@@ -684,6 +715,18 @@ export function PhraseGrid({
     if (menuGlobalBeat < 0 || !phraseMap) return false;
     return phraseMap.phrases.some(p => p.startBeatIndex === menuGlobalBeat);
   }, [menuGlobalBeat, phraseMap]);
+
+  // Is the menu cell at a row-start position within its phrase?
+  // e.g. beat 9, 17, 25... (local beat % COLS === 0) — already "1" visually, rearrange meaningless
+  const isRowStartInPhrase = useMemo(() => {
+    if (menuGlobalBeat < 0 || !phraseMap || isFirstCellOfPhrase) return false;
+    const phrase = phraseMap.phrases.find(p =>
+      menuGlobalBeat >= p.startBeatIndex && menuGlobalBeat < p.endBeatIndex
+    );
+    if (!phrase) return false;
+    const localBeat = menuGlobalBeat - phrase.startBeatIndex;
+    return localBeat % COLS === 0;
+  }, [menuGlobalBeat, phraseMap, isFirstCellOfPhrase]);
 
   // Can merge: first cell of a non-first phrase
   const menuPhraseIndex = useMemo(() => {
@@ -924,8 +967,8 @@ export function PhraseGrid({
             {/* Non-formation mode: phrase editing options */}
             {editMode !== 'formation' && (
               <>
-                {/* "Count from here" — paused + not first cell of phrase */}
-                {!isPlaying && !isFirstCellOfPhrase && (
+                {/* "Count from here" — paused + not first cell of phrase + not row-start (already "1") */}
+                {!isPlaying && !isFirstCellOfPhrase && !isRowStartInPhrase && (
                   <>
                     <TouchableOpacity style={styles.menuOption} onPress={handleReArrangePhraseLocal}>
                       <Text style={styles.menuOptionText}>{t('player.reArrangePhraseLocal')}</Text>
