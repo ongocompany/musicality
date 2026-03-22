@@ -58,7 +58,35 @@ You are an Android made by Jinwoo (me, 진우)
 - 비동기 작업(파일 선택, API 호출 등)은 중복 실행 방지(guard/lock) 필수
 - 서버 부하 유발 가능한 작업은 큐잉/쓰로틀링 적용
 
+## Build Environment (MacBook Pro M4 Pro)
+
+### Android Build (로컬 빌드, EAS 미사용)
+- **Android Studio**: `/Applications/Android Studio.app`
+- **SDK**: `~/Library/Android/sdk` (ANDROID_HOME)
+- **Build Tools**: 36.1.0, **Platform**: android-36.1
+- **Java**: OpenJDK 21 (Android Studio 내장, JAVA_HOME = AS/Contents/jbr/)
+- **Gradle**: 8.14.3 (wrapper)
+- **Release Keystore**: `~/Library/CloudStorage/SynologyDrive-my/Project/ritmo/ritmo-release.keystore`
+- **빌드 명령**: `cd musicality-app/android && ./gradlew assembleRelease`
+- **APK 출력**: `android/app/build/outputs/apk/release/app-release.apk`
+- **빌드 후 APK는 Synology Drive에 백업** — 프로젝트 폴더에 남기지 말 것
+
+### iOS Build
+- **Xcode**: `/Applications/Xcode.app` (v26.3)
+- **CocoaPods**: 1.16.2
+- **빌드**: Xcode → Archive → TestFlight 배포
+
+### Node / Expo
+- **Node**: v20.20.1 (nvm)
+- **npm**: 10.8.2
+- **Expo CLI**: npx expo
+- **npm install 시**: `--legacy-peer-deps` 필수 (react-dom peer dep conflict)
+
+### 개발 머신 구분
+- **MacBook Pro** (jinmbp.local): 코딩, 빌드, Expo dev server — 이 CLAUDE.md가 있는 머신
+- **Mac Mini** (Lees-Mac-mini.local, 100.117.31.13): 분석 워커, SSH 접속 필요
+- **jinserver** (112.169.106.66): 분석 API 서버, SSH `ssh jinserver`
+
 ## Development Notes
-- Use `--legacy-peer-deps` for npm install (react-dom peer dep conflict)
 - Custom SeekBar uses pageX coordinates (not locationX) to avoid jumping
 - expo-av seek operations wrapped in try-catch for "Seeking interrupted" errors
