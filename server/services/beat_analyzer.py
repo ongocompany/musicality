@@ -24,6 +24,10 @@ VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".m4v"}
 # "original"   = Madmom original mode (all in memory, ~37s, ~1000MB peak)
 ANALYSIS_ENGINE = "chunked"
 
+# Engine identifier for cache tracking
+# Format: "{engine}_{mode}_{version}" — e.g. "madmom_chunked_v1", "beat_this_latin_ft_v1"
+ANALYZER_ENGINE_ID = "madmom_chunked_v1"
+
 # Legacy flag for backward compat
 USE_CHUNKED_ANALYSIS = True
 
@@ -217,6 +221,7 @@ def _do_analysis_chunked(audio_path: str) -> AnalysisResult:
         fingerprint=fingerprint,
         metadata=metadata,
         unstable_regions=unstable_regions,
+        analyzer_engine=ANALYZER_ENGINE_ID,
     )
 
 
@@ -315,6 +320,7 @@ def _do_analysis_original(audio_path: str) -> AnalysisResult:
         waveform_peaks=waveform_peaks,
         fingerprint=fingerprint,
         metadata=metadata,
+        analyzer_engine=ANALYZER_ENGINE_ID,
     )
 
 

@@ -76,6 +76,7 @@ def _row_to_result(row: dict, file_hash: str = "") -> AnalysisResult:
         cached=True,
         file_hash=file_hash or row.get("file_hash", ""),
         metadata=metadata,
+        analyzer_engine=row.get("analyzer_engine") or "",
     )
 
 
@@ -268,6 +269,7 @@ def store_in_cache(file_hash: str, file_size: int, result: AnalysisResult) -> No
             "waveform_peaks": result.waveform_peaks,
             "fingerprint": result.fingerprint,
             "analyzer_version": CURRENT_ANALYZER_VERSION,
+            "analyzer_engine": result.analyzer_engine,
             "hit_count": 0,
             "metadata": result.metadata.model_dump() if result.metadata else None,
         }

@@ -42,6 +42,7 @@ class AnalysisResult(BaseModel):
     file_hash: str = ""  # SHA-256 hash of the uploaded file
     metadata: TrackMetadata | None = None  # auto-tagged track info (AcoustID + MusicBrainz)
     unstable_regions: list[UnstableRegion] = []  # regions with weak beats, re-spaced to stable BPM (dimmed in app)
+    analyzer_engine: str = ""  # e.g. "madmom_chunked_v1", "beat_this_small0", "beat_this_latin_ft_v1"
 
 
 class HealthResponse(BaseModel):
