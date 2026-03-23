@@ -1,0 +1,2009 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ritmo - Grid Edit Tutorial</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #0a0a0a;
+    color: #fff;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* ─── Slide Container ─── */
+  .slides-wrapper {
+    width: 100vw; height: 100vh;
+    position: relative;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+  .slide.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ─── Layout: Left (Phone Mockup) + Right (Description) ─── */
+  .slide-left {
+    flex: 0 0 45%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+  .slide-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 60px 60px 60px 20px;
+  }
+
+  /* ─── Phone Mockup ─── */
+  .phone {
+    width: 300px;
+    height: 620px;
+    background: #1a1a2e;
+    border-radius: 36px;
+    border: 3px solid #333;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+  }
+  .phone-notch {
+    width: 120px; height: 28px;
+    background: #0a0a0a;
+    border-radius: 0 0 16px 16px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 10;
+  }
+  .phone-screen {
+    padding: 8px 12px;
+    height: calc(100% - 28px - 56px);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ─── Tab Bar ─── */
+  .tab-bar {
+    height: 56px;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    border-top: 1px solid #222;
+    padding: 0 8px;
+  }
+  .tab-item {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+    font-size: 9px; color: #666;
+  }
+  .tab-item.active { color: #e74c8b; }
+  .tab-icon { font-size: 20px; }
+
+  /* ─── Overlay Pointer ─── */
+  .overlay-pointer {
+    position: absolute;
+    z-index: 20;
+    animation: pulse-ring 1.5s ease-in-out infinite;
+  }
+  .pointer-circle {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 3px solid #FFD700;
+    background: rgba(255, 215, 0, 0.15);
+    position: relative;
+  }
+  .pointer-circle::after {
+    content: '';
+    position: absolute;
+    bottom: -20px; right: -10px;
+    font-size: 22px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  }
+  .pointer-circle.tap::after { content: '👆'; }
+  .pointer-circle.longpress::after { content: '👇'; }
+  @keyframes pulse-ring {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.15); opacity: 0.7; }
+  }
+
+  /* ─── Tooltip Bubble ─── */
+  .tooltip-bubble {
+    position: absolute;
+    z-index: 20;
+    background: #FFD700;
+    color: #000;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 8px;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+  }
+  .tooltip-bubble::after {
+    content: '';
+    position: absolute;
+    border: 6px solid transparent;
+  }
+  .tooltip-bubble.arrow-down::after {
+    bottom: -12px; left: 50%; transform: translateX(-50%);
+    border-top-color: #FFD700;
+  }
+  .tooltip-bubble.arrow-left::after {
+    left: -12px; top: 50%; transform: translateY(-50%);
+    border-right-color: #FFD700;
+  }
+  .tooltip-bubble.arrow-up::after {
+    top: -12px; left: 50%; transform: translateX(-50%);
+    border-bottom-color: #FFD700;
+  }
+
+  /* ─── Right Side Content ─── */
+  .step-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #e74c8b, #ff6b9d);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+    letter-spacing: 0.5px;
+  }
+  .section-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.08);
+    color: #888;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin-left: 8px;
+    letter-spacing: 0.5px;
+  }
+  .slide-title {
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, #fff, #ccc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .slide-subtitle {
+    font-size: 16px;
+    color: #999;
+    margin-bottom: 28px;
+    line-height: 1.5;
+  }
+  .slide-desc {
+    font-size: 15px;
+    color: #bbb;
+    line-height: 1.8;
+    max-width: 480px;
+  }
+  .slide-desc .highlight {
+    color: #FFD700;
+    font-weight: 600;
+  }
+  .slide-desc .action {
+    color: #e74c8b;
+    font-weight: 600;
+  }
+
+  .feature-list {
+    list-style: none;
+    margin-top: 20px;
+  }
+  .feature-list li {
+    padding: 8px 0;
+    font-size: 14px;
+    color: #bbb;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .feature-list li::before {
+    content: '\25B8';
+    color: #e74c8b;
+    font-weight: bold;
+  }
+
+  /* ─── Navigation ─── */
+  .nav-bar {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 100;
+    background: rgba(30,30,30,0.9);
+    backdrop-filter: blur(10px);
+    padding: 10px 24px;
+    border-radius: 40px;
+    border: 1px solid #333;
+  }
+  .nav-btn {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 2px solid #444;
+    background: transparent;
+    color: #fff;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .nav-btn:hover { border-color: #e74c8b; background: rgba(231,76,139,0.1); }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .nav-dots {
+    display: flex; gap: 4px;
+  }
+  .nav-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #444;
+    transition: all 0.3s;
+    cursor: pointer;
+  }
+  .nav-dot.active {
+    background: #e74c8b;
+    width: 20px;
+    border-radius: 4px;
+  }
+  .slide-counter {
+    font-size: 13px;
+    color: #666;
+    min-width: 60px;
+    text-align: center;
+  }
+
+  /* ─── Phone Screen Elements ─── */
+  .screen-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    margin-bottom: 4px;
+  }
+  .screen-header-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  /* ─── Slot Bar ─── */
+  .slot-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+    padding: 4px 0;
+  }
+  .slot-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 10px;
+    border: 1.5px solid #555;
+    color: #888;
+    background: transparent;
+    position: relative;
+  }
+  .slot-badge.active {
+    background: #e74c8b;
+    border-color: #e74c8b;
+    color: #fff;
+  }
+  .slot-badge.readonly {
+    border-color: #555;
+    color: #888;
+    font-style: italic;
+  }
+  .slot-badge.readonly.active {
+    background: #555;
+    border-color: #555;
+    color: #fff;
+  }
+  .slot-badge .lock-icon {
+    font-size: 7px;
+    margin-left: 2px;
+  }
+
+  /* ─── Grid ─── */
+  .phrase-grid {
+    display: grid;
+    grid-template-columns: 20px repeat(8, 1fr);
+    gap: 2px;
+    margin: 6px 0;
+  }
+  .phrase-grid.no-row-num {
+    grid-template-columns: repeat(8, 1fr);
+  }
+  .row-num {
+    font-size: 7px;
+    color: #555;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+  }
+  .grid-cell {
+    aspect-ratio: 1;
+    border-radius: 3px;
+    font-size: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.7);
+    font-weight: 600;
+    position: relative;
+  }
+  .grid-cell.c1 { background: rgba(231, 76, 139, 0.5); }
+  .grid-cell.c2 { background: rgba(139, 92, 246, 0.5); }
+  .grid-cell.c3 { background: rgba(59, 130, 246, 0.5); }
+  .grid-cell.c4 { background: rgba(16, 185, 129, 0.5); }
+  .grid-cell.c5 { background: rgba(251, 191, 36, 0.5); }
+  .grid-cell.c6 { background: rgba(244, 114, 56, 0.5); }
+  .grid-cell.current {
+    border: 2px solid #FFD700;
+    box-shadow: 0 0 8px rgba(255,215,0,0.5);
+  }
+  .grid-cell.empty { background: rgba(255,255,255,0.05); }
+  .grid-cell .memo-dot {
+    position: absolute;
+    bottom: 1px; left: 1px;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: #2dd4bf;
+  }
+  .grid-cell .ab-marker {
+    position: absolute;
+    top: 0; right: 1px;
+    font-size: 5px;
+    font-weight: 800;
+    color: #FFD700;
+  }
+  .grid-cell.highlight-ab {
+    box-shadow: inset 0 0 0 1.5px rgba(255, 215, 0, 0.6);
+  }
+
+  /* ─── Seekbar ─── */
+  .seekbar {
+    margin: 6px 0;
+    position: relative;
+  }
+  .seekbar-track {
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    position: relative;
+  }
+  .seekbar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #e74c8b, #ff6b9d);
+    border-radius: 2px;
+    width: 35%;
+  }
+  .seekbar-thumb {
+    width: 12px; height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    position: absolute;
+    top: -4px;
+    left: 33%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+  .seekbar-time {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: #888;
+    margin-top: 3px;
+  }
+
+  /* ─── Controls ─── */
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 6px 0;
+  }
+  .ctrl-btn {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: #ccc;
+    background: transparent;
+  }
+  .ctrl-btn.play {
+    width: 44px; height: 44px;
+    background: #e74c8b;
+    color: #fff;
+    font-size: 18px;
+  }
+  .ctrl-btn.play.paused {
+    background: #555;
+  }
+  .ctrl-btn.glow {
+    border: 2px solid #FFD700;
+    box-shadow: 0 0 12px rgba(255,215,0,0.4);
+  }
+  .ctrl-speed {
+    font-size: 10px;
+    color: #888;
+    padding: 2px 8px;
+    border: 1px solid #444;
+    border-radius: 10px;
+  }
+
+  /* ─── Context Menu Modal ─── */
+  .context-menu-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 14;
+    border-radius: 0;
+  }
+  .context-menu {
+    position: absolute;
+    background: #1e1e2e;
+    border-radius: 12px;
+    padding: 6px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+    border: 1px solid #444;
+    z-index: 15;
+    min-width: 170px;
+  }
+  .context-menu-title {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 6px 12px 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .context-menu-title .beat-color {
+    width: 8px; height: 8px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+  .context-item {
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #ddd;
+    border-radius: 8px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .context-item.active-item {
+    background: rgba(231,76,139,0.15);
+    color: #fff;
+  }
+  .context-item.danger {
+    color: #ef4444;
+  }
+  .context-item .item-icon {
+    font-size: 12px;
+    width: 18px;
+    text-align: center;
+  }
+
+  /* ─── Memo Input Modal ─── */
+  .memo-modal {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: #1e1e2e;
+    border-radius: 14px;
+    padding: 16px;
+    width: 220px;
+    z-index: 16;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+    border: 1px solid #444;
+  }
+  .memo-modal-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: #fff;
+  }
+  .memo-input {
+    width: 100%;
+    background: #2a2a3e;
+    border: 1px solid #555;
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: #fff;
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .memo-btn-row {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .memo-btn {
+    padding: 5px 14px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .memo-btn.cancel {
+    background: #333;
+    color: #aaa;
+  }
+  .memo-btn.save {
+    background: #e74c8b;
+    color: #fff;
+  }
+
+  /* ─── Before/After Comparison ─── */
+  .compare-box {
+    display: flex;
+    gap: 8px;
+    margin: 8px 0;
+    align-items: center;
+  }
+  .compare-label {
+    font-size: 8px;
+    color: #888;
+    font-weight: 600;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    letter-spacing: 1px;
+  }
+  .compare-grid {
+    flex: 1;
+  }
+  .compare-arrow {
+    font-size: 16px;
+    color: #FFD700;
+  }
+
+  /* ─── Long Press Animation ─── */
+  .longpress-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid #e74c8b;
+    animation: longpress-expand 1.2s ease-out infinite;
+  }
+  @keyframes longpress-expand {
+    0% { width: 10px; height: 10px; opacity: 1; }
+    100% { width: 40px; height: 40px; opacity: 0; }
+  }
+
+  /* ─── Cover Slide ─── */
+  .cover-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    text-align: center;
+  }
+  .cover-logo {
+    font-size: 72px;
+    margin-bottom: 20px;
+  }
+  .cover-title {
+    font-size: 48px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #e74c8b, #ff6b9d, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .cover-sub {
+    font-size: 20px;
+    color: #888;
+    margin-bottom: 40px;
+  }
+  .cover-info {
+    display: flex;
+    gap: 32px;
+    margin-top: 20px;
+  }
+  .cover-stat {
+    text-align: center;
+  }
+  .cover-stat-num {
+    font-size: 28px;
+    font-weight: 700;
+    color: #e74c8b;
+  }
+  .cover-stat-label {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+  }
+
+  /* Summary */
+  .summary-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 560px;
+  }
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 18px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px;
+    border-left: 3px solid #e74c8b;
+    transition: all 0.3s;
+  }
+  .flow-step:hover {
+    background: rgba(231,76,139,0.08);
+  }
+  .flow-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: #e74c8b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .flow-text {
+    font-size: 13px;
+    color: #ccc;
+  }
+  .flow-text strong {
+    color: #fff;
+  }
+
+  /* Keyboard hint */
+  .kbd-hint {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    font-size: 12px;
+    color: #555;
+    z-index: 100;
+  }
+  .kbd {
+    background: #222;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    font-size: 11px;
+  }
+
+  /* ─── Responsive: Mobile ─── */
+  @media (max-width: 768px) {
+    body { overflow-y: auto; }
+    .slide {
+      flex-direction: column;
+      overflow-y: auto;
+      padding-bottom: 100px;
+    }
+    .slide-left {
+      flex: none;
+      padding: 20px;
+      justify-content: center;
+    }
+    .slide-right {
+      flex: none;
+      padding: 20px 24px 40px;
+    }
+    .phone {
+      width: 260px;
+      height: 540px;
+    }
+    .slide-title {
+      font-size: 24px;
+    }
+    .slide-subtitle {
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    .slide-desc {
+      font-size: 13px;
+    }
+    .cover-title {
+      font-size: 32px;
+    }
+    .cover-sub {
+      font-size: 16px;
+    }
+    .kbd-hint {
+      display: none;
+    }
+    .nav-bar {
+      bottom: 12px;
+      padding: 8px 16px;
+      gap: 10px;
+    }
+    .nav-btn {
+      width: 36px; height: 36px;
+      font-size: 16px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="kbd-hint">
+  <span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> 또는 클릭으로 이동
+</div>
+
+<div class="slides-wrapper" id="slides">
+
+  <!-- ════════════════ SLIDE 0: Cover ════════════════ -->
+  <div class="slide active" data-slide="0">
+    <div class="cover-content">
+      <div class="cover-logo">&#9998;</div>
+      <div class="cover-title">Grid Edit Tutorial</div>
+      <div class="cover-sub">프레이즈 그리드를 내 맘대로 편집하기</div>
+      <div style="color:#666; font-size:14px; margin-bottom: 30px;">
+        슬롯 이해 &middot; 셀 편집 &middot; 프레이즈 조작 &middot; 메모 &middot; A-B 반복
+      </div>
+      <div class="cover-info">
+        <div class="cover-stat">
+          <div class="cover-stat-num">14</div>
+          <div class="cover-stat-label">Steps</div>
+        </div>
+        <div class="cover-stat">
+          <div class="cover-stat-num">4</div>
+          <div class="cover-stat-label">Sections</div>
+        </div>
+        <div class="cover-stat">
+          <div class="cover-stat-num">~3min</div>
+          <div class="cover-stat-label">Completion</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 1: R 슬롯이란? ════════════════ -->
+  <div class="slide" data-slide="1">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+            </div>
+          </div>
+
+          <!-- R Badge highlighted -->
+          <div class="slot-bar">
+            <div class="slot-badge readonly active" style="box-shadow: 0 0 12px rgba(255,215,0,0.5); border-color:#FFD700;">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <div class="overlay-pointer" style="top: 62px; left: 8px;">
+            <div class="pointer-circle tap"></div>
+          </div>
+          <div class="tooltip-bubble arrow-left" style="top: 66px; left: 62px;">
+            R = Ritmo 자동 분석 결과
+          </div>
+
+          <div class="phrase-grid no-row-num" style="margin-top: 8px; opacity: 0.7;">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+            <div class="grid-cell c3">1</div><div class="grid-cell c3">2</div><div class="grid-cell c3">3</div><div class="grid-cell c3">4</div>
+            <div class="grid-cell c3">5</div><div class="grid-cell c3">6</div><div class="grid-cell c3">7</div><div class="grid-cell c3">8</div>
+            <div class="grid-cell c4">1</div><div class="grid-cell c4">2</div><div class="grid-cell c4">3</div><div class="grid-cell c4">4</div>
+            <div class="grid-cell c4">5</div><div class="grid-cell c4">6</div><div class="grid-cell c4">7</div><div class="grid-cell c4">8</div>
+          </div>
+
+          <!-- Read-only overlay hint -->
+          <div style="text-align:center; margin-top: 12px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+            <div style="font-size: 16px; margin-bottom: 4px;">&#128274;</div>
+            <div style="font-size: 10px; color: #888;">읽기 전용 &mdash; 수정할 수 없어요</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 12px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:25%;"></div>
+              <div class="seekbar-thumb" style="left:23%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:23</span><span>1:32</span></div>
+          </div>
+
+          <div class="controls">
+            <div class="ctrl-speed">1.0x</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9208;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn">&#128257;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 1</div><span class="section-badge">슬롯 이해</span>
+      <div class="slide-title">R 슬롯이란?</div>
+      <div class="slide-subtitle">Ritmo가 자동으로 만든 분석 결과예요</div>
+      <div class="slide-desc">
+        <span class="highlight">R</span>은 Ritmo가 자동 분석한 결과예요.<br>
+        <span class="action">읽기 전용</span>이라 수정할 수 없어요.<br><br>
+        비트, 프레이즈 구분, 다운비트 위치 등이<br>
+        AI에 의해 자동으로 채워져 있어요.<br><br>
+        편집하고 싶다면? 다음 슬라이드에서 알아볼게요!
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 2: 내 슬롯 만들기 ════════════════ -->
+  <div class="slide" data-slide="2">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <div class="slot-bar">
+            <div class="slot-badge readonly active">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <div class="phrase-grid no-row-num">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2" style="border: 2px solid #FFD700; box-shadow: 0 0 10px rgba(255,215,0,0.5);">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+            <div class="grid-cell c3">1</div><div class="grid-cell c3">2</div><div class="grid-cell c3">3</div><div class="grid-cell c3">4</div>
+            <div class="grid-cell c3">5</div><div class="grid-cell c3">6</div><div class="grid-cell c3">7</div><div class="grid-cell c3">8</div>
+          </div>
+
+          <!-- Longpress animation -->
+          <div class="overlay-pointer" style="top: 138px; left: 90px;">
+            <div class="pointer-circle longpress"></div>
+          </div>
+
+          <!-- Copy toast -->
+          <div style="position:absolute; bottom: 140px; left:50%; transform:translateX(-50%); background: #e74c8b; color:#fff; padding: 8px 16px; border-radius: 10px; font-size: 11px; font-weight: 600; box-shadow: 0 8px 20px rgba(231,76,139,0.4); white-space:nowrap;">
+            &#128203; R &rarr; 슬롯 1에 복사 완료!
+          </div>
+
+          <div class="seekbar" style="margin-top: 50px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:30%;"></div>
+              <div class="seekbar-thumb" style="left:28%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:28</span><span>1:32</span></div>
+          </div>
+
+          <div class="controls">
+            <div class="ctrl-speed">1.0x</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9208;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn">&#128257;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 2</div><span class="section-badge">슬롯 이해</span>
+      <div class="slide-title">내 슬롯 만들기</div>
+      <div class="slide-subtitle">R에서 편집하려면 자동으로 슬롯이 복사돼요</div>
+      <div class="slide-desc">
+        R 상태에서 편집하려고 셀을 <span class="action">길게 누르면</span>,<br>
+        R이 자동으로 <span class="highlight">슬롯 1에 복사</span>돼요.<br><br>
+        복사가 완료되면 바로 슬롯 1로 전환되어<br>
+        자유롭게 편집할 수 있어요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 3: 슬롯 활성화 ════════════════ -->
+  <div class="slide" data-slide="3">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <!-- Slot bar with multiple slots -->
+          <div class="slot-bar">
+            <div class="slot-badge active" style="box-shadow: 0 0 10px rgba(231,76,139,0.4);">1 &#9679;</div>
+            <div class="slot-badge">2</div>
+            <div class="slot-badge">3</div>
+            <div class="slot-badge readonly">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <div class="overlay-pointer" style="top: 62px; left: 4px;">
+            <div class="pointer-circle tap" style="width:36px; height:36px;"></div>
+          </div>
+          <div class="tooltip-bubble arrow-down" style="top: 46px; left: 48px;">
+            슬롯 1 활성!
+          </div>
+
+          <div class="phrase-grid no-row-num" style="margin-top: 8px;">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+            <div class="grid-cell c3">1</div><div class="grid-cell c3">2</div><div class="grid-cell c3">3</div><div class="grid-cell c3">4</div>
+            <div class="grid-cell c3">5</div><div class="grid-cell c3">6</div><div class="grid-cell c3">7</div><div class="grid-cell c3">8</div>
+            <div class="grid-cell c4">1</div><div class="grid-cell c4">2</div><div class="grid-cell c4">3</div><div class="grid-cell c4">4</div>
+            <div class="grid-cell c4">5</div><div class="grid-cell c4">6</div><div class="grid-cell c4">7</div><div class="grid-cell c4">8</div>
+          </div>
+
+          <div style="text-align:center; margin-top: 12px; padding: 8px; background: rgba(231,76,139,0.08); border-radius: 8px; border: 1px solid rgba(231,76,139,0.2);">
+            <div style="font-size: 10px; color: #e74c8b; font-weight: 600;">&#9989; 편집 가능 상태</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 8px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:30%;"></div>
+              <div class="seekbar-thumb" style="left:28%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:28</span><span>1:32</span></div>
+          </div>
+
+          <div class="controls">
+            <div class="ctrl-btn" style="font-size:11px;">&#8617;</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9208;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn">&#128257;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 3</div><span class="section-badge">슬롯 이해</span>
+      <div class="slide-title">슬롯 활성화</div>
+      <div class="slide-subtitle">최대 3개 슬롯으로 여러 버전을 관리하세요</div>
+      <div class="slide-desc">
+        슬롯 1로 전환됐어요!<br>
+        최대 <span class="highlight">3개 슬롯</span>까지 만들 수 있어요.<br><br>
+        슬롯바에서 <span class="action">1, 2, 3, R</span>을 탭해서<br>
+        버전 간에 자유롭게 전환할 수 있어요.<br><br>
+        각 슬롯은 독립적이라서 다양한 편집을<br>
+        비교해볼 수 있어요.
+      </div>
+      <ul class="feature-list">
+        <li>슬롯 1~3: 자유롭게 편집 가능</li>
+        <li>R 슬롯: AI 원본 (읽기 전용)</li>
+        <li>슬롯 간 자유 전환</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 4: 일시정지 ════════════════ -->
+  <div class="slide" data-slide="4">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <div class="slot-bar">
+            <div class="slot-badge active">1 &#9679;</div>
+            <div class="slot-badge readonly">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <div class="phrase-grid no-row-num">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1 current">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+            <div class="grid-cell c3">1</div><div class="grid-cell c3">2</div><div class="grid-cell c3">3</div><div class="grid-cell c3">4</div>
+            <div class="grid-cell c3">5</div><div class="grid-cell c3">6</div><div class="grid-cell c3">7</div><div class="grid-cell c3">8</div>
+            <div class="grid-cell c4">1</div><div class="grid-cell c4">2</div><div class="grid-cell c4">3</div><div class="grid-cell c4">4</div>
+            <div class="grid-cell c4">5</div><div class="grid-cell c4">6</div><div class="grid-cell c4">7</div><div class="grid-cell c4">8</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 20px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:40%;"></div>
+              <div class="seekbar-thumb" style="left:38%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:37</span><span>1:32</span></div>
+          </div>
+
+          <div class="controls">
+            <div class="ctrl-btn" style="font-size:11px;">&#8617;</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play glow" style="position:relative;">
+              &#9208;
+            </div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn">&#128257;</div>
+          </div>
+
+          <div class="overlay-pointer" style="bottom: 60px; left: 50%; transform: translateX(-50%);">
+            <div class="pointer-circle tap"></div>
+          </div>
+          <div class="tooltip-bubble arrow-down" style="bottom: 110px; left: 50%; transform: translateX(-50%);">
+            먼저 일시정지!
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 4</div><span class="section-badge">기본 조작</span>
+      <div class="slide-title">일시정지</div>
+      <div class="slide-subtitle">편집은 일시정지 중에만 가능해요</div>
+      <div class="slide-desc">
+        그리드를 편집하려면 먼저 음악을 <span class="action">일시정지</span>하세요.<br><br>
+        재생 중에는 셀을 탭해서 이동만 가능하고,<br>
+        롱프레스 편집 메뉴는 정지 상태에서만 열려요.<br><br>
+        하단의 <span class="highlight">&#9208; 버튼</span>을 눌러 정지하세요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 5: 셀 탭으로 이동 ════════════════ -->
+  <div class="slide" data-slide="5">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <div class="slot-bar">
+            <div class="slot-badge active">1 &#9679;</div>
+            <div class="slot-badge readonly">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <div class="phrase-grid no-row-num">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+            <div class="grid-cell c3">1</div><div class="grid-cell c3">2</div><div class="grid-cell c3" style="border: 2px solid #FFD700; box-shadow: 0 0 10px rgba(255,215,0,0.5);">3</div><div class="grid-cell c3">4</div>
+            <div class="grid-cell c3">5</div><div class="grid-cell c3">6</div><div class="grid-cell c3">7</div><div class="grid-cell c3">8</div>
+            <div class="grid-cell c4">1</div><div class="grid-cell c4">2</div><div class="grid-cell c4">3</div><div class="grid-cell c4">4</div>
+            <div class="grid-cell c4">5</div><div class="grid-cell c4">6</div><div class="grid-cell c4">7</div><div class="grid-cell c4">8</div>
+          </div>
+
+          <div class="overlay-pointer" style="top: 178px; left: 76px;">
+            <div class="pointer-circle tap" style="width:30px; height:30px;"></div>
+          </div>
+
+          <!-- Arrow showing seekbar jump -->
+          <div style="position:absolute; top: 220px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px;">
+            <div style="font-size: 18px; color: #FFD700; animation: pulse-ring 1.5s ease-in-out infinite;">&#8595;</div>
+            <div style="font-size: 9px; color: #FFD700; font-weight: 600;">비트 위치로 이동</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 60px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:55%;"></div>
+              <div class="seekbar-thumb" style="left:53%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:51</span><span>1:32</span></div>
+          </div>
+
+          <div class="controls">
+            <div class="ctrl-btn" style="font-size:11px;">&#8617;</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9654;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn">&#128257;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 5</div><span class="section-badge">기본 조작</span>
+      <div class="slide-title">셀 탭으로 이동</div>
+      <div class="slide-subtitle">원하는 비트 위치로 바로 점프하세요</div>
+      <div class="slide-desc">
+        셀을 <span class="action">탭</span>하면 그 비트 위치로 이동해요.<br><br>
+        금색 테두리가 탭한 셀로 옮겨가고,<br>
+        시크바도 해당 시간으로 점프해요.<br><br>
+        정지 상태에서도, 재생 중에서도<br>
+        셀 탭으로 빠르게 이동할 수 있어요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 6: 편집 메뉴 열기 ════════════════ -->
+  <div class="slide" data-slide="6">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <div class="slot-bar">
+            <div class="slot-badge active">1 &#9679;</div>
+            <div class="slot-badge readonly">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <div class="phrase-grid no-row-num" style="opacity: 0.4;">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+            <div class="grid-cell c3">1</div><div class="grid-cell c3">2</div><div class="grid-cell c3">3</div><div class="grid-cell c3">4</div>
+            <div class="grid-cell c3">5</div><div class="grid-cell c3">6</div><div class="grid-cell c3">7</div><div class="grid-cell c3">8</div>
+          </div>
+
+          <!-- Context menu overlay -->
+          <div class="context-menu-overlay"></div>
+
+          <!-- Context menu -->
+          <div class="context-menu" style="top: 50%; left: 50%; transform: translate(-50%, -50%);">
+            <div class="context-menu-title">
+              <span class="beat-color" style="background: rgba(139, 92, 246, 0.8);"></span>
+              <span style="color:#fff;">Beat 3</span>
+              <span style="color:#888; font-size:8px; font-weight:400;">&#12288;phrase 2</span>
+            </div>
+            <div class="context-item"><span class="item-icon">&#127919;</span> 여기가 1</div>
+            <div class="context-item"><span class="item-icon">&#9986;</span> 프레이즈 분할</div>
+            <div class="context-item"><span class="item-icon">&#128257;</span> A-B 반복 구간 설정</div>
+            <div class="context-item danger"><span class="item-icon">&#128465;</span> 프레이즈 삭제</div>
+            <div class="context-item"><span class="item-icon">&#128221;</span> 메모</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 20px; opacity: 0.3;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:30%;"></div>
+              <div class="seekbar-thumb" style="left:28%;"></div>
+            </div>
+          </div>
+
+          <div class="controls" style="opacity: 0.3;">
+            <div class="ctrl-btn" style="font-size:11px;">&#8617;</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9654;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn">&#128257;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 6</div><span class="section-badge">프레이즈 편집</span>
+      <div class="slide-title">편집 메뉴 열기</div>
+      <div class="slide-subtitle">셀을 길게 누르면 편집 메뉴가 열려요</div>
+      <div class="slide-desc">
+        일시정지 상태에서 셀을 <span class="action">길게 누르면</span><br>
+        편집 메뉴가 팝업으로 나타나요.<br><br>
+        사용할 수 있는 기능:
+      </div>
+      <ul class="feature-list">
+        <li><span class="highlight">여기가 1</span> &mdash; 카운트 시작점 변경</li>
+        <li><span class="highlight">프레이즈 분할</span> &mdash; 프레이즈를 둘로 나누기</li>
+        <li><span class="highlight">A-B 반복 구간 설정</span> &mdash; 연습 구간 지정</li>
+        <li><span style="color:#ef4444; font-weight:600;">프레이즈 삭제</span> &mdash; 이전과 합치기</li>
+        <li><span class="highlight">메모</span> &mdash; 비트에 메모 달기</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 7: 여기가 1 ════════════════ -->
+  <div class="slide" data-slide="7">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <div class="slot-bar">
+            <div class="slot-badge active">1 &#9679;</div>
+            <div class="slot-badge readonly">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <!-- Before / After comparison -->
+          <div style="margin-top: 4px;">
+            <div style="font-size: 9px; color: #888; font-weight: 600; margin-bottom: 4px;">BEFORE</div>
+            <div class="phrase-grid no-row-num" style="margin: 0 0 6px 0; opacity: 0.5;">
+              <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+              <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+            </div>
+
+            <div style="text-align: center; font-size: 14px; color: #FFD700; margin: 4px 0;">&#8595;</div>
+
+            <div style="font-size: 9px; color: #FFD700; font-weight: 600; margin-bottom: 4px;">AFTER &mdash; "여기가 1" on Beat 5</div>
+            <div class="phrase-grid no-row-num" style="margin: 0 0 6px 0;">
+              <div class="grid-cell c2" style="opacity:0.4;">1</div><div class="grid-cell c2" style="opacity:0.4;">2</div><div class="grid-cell c2" style="opacity:0.4;">3</div><div class="grid-cell c2" style="opacity:0.4;">4</div>
+              <div class="grid-cell c2" style="border: 2px solid #FFD700; box-shadow: 0 0 8px rgba(255,215,0,0.5);">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            </div>
+          </div>
+
+          <!-- Context menu with highlight -->
+          <div class="context-menu-overlay" style="opacity: 0.3;"></div>
+          <div class="context-menu" style="top: 50%; left: 50%; transform: translate(-50%, -50%);">
+            <div class="context-menu-title">
+              <span class="beat-color" style="background: rgba(139, 92, 246, 0.8);"></span>
+              <span style="color:#fff;">Beat 5</span>
+            </div>
+            <div class="context-item active-item"><span class="item-icon">&#127919;</span> 여기가 1</div>
+            <div class="context-item" style="opacity:0.3;"><span class="item-icon">&#9986;</span> 프레이즈 분할</div>
+            <div class="context-item" style="opacity:0.3;"><span class="item-icon">&#128257;</span> A-B 반복 구간 설정</div>
+            <div class="context-item" style="opacity:0.3;"><span class="item-icon">&#128465;</span> 프레이즈 삭제</div>
+            <div class="context-item" style="opacity:0.3;"><span class="item-icon">&#128221;</span> 메모</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 24px; opacity: 0.3;">
+            <div class="seekbar-track"><div class="seekbar-fill" style="width:30%;"></div></div>
+          </div>
+          <div class="controls" style="opacity: 0.3;">
+            <div class="ctrl-btn" style="font-size:11px;">&#8617;</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9654;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn">&#128257;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 7</div><span class="section-badge">프레이즈 편집</span>
+      <div class="slide-title">'여기가 1'<br>(이 프레이즈만)</div>
+      <div class="slide-subtitle">카운트 시작점을 바꿔보세요</div>
+      <div class="slide-desc">
+        이 비트부터 카운트가 <span class="highlight">1로 다시 시작</span>돼요.<br><br>
+        AI가 잡은 다운비트가 내 느낌과 다를 때<br>
+        이 기능으로 카운트 시작점을 바꿔보세요.<br><br>
+        <span class="action">해당 프레이즈에만</span> 적용되니<br>
+        다른 프레이즈는 영향을 받지 않아요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 8: 프레이즈 분할 ════════════════ -->
+  <div class="slide" data-slide="8">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <div class="slot-bar">
+            <div class="slot-badge active">1 &#9679;</div>
+            <div class="slot-badge readonly">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <!-- Before: one phrase -->
+          <div style="margin-top: 4px;">
+            <div style="font-size: 9px; color: #888; font-weight: 600; margin-bottom: 4px;">BEFORE &mdash; 1개 프레이즈</div>
+            <div class="phrase-grid no-row-num" style="margin: 0 0 6px 0; opacity: 0.5;">
+              <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+              <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+              <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+              <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            </div>
+
+            <div style="text-align: center; font-size: 12px; color: #FFD700; margin: 4px 0;">&#9986; 분할 지점: Beat 5 (두 번째 줄)</div>
+
+            <div style="font-size: 9px; color: #FFD700; font-weight: 600; margin-bottom: 4px; margin-top: 6px;">AFTER &mdash; 2개 프레이즈</div>
+            <div class="phrase-grid no-row-num" style="margin: 0 0 4px 0;">
+              <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+              <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            </div>
+            <div style="height:2px; background: #FFD700; border-radius:1px; margin: 2px 0; box-shadow: 0 0 6px rgba(255,215,0,0.5);"></div>
+            <div class="phrase-grid no-row-num" style="margin: 4px 0 0 0;">
+              <div class="grid-cell c5">1</div><div class="grid-cell c5">2</div><div class="grid-cell c5">3</div><div class="grid-cell c5">4</div>
+              <div class="grid-cell c5">5</div><div class="grid-cell c5">6</div><div class="grid-cell c5">7</div><div class="grid-cell c5">8</div>
+            </div>
+          </div>
+
+          <div style="text-align:center; margin-top: 12px; padding: 6px; background: rgba(255,215,0,0.08); border-radius: 8px;">
+            <div style="font-size: 9px; color: #FFD700;">&#127912; 새 프레이즈에 새 색상이 적용돼요</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 8px;">
+            <div class="seekbar-track"><div class="seekbar-fill" style="width:30%;"></div><div class="seekbar-thumb" style="left:28%;"></div></div>
+            <div class="seekbar-time"><span>0:28</span><span>1:32</span></div>
+          </div>
+
+          <div class="controls">
+            <div class="ctrl-btn" style="font-size:11px;">&#8617;</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9654;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn">&#128257;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 8</div><span class="section-badge">프레이즈 편집</span>
+      <div class="slide-title">프레이즈 분할</div>
+      <div class="slide-subtitle">하나의 프레이즈를 둘로 나눠요</div>
+      <div class="slide-desc">
+        프레이즈를 여기서 <span class="highlight">둘로 나눠요</span>.<br><br>
+        색이 바뀌면서 <span class="action">새 프레이즈</span>가 생겨요.<br>
+        분할 지점의 비트부터 새 프레이즈가 시작돼요.<br><br>
+        AI가 너무 길게 잡은 프레이즈를<br>
+        원하는 단위로 쪼갤 때 유용해요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 9: 프레이즈 삭제 (합치기) ════════════════ -->
+  <div class="slide" data-slide="9">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <div class="slot-bar">
+            <div class="slot-badge active">1 &#9679;</div>
+            <div class="slot-badge readonly">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <!-- Before: two phrases -->
+          <div style="margin-top: 4px;">
+            <div style="font-size: 9px; color: #888; font-weight: 600; margin-bottom: 4px;">BEFORE &mdash; 2개 프레이즈</div>
+            <div class="phrase-grid no-row-num" style="margin: 0 0 2px 0; opacity: 0.5;">
+              <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+              <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            </div>
+            <div class="phrase-grid no-row-num" style="margin: 0 0 6px 0; opacity: 0.5;">
+              <div class="grid-cell c5" style="border: 2px solid #ef4444;">1</div><div class="grid-cell c5">2</div><div class="grid-cell c5">3</div><div class="grid-cell c5">4</div>
+              <div class="grid-cell c5">5</div><div class="grid-cell c5">6</div><div class="grid-cell c5">7</div><div class="grid-cell c5">8</div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px; justify-content: center; margin: 4px 0;">
+              <span style="font-size: 9px; color: #ef4444; font-weight: 600;">&#128465; 프레이즈 삭제</span>
+              <span style="font-size: 12px; color: #FFD700;">&rarr;</span>
+              <span style="font-size: 9px; color: #4ade80; font-weight: 600;">&#128279; 이전과 합치기</span>
+            </div>
+
+            <div style="font-size: 9px; color: #FFD700; font-weight: 600; margin-bottom: 4px; margin-top: 6px;">AFTER &mdash; 1개 프레이즈로 합침</div>
+            <div class="phrase-grid no-row-num" style="margin: 0;">
+              <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+              <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+              <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+              <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            </div>
+          </div>
+
+          <div style="text-align:center; margin-top: 10px; padding: 6px; background: rgba(239,68,68,0.08); border-radius: 8px;">
+            <div style="font-size: 9px; color: #ef4444;">&#9888; 프레이즈의 첫 번째 셀에서만 삭제 가능</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 8px;">
+            <div class="seekbar-track"><div class="seekbar-fill" style="width:30%;"></div><div class="seekbar-thumb" style="left:28%;"></div></div>
+            <div class="seekbar-time"><span>0:28</span><span>1:32</span></div>
+          </div>
+
+          <div class="controls">
+            <div class="ctrl-btn" style="font-size:11px;">&#8617;</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9654;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn">&#128257;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 9</div><span class="section-badge">프레이즈 편집</span>
+      <div class="slide-title">프레이즈 삭제<br>(합치기)</div>
+      <div class="slide-subtitle">분할한 프레이즈를 다시 합칠 수 있어요</div>
+      <div class="slide-desc">
+        분할한 프레이즈의 <span class="action">첫 번째 셀</span>에서<br>
+        '프레이즈 삭제'를 선택하면<br>
+        <span class="highlight">이전 프레이즈와 합쳐져요</span>.<br><br>
+        실수로 분할했을 때 되돌리는 방법이에요.<br>
+        (Undo 버튼으로도 되돌릴 수 있어요!)
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 10: 메모 달기 ════════════════ -->
+  <div class="slide" data-slide="10">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <div class="slot-bar">
+            <div class="slot-badge active">1 &#9679;</div>
+            <div class="slot-badge readonly">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <div class="phrase-grid no-row-num" style="opacity: 0.3;">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+          </div>
+
+          <!-- Memo input modal -->
+          <div class="context-menu-overlay"></div>
+          <div class="memo-modal">
+            <div class="memo-modal-title">&#128221; 메모 &mdash; Beat 3</div>
+            <div class="memo-input">Right turn</div>
+            <div class="memo-btn-row">
+              <div class="memo-btn cancel">취소</div>
+              <div class="memo-btn save">저장</div>
+            </div>
+          </div>
+
+          <!-- Result preview -->
+          <div style="margin-top: 30px; padding: 10px; background: rgba(45,212,191,0.08); border-radius: 8px; border: 1px solid rgba(45,212,191,0.2);">
+            <div style="font-size: 9px; color: #2dd4bf; font-weight: 600; margin-bottom: 6px;">메모가 저장되면:</div>
+            <div class="phrase-grid no-row-num" style="margin: 0;">
+              <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div>
+              <div class="grid-cell c2" style="position:relative;">3<span class="memo-dot"></span></div>
+              <div class="grid-cell c2">4</div>
+              <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+            </div>
+            <div style="font-size: 8px; color: #888; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
+              <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#2dd4bf;"></span>
+              청록색 점 = 메모가 있는 셀
+            </div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 8px; opacity: 0.3;">
+            <div class="seekbar-track"><div class="seekbar-fill" style="width:30%;"></div></div>
+          </div>
+          <div class="controls" style="opacity: 0.3;">
+            <div class="ctrl-btn" style="font-size:11px;">&#8617;</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9654;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn">&#128257;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 10</div><span class="section-badge">메모 &amp; 반복</span>
+      <div class="slide-title">메모 달기</div>
+      <div class="slide-subtitle">비트에 메모를 남겨 연습에 활용하세요</div>
+      <div class="slide-desc">
+        비트에 <span class="highlight">메모</span>를 남기세요.<br>
+        안무 동작 이름 등을 적어두면<br>
+        연습할 때 유용해요!<br><br>
+        메모가 있는 셀에는 좌하단에<br>
+        <span style="color:#2dd4bf; font-weight:600;">청록색 점</span>이 표시돼요.<br><br>
+        재생 중 해당 비트에 도달하면<br>
+        메모 내용이 화면에 표시돼요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 11: A-B 반복 시작점 ════════════════ -->
+  <div class="slide" data-slide="11">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <div class="slot-bar">
+            <div class="slot-badge active">1 &#9679;</div>
+            <div class="slot-badge readonly">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <div class="phrase-grid no-row-num" style="opacity: 0.4;">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+            <div class="grid-cell c3">1</div><div class="grid-cell c3">2</div><div class="grid-cell c3">3</div><div class="grid-cell c3">4</div>
+            <div class="grid-cell c3">5</div><div class="grid-cell c3">6</div><div class="grid-cell c3">7</div><div class="grid-cell c3">8</div>
+          </div>
+
+          <!-- Context menu with A-B highlighted -->
+          <div class="context-menu-overlay"></div>
+          <div class="context-menu" style="top: 50%; left: 50%; transform: translate(-50%, -50%);">
+            <div class="context-menu-title">
+              <span class="beat-color" style="background: rgba(139, 92, 246, 0.8);"></span>
+              <span style="color:#fff;">Beat 1</span>
+              <span style="color:#888; font-size:8px; font-weight:400;">&#12288;phrase 2</span>
+            </div>
+            <div class="context-item" style="opacity:0.3;"><span class="item-icon">&#127919;</span> 여기가 1</div>
+            <div class="context-item" style="opacity:0.3;"><span class="item-icon">&#9986;</span> 프레이즈 분할</div>
+            <div class="context-item active-item"><span class="item-icon">&#128257;</span> A-B 반복 구간 설정</div>
+            <div class="context-item" style="opacity:0.3;"><span class="item-icon">&#128465;</span> 프레이즈 삭제</div>
+            <div class="context-item" style="opacity:0.3;"><span class="item-icon">&#128221;</span> 메모</div>
+          </div>
+
+          <!-- A marker preview -->
+          <div style="position:absolute; bottom: 100px; left:50%; transform:translateX(-50%); background: rgba(255,215,0,0.15); border: 1px solid rgba(255,215,0,0.4); color:#FFD700; padding: 6px 14px; border-radius: 8px; font-size: 10px; font-weight: 600;">
+            &#127912; A 시작점 설정 완료
+          </div>
+
+          <div class="seekbar" style="margin-top: 8px; opacity: 0.3;">
+            <div class="seekbar-track"><div class="seekbar-fill" style="width:30%;"></div></div>
+          </div>
+          <div class="controls" style="opacity: 0.3;">
+            <div class="ctrl-btn" style="font-size:11px;">&#8617;</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9654;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn">&#128257;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 11</div><span class="section-badge">메모 &amp; 반복</span>
+      <div class="slide-title">A-B 반복<br>시작점 설정</div>
+      <div class="slide-subtitle">연습할 구간의 시작점을 잡아보세요</div>
+      <div class="slide-desc">
+        셀을 길게 눌러 편집 메뉴에서<br>
+        <span class="action">'A-B 반복 구간 설정'</span>을 선택하면<br>
+        해당 비트가 <span class="highlight">A (시작점)</span>으로 지정돼요.<br><br>
+        다음 단계에서 B (끝점)을 잡으면<br>
+        해당 구간이 반복 재생돼요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 12: A-B 반복 끝점 ════════════════ -->
+  <div class="slide" data-slide="12">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <div class="slot-bar">
+            <div class="slot-badge active">1 &#9679;</div>
+            <div class="slot-badge readonly">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <!-- Grid with A-B markers and highlight -->
+          <div class="phrase-grid no-row-num">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2 highlight-ab" style="position:relative;">1<span class="ab-marker">A</span></div><div class="grid-cell c2 highlight-ab">2</div><div class="grid-cell c2 highlight-ab">3</div><div class="grid-cell c2 highlight-ab">4</div>
+            <div class="grid-cell c2 highlight-ab">5</div><div class="grid-cell c2 highlight-ab">6</div><div class="grid-cell c2 highlight-ab">7</div><div class="grid-cell c2 highlight-ab">8</div>
+            <div class="grid-cell c3 highlight-ab">1</div><div class="grid-cell c3 highlight-ab">2</div><div class="grid-cell c3 highlight-ab">3</div><div class="grid-cell c3 highlight-ab">4</div>
+            <div class="grid-cell c3 highlight-ab" style="position:relative;">5<span class="ab-marker">B</span></div><div class="grid-cell c3">6</div><div class="grid-cell c3">7</div><div class="grid-cell c3">8</div>
+            <div class="grid-cell c4">1</div><div class="grid-cell c4">2</div><div class="grid-cell c4">3</div><div class="grid-cell c4">4</div>
+            <div class="grid-cell c4">5</div><div class="grid-cell c4">6</div><div class="grid-cell c4">7</div><div class="grid-cell c4">8</div>
+          </div>
+
+          <!-- A-B status bar -->
+          <div style="display:flex; align-items:center; justify-content:center; gap: 8px; margin-top: 8px; padding: 6px; background: rgba(255,215,0,0.1); border-radius: 8px; border: 1px solid rgba(255,215,0,0.3);">
+            <span style="font-size: 11px; font-weight: 700; color: #FFD700;">A</span>
+            <span style="font-size: 9px; color: #888;">0:28</span>
+            <span style="font-size: 9px; color: #FFD700;">&harr;</span>
+            <span style="font-size: 9px; color: #888;">0:51</span>
+            <span style="font-size: 11px; font-weight: 700; color: #FFD700;">B</span>
+            <span style="font-size: 9px; color: #4ade80; margin-left: 8px;">&#128257; 반복 중</span>
+          </div>
+
+          <div class="seekbar" style="margin-top: 8px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:45%;"></div>
+              <div class="seekbar-thumb" style="left:43%;"></div>
+              <!-- A-B range on seekbar -->
+              <div style="position:absolute; top:0; left:28%; width:27%; height:100%; background: rgba(255,215,0,0.2); border-radius:2px;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:41</span><span>1:32</span></div>
+          </div>
+
+          <div class="controls">
+            <div class="ctrl-btn" style="font-size:11px;">&#8617;</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play">&#9208;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn" style="color:#FFD700; font-size:11px; border: 1.5px solid #FFD700; border-radius: 50%;">&#128257;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 12</div><span class="section-badge">메모 &amp; 반복</span>
+      <div class="slide-title">A-B 반복<br>끝점 설정</div>
+      <div class="slide-subtitle">끝점을 잡으면 A-B 구간이 반복 재생돼요</div>
+      <div class="slide-desc">
+        다른 셀에서 다시 <span class="action">'A-B 반복 구간 설정'</span>을 선택하면<br>
+        그 비트가 <span class="highlight">B (끝점)</span>으로 지정돼요.<br><br>
+        A에서 B까지의 구간이 금색으로 하이라이트되고,<br>
+        재생하면 해당 구간만 <span class="highlight">반복 재생</span>돼요.<br><br>
+        특정 구간을 집중적으로 연습할 때<br>
+        매우 유용한 기능이에요!
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 13: 되돌리기 ════════════════ -->
+  <div class="slide" data-slide="13">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <div class="slot-bar">
+            <div class="slot-badge active">1 &#9679;</div>
+            <div class="slot-badge readonly">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <div class="phrase-grid no-row-num">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+            <div class="grid-cell c3">1</div><div class="grid-cell c3">2</div><div class="grid-cell c3">3</div><div class="grid-cell c3">4</div>
+            <div class="grid-cell c3">5</div><div class="grid-cell c3">6</div><div class="grid-cell c3">7</div><div class="grid-cell c3">8</div>
+            <div class="grid-cell c4">1</div><div class="grid-cell c4">2</div><div class="grid-cell c4">3</div><div class="grid-cell c4">4</div>
+            <div class="grid-cell c4">5</div><div class="grid-cell c4">6</div><div class="grid-cell c4">7</div><div class="grid-cell c4">8</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 20px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:35%;"></div>
+              <div class="seekbar-thumb" style="left:33%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:32</span><span>1:32</span></div>
+          </div>
+
+          <div class="controls">
+            <div class="ctrl-btn glow" style="font-size:14px; position:relative;">
+              &#8617;
+            </div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9654;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn">&#128257;</div>
+          </div>
+
+          <div class="overlay-pointer" style="bottom: 56px; left: 30px;">
+            <div class="pointer-circle tap" style="width:36px; height:36px;"></div>
+          </div>
+          <div class="tooltip-bubble arrow-down" style="bottom: 106px; left: 16px;">
+            &#8617; 되돌리기!
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 13</div><span class="section-badge">마무리</span>
+      <div class="slide-title">되돌리기</div>
+      <div class="slide-subtitle">실수했다면 되돌리기 버튼으로 복원하세요</div>
+      <div class="slide-desc">
+        실수했다면 하단의 <span class="highlight">&#8617; 되돌리기 버튼</span>으로<br>
+        복원할 수 있어요.<br><br>
+        프레이즈 분할, 삭제, 여기가 1, 메모 등<br>
+        모든 편집 작업을 <span class="action">단계별로 되돌릴 수</span> 있어요.<br><br>
+        걱정 없이 자유롭게 편집해보세요!
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 14: 완료! ════════════════ -->
+  <div class="slide" data-slide="14">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600;">Un Solo Latido</span>
+            </div>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">129 BPM</span>
+          </div>
+
+          <div class="slot-bar">
+            <div class="slot-badge active">1 &#9679;</div>
+            <div class="slot-badge">2</div>
+            <div class="slot-badge readonly">R <span class="lock-icon">&#128274;</span></div>
+          </div>
+
+          <!-- Complete grid with all features shown -->
+          <div class="phrase-grid no-row-num">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2 highlight-ab" style="position:relative;">1<span class="ab-marker">A</span></div><div class="grid-cell c2 highlight-ab">2</div><div class="grid-cell c2 highlight-ab" style="position:relative;">3<span class="memo-dot"></span></div><div class="grid-cell c2 highlight-ab">4</div>
+            <div class="grid-cell c2 highlight-ab current">5</div><div class="grid-cell c2 highlight-ab" style="position:relative;">6<span class="memo-dot"></span></div><div class="grid-cell c2 highlight-ab">7</div><div class="grid-cell c2 highlight-ab">8</div>
+            <div class="grid-cell c5 highlight-ab">1</div><div class="grid-cell c5 highlight-ab">2</div><div class="grid-cell c5 highlight-ab">3</div><div class="grid-cell c5 highlight-ab" style="position:relative;">4<span class="ab-marker">B</span></div>
+            <div class="grid-cell c5">5</div><div class="grid-cell c5">6</div><div class="grid-cell c5">7</div><div class="grid-cell c5">8</div>
+            <div class="grid-cell c3">1</div><div class="grid-cell c3">2</div><div class="grid-cell c3" style="position:relative;">3<span class="memo-dot"></span></div><div class="grid-cell c3">4</div>
+            <div class="grid-cell c3">5</div><div class="grid-cell c3">6</div><div class="grid-cell c3">7</div><div class="grid-cell c3">8</div>
+            <div class="grid-cell c6">1</div><div class="grid-cell c6">2</div><div class="grid-cell c6">3</div><div class="grid-cell c6">4</div>
+            <div class="grid-cell c6">5</div><div class="grid-cell c6">6</div><div class="grid-cell c6">7</div><div class="grid-cell c6">8</div>
+          </div>
+
+          <!-- A-B indicator -->
+          <div style="display:flex; align-items:center; justify-content:center; gap: 6px; margin-top: 4px; padding: 4px; background: rgba(255,215,0,0.1); border-radius: 6px;">
+            <span style="font-size: 9px; font-weight: 700; color: #FFD700;">A-B &#128257;</span>
+            <span style="font-size: 8px; color: #888;">0:28 ~ 0:51</span>
+          </div>
+
+          <div class="seekbar" style="margin-top: 6px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:42%;"></div>
+              <div class="seekbar-thumb" style="left:40%;"></div>
+              <div style="position:absolute; top:0; left:28%; width:23%; height:100%; background: rgba(255,215,0,0.2); border-radius:2px;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:39</span><span>1:32</span></div>
+          </div>
+
+          <div class="controls">
+            <div class="ctrl-btn" style="font-size:11px;">&#8617;</div>
+            <div class="ctrl-btn">&#9198;</div>
+            <div class="ctrl-btn play">&#9208;</div>
+            <div class="ctrl-btn">&#9197;</div>
+            <div class="ctrl-btn" style="color:#FFD700;">&#128257;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 14</div><span class="section-badge">마무리</span>
+      <div class="slide-title">완료!</div>
+      <div class="slide-subtitle">Grid Edit의 기본 기능을 모두 배웠어요</div>
+      <div class="slide-desc">
+        이제 자유롭게 편집하고 연습해보세요!
+      </div>
+      <div class="summary-flow" style="margin-top: 20px;">
+        <div class="flow-step">
+          <div class="flow-num">1</div>
+          <div class="flow-text"><strong>R 슬롯</strong>에서 내 슬롯으로 복사</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">2</div>
+          <div class="flow-text"><strong>셀 탭</strong>으로 비트 이동</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">3</div>
+          <div class="flow-text"><strong>롱프레스</strong>로 편집 메뉴 열기</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">4</div>
+          <div class="flow-text"><strong>프레이즈 분할/합치기</strong>로 구간 조정</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">5</div>
+          <div class="flow-text"><strong>메모</strong>로 안무 동작 기록</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">6</div>
+          <div class="flow-text"><strong>A-B 반복</strong>으로 구간 연습</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Navigation -->
+<div class="nav-bar">
+  <button class="nav-btn" id="prevBtn" onclick="navigate(-1)">&larr;</button>
+  <div class="nav-dots" id="navDots"></div>
+  <span class="slide-counter" id="slideCounter">1 / 15</span>
+  <button class="nav-btn" id="nextBtn" onclick="navigate(1)">&rarr;</button>
+</div>
+
+<script>
+  let current = 0;
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+
+  // Build dots
+  const dotsEl = document.getElementById('navDots');
+  for (let i = 0; i < total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+    dot.onclick = () => goTo(i);
+    dotsEl.appendChild(dot);
+  }
+
+  function goTo(idx) {
+    if (idx < 0 || idx >= total) return;
+    slides[current].classList.remove('active');
+    dotsEl.children[current].classList.remove('active');
+    current = idx;
+    slides[current].classList.add('active');
+    dotsEl.children[current].classList.add('active');
+    document.getElementById('slideCounter').textContent = `${current + 1} / ${total}`;
+    document.getElementById('prevBtn').disabled = current === 0;
+    document.getElementById('nextBtn').disabled = current === total - 1;
+  }
+
+  function navigate(dir) { goTo(current + dir); }
+
+  // Keyboard
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); navigate(1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); navigate(-1); }
+  });
+
+  // Swipe
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', (e) => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) navigate(diff > 0 ? 1 : -1);
+  });
+
+  // Init
+  goTo(0);
+</script>
+
+</body>
+</html>

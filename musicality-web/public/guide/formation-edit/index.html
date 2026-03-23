@@ -1,0 +1,2051 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ritmo - Formation Edit Tutorial</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #0a0a0a;
+    color: #fff;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* ─── Slide Container ─── */
+  .slides-wrapper {
+    width: 100vw; height: 100vh;
+    position: relative;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+  .slide.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ─── Layout: Left (Phone Mockup) + Right (Description) ─── */
+  .slide-left {
+    flex: 0 0 45%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+  .slide-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 60px 60px 60px 20px;
+  }
+
+  /* ─── Phone Mockup ─── */
+  .phone {
+    width: 300px;
+    height: 620px;
+    background: #1a1a2e;
+    border-radius: 36px;
+    border: 3px solid #333;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+  }
+  .phone-notch {
+    width: 120px; height: 28px;
+    background: #0a0a0a;
+    border-radius: 0 0 16px 16px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 10;
+  }
+  .phone-screen {
+    padding: 8px 12px;
+    height: calc(100% - 28px - 56px);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ─── Tab Bar ─── */
+  .tab-bar {
+    height: 56px;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    border-top: 1px solid #222;
+    padding: 0 8px;
+  }
+  .tab-item {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+    font-size: 9px; color: #666;
+  }
+  .tab-item.active { color: #e74c8b; }
+  .tab-icon { font-size: 20px; }
+
+  /* ─── Overlay Pointer ─── */
+  .overlay-pointer {
+    position: absolute;
+    z-index: 20;
+    animation: pulse-ring 1.5s ease-in-out infinite;
+  }
+  .pointer-circle {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 3px solid #FFD700;
+    background: rgba(255, 215, 0, 0.15);
+    position: relative;
+  }
+  .pointer-circle::after {
+    content: '';
+    position: absolute;
+    bottom: -20px; right: -10px;
+    font-size: 22px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  }
+  .pointer-circle.tap::after { content: '👆'; }
+  .pointer-circle.longpress::after { content: '👇'; }
+  .pointer-circle.drag::after { content: '✋'; }
+  @keyframes pulse-ring {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.15); opacity: 0.7; }
+  }
+
+  /* ─── Tooltip Bubble ─── */
+  .tooltip-bubble {
+    position: absolute;
+    z-index: 20;
+    background: #FFD700;
+    color: #000;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 8px;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+  }
+  .tooltip-bubble::after {
+    content: '';
+    position: absolute;
+    border: 6px solid transparent;
+  }
+  .tooltip-bubble.arrow-down::after {
+    bottom: -12px; left: 50%; transform: translateX(-50%);
+    border-top-color: #FFD700;
+  }
+  .tooltip-bubble.arrow-left::after {
+    left: -12px; top: 50%; transform: translateY(-50%);
+    border-right-color: #FFD700;
+  }
+  .tooltip-bubble.arrow-up::after {
+    top: -12px; left: 50%; transform: translateX(-50%);
+    border-bottom-color: #FFD700;
+  }
+  .tooltip-bubble.arrow-right::after {
+    right: -12px; top: 50%; transform: translateY(-50%);
+    border-left-color: #FFD700;
+  }
+
+  /* ─── Right Side Content ─── */
+  .step-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #e74c8b, #ff6b9d);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+    letter-spacing: 0.5px;
+  }
+  .section-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.08);
+    color: #888;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin-left: 8px;
+    letter-spacing: 0.5px;
+  }
+  .slide-title {
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, #fff, #ccc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .slide-subtitle {
+    font-size: 16px;
+    color: #999;
+    margin-bottom: 28px;
+    line-height: 1.5;
+  }
+  .slide-desc {
+    font-size: 15px;
+    color: #bbb;
+    line-height: 1.8;
+    max-width: 480px;
+  }
+  .slide-desc .highlight {
+    color: #FFD700;
+    font-weight: 600;
+  }
+  .slide-desc .action {
+    color: #e74c8b;
+    font-weight: 600;
+  }
+
+  .feature-list {
+    list-style: none;
+    margin-top: 20px;
+  }
+  .feature-list li {
+    padding: 8px 0;
+    font-size: 14px;
+    color: #bbb;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .feature-list li::before {
+    content: '\25B8';
+    color: #e74c8b;
+    font-weight: bold;
+  }
+
+  /* ─── Navigation ─── */
+  .nav-bar {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 100;
+    background: rgba(30,30,30,0.9);
+    backdrop-filter: blur(10px);
+    padding: 10px 24px;
+    border-radius: 40px;
+    border: 1px solid #333;
+  }
+  .nav-btn {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 2px solid #444;
+    background: transparent;
+    color: #fff;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .nav-btn:hover { border-color: #e74c8b; background: rgba(231,76,139,0.1); }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .nav-dots {
+    display: flex; gap: 4px;
+  }
+  .nav-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #444;
+    transition: all 0.3s;
+    cursor: pointer;
+  }
+  .nav-dot.active {
+    background: #e74c8b;
+    width: 20px;
+    border-radius: 4px;
+  }
+  .slide-counter {
+    font-size: 13px;
+    color: #666;
+    min-width: 60px;
+    text-align: center;
+  }
+
+  /* ─── Phone Screen Elements ─── */
+  .screen-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    margin-bottom: 4px;
+  }
+  .screen-header-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  /* ─── Stage ─── */
+  .stage {
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    background: #12122a;
+    border-radius: 8px;
+    border: 1px solid #333;
+    position: relative;
+    overflow: hidden;
+  }
+  .stage-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 25% 33.33%;
+  }
+  .stage-label {
+    position: absolute;
+    font-size: 7px;
+    font-weight: 600;
+    color: #444;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .stage-label.top {
+    top: 3px; left: 50%; transform: translateX(-50%);
+  }
+  .stage-label.bottom {
+    bottom: 3px; left: 50%; transform: translateX(-50%);
+  }
+
+  /* ─── Dancer Dot ─── */
+  .dancer {
+    position: absolute;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+  .dancer.leader { background: #4A90D9; }
+  .dancer.follower { background: #E74C8B; }
+  .dancer.extra1 { background: #10B981; }
+  .dancer.extra2 { background: #8B5CF6; }
+  .dancer.selected {
+    border: 2px solid #fff;
+    box-shadow: 0 0 10px rgba(255,255,255,0.4);
+  }
+  .dancer.ghost {
+    opacity: 0.3;
+    border: 1px dashed #888;
+  }
+  .dancer .kf-dot {
+    position: absolute;
+    bottom: -4px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #FFD700;
+  }
+
+  /* ─── Toolbar ─── */
+  .toolbar {
+    display: flex;
+    gap: 4px;
+    margin: 6px 0;
+    flex-wrap: wrap;
+  }
+  .tool-btn {
+    padding: 4px 8px;
+    font-size: 9px;
+    font-weight: 600;
+    border-radius: 6px;
+    background: #222;
+    color: #888;
+    border: 1px solid #333;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .tool-btn.active {
+    background: rgba(231,76,139,0.2);
+    color: #e74c8b;
+    border-color: #e74c8b;
+  }
+  .tool-btn.accent {
+    background: rgba(255,215,0,0.15);
+    color: #FFD700;
+    border-color: rgba(255,215,0,0.4);
+  }
+  .tool-sep {
+    width: 1px;
+    background: #333;
+    margin: 0 2px;
+  }
+
+  /* ─── Grid (mini, for PhraseGrid) ─── */
+  .phrase-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 2px;
+    margin: 4px 0;
+  }
+  .grid-cell {
+    aspect-ratio: 1;
+    border-radius: 3px;
+    font-size: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.7);
+    font-weight: 600;
+    position: relative;
+  }
+  .grid-cell.c1 { background: rgba(231, 76, 139, 0.5); }
+  .grid-cell.c2 { background: rgba(139, 92, 246, 0.5); }
+  .grid-cell.c3 { background: rgba(59, 130, 246, 0.5); }
+  .grid-cell.c4 { background: rgba(16, 185, 129, 0.5); }
+  .grid-cell.current {
+    border: 2px solid #FFD700;
+    box-shadow: 0 0 8px rgba(255,215,0,0.5);
+  }
+  .grid-cell.empty { background: rgba(255,255,255,0.05); }
+  .grid-cell .kf-mark {
+    position: absolute;
+    top: 1px; left: 1px;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: #111;
+  }
+
+  /* ─── Seekbar ─── */
+  .seekbar {
+    margin: 4px 0;
+    position: relative;
+  }
+  .seekbar-track {
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    position: relative;
+  }
+  .seekbar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #e74c8b, #ff6b9d);
+    border-radius: 2px;
+    width: 35%;
+  }
+  .seekbar-thumb {
+    width: 12px; height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    position: absolute;
+    top: -4px;
+    left: 33%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+  .seekbar-time {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: #888;
+    margin-top: 3px;
+  }
+
+  /* ─── Controls ─── */
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 4px 0;
+  }
+  .ctrl-btn {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: #ccc;
+    background: transparent;
+  }
+  .ctrl-btn.play {
+    width: 44px; height: 44px;
+    background: #e74c8b;
+    color: #fff;
+    font-size: 18px;
+  }
+  .ctrl-btn.play.paused {
+    background: #555;
+  }
+
+  /* ─── Setup Modal ─── */
+  .setup-modal {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: #1e1e2e;
+    border-radius: 14px;
+    padding: 16px;
+    width: 240px;
+    z-index: 16;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+    border: 1px solid #444;
+  }
+  .setup-modal-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: #fff;
+    text-align: center;
+  }
+  .setup-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .setup-label {
+    font-size: 11px;
+    color: #aaa;
+  }
+  .setup-value {
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+  }
+  .preset-row {
+    display: flex;
+    gap: 6px;
+    margin: 8px 0;
+    flex-wrap: wrap;
+  }
+  .preset-btn {
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    background: #222;
+    color: #888;
+    border: 1px solid #444;
+  }
+  .preset-btn.active {
+    background: #e74c8b;
+    color: #fff;
+    border-color: #e74c8b;
+  }
+  .setup-start-btn {
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    background: #e74c8b;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  /* ─── Dancer Edit Popup ─── */
+  .dancer-popup {
+    position: absolute;
+    background: #1e1e2e;
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+    border: 1px solid #444;
+    z-index: 15;
+    min-width: 180px;
+  }
+  .dancer-popup-title {
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #fff;
+  }
+  .name-input {
+    width: 100%;
+    background: #2a2a3e;
+    border: 1px solid #555;
+    border-radius: 8px;
+    padding: 6px 8px;
+    color: #fff;
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+  .color-palette {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+  }
+  .color-swatch {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+  }
+  .color-swatch.active {
+    border-color: #fff;
+    box-shadow: 0 0 6px rgba(255,255,255,0.4);
+  }
+
+  /* ─── Compare Box ─── */
+  .compare-box {
+    display: flex;
+    gap: 8px;
+    margin: 6px 0;
+    align-items: center;
+  }
+  .compare-label {
+    font-size: 8px;
+    color: #888;
+    font-weight: 600;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    letter-spacing: 1px;
+  }
+  .compare-stage {
+    flex: 1;
+  }
+  .compare-arrow {
+    font-size: 16px;
+    color: #FFD700;
+  }
+
+  /* ─── Drag Arrow ─── */
+  .drag-arrow {
+    position: absolute;
+    z-index: 12;
+  }
+  .drag-arrow svg {
+    overflow: visible;
+  }
+
+  /* ─── Selection Rectangle ─── */
+  .select-rect {
+    position: absolute;
+    border: 1.5px dashed rgba(255,215,0,0.7);
+    background: rgba(255,215,0,0.08);
+    border-radius: 4px;
+    z-index: 11;
+  }
+
+  /* ─── 3D Stage ─── */
+  .stage-3d {
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    background: linear-gradient(180deg, #0d0d20 0%, #1a1a35 50%, #252540 100%);
+    border-radius: 8px;
+    border: 1px solid #333;
+    position: relative;
+    overflow: hidden;
+    perspective: 400px;
+  }
+  .stage-3d-floor {
+    position: absolute;
+    bottom: 0; left: 5%; right: 5%;
+    height: 65%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.06) 100%);
+    transform: rotateX(45deg);
+    transform-origin: bottom center;
+    border-radius: 4px 4px 0 0;
+  }
+  .dancer-3d {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 5;
+  }
+  .dancer-3d-body {
+    width: 16px; height: 28px;
+    border-radius: 8px 8px 4px 4px;
+    position: relative;
+  }
+  .dancer-3d-head {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    margin-bottom: 1px;
+  }
+  .dancer-3d-shadow {
+    width: 20px; height: 6px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.3);
+    margin-top: 2px;
+  }
+  .dancer-3d-name {
+    font-size: 7px;
+    font-weight: 600;
+    color: #ccc;
+    margin-top: 2px;
+  }
+
+  /* ─── Cover Slide ─── */
+  .cover-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    text-align: center;
+  }
+  .cover-logo {
+    font-size: 72px;
+    margin-bottom: 20px;
+  }
+  .cover-title {
+    font-size: 48px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #e74c8b, #ff6b9d, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .cover-sub {
+    font-size: 20px;
+    color: #888;
+    margin-bottom: 40px;
+  }
+  .cover-info {
+    display: flex;
+    gap: 32px;
+    margin-top: 20px;
+  }
+  .cover-stat {
+    text-align: center;
+  }
+  .cover-stat-num {
+    font-size: 28px;
+    font-weight: 700;
+    color: #e74c8b;
+  }
+  .cover-stat-label {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+  }
+
+  /* Summary */
+  .summary-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 560px;
+  }
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 18px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px;
+    border-left: 3px solid #e74c8b;
+    transition: all 0.3s;
+  }
+  .flow-step:hover {
+    background: rgba(231,76,139,0.08);
+  }
+  .flow-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: #e74c8b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .flow-text {
+    font-size: 13px;
+    color: #ccc;
+  }
+  .flow-text strong {
+    color: #fff;
+  }
+
+  /* ─── Context Menu Modal ─── */
+  .context-menu-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 14;
+  }
+
+  /* Keyboard hint */
+  .kbd-hint {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    font-size: 12px;
+    color: #555;
+    z-index: 100;
+  }
+  .kbd {
+    background: #222;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    font-size: 11px;
+  }
+
+  /* Cover phone mockup */
+  .cover-phone {
+    width: 220px;
+    height: 180px;
+    margin: 0 auto 30px;
+    position: relative;
+  }
+
+  /* Flip button */
+  .flip-btn {
+    padding: 3px 8px;
+    font-size: 9px;
+    font-weight: 600;
+    border-radius: 6px;
+    background: #222;
+    color: #888;
+    border: 1px solid #333;
+  }
+  .flip-btn.active {
+    background: rgba(139,92,246,0.2);
+    color: #8b5cf6;
+    border-color: #8b5cf6;
+  }
+
+  /* ─── Mode Switch Bar ─── */
+  .mode-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .mode-btn {
+    padding: 4px 10px;
+    font-size: 9px;
+    font-weight: 600;
+    border-radius: 8px;
+    background: #222;
+    color: #666;
+    border: 1px solid #333;
+  }
+  .mode-btn.active {
+    background: rgba(231,76,139,0.2);
+    color: #e74c8b;
+    border-color: #e74c8b;
+  }
+
+  /* ─── Responsive: Mobile ─── */
+  @media (max-width: 768px) {
+    body { overflow-y: auto; }
+    .slide {
+      flex-direction: column;
+      overflow-y: auto;
+      padding-bottom: 100px;
+    }
+    .slide-left {
+      flex: none;
+      padding: 20px;
+      justify-content: center;
+    }
+    .slide-right {
+      flex: none;
+      padding: 20px 24px 40px;
+    }
+    .phone {
+      width: 260px;
+      height: 540px;
+    }
+    .slide-title {
+      font-size: 24px;
+    }
+    .slide-subtitle {
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    .slide-desc {
+      font-size: 13px;
+    }
+    .cover-title {
+      font-size: 32px;
+    }
+    .cover-sub {
+      font-size: 16px;
+    }
+    .kbd-hint {
+      display: none;
+    }
+    .nav-bar {
+      bottom: 12px;
+      padding: 8px 16px;
+      gap: 10px;
+    }
+    .nav-btn {
+      width: 36px; height: 36px;
+      font-size: 16px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="kbd-hint">
+  <span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> 또는 클릭으로 이동
+</div>
+
+<div class="slides-wrapper" id="slides">
+
+  <!-- ════════════════ SLIDE 0: Cover ════════════════ -->
+  <div class="slide active" data-slide="0">
+    <div class="cover-content">
+      <div class="cover-phone">
+        <!-- Mini stage preview -->
+        <div class="stage" style="width:220px; height:110px; border-radius:12px;">
+          <div class="stage-grid"></div>
+          <div class="stage-label top">BACKSTAGE</div>
+          <div class="stage-label bottom">AUDIENCE</div>
+          <div class="dancer leader" style="left:30px; top:20px; width:26px; height:26px; font-size:7px;">L1</div>
+          <div class="dancer follower" style="left:85px; top:35px; width:26px; height:26px; font-size:7px;">F1</div>
+          <div class="dancer extra1" style="left:140px; top:20px; width:26px; height:26px; font-size:7px;">L2</div>
+          <div class="dancer extra2" style="left:170px; top:55px; width:26px; height:26px; font-size:7px;">F2</div>
+        </div>
+      </div>
+      <div class="cover-title">Formation Edit 가이드</div>
+      <div class="cover-sub">댄서를 배치하고, 비트에 맞춰 움직임을 만들어보세요</div>
+      <div style="color:#666; font-size:14px; margin-bottom: 30px;">
+        스테이지 설정 &middot; 댄서 배치 &middot; 키프레임 편집 &middot; 패턴 &middot; 2D/3D
+      </div>
+      <div class="cover-info">
+        <div class="cover-stat">
+          <div class="cover-stat-num">12</div>
+          <div class="cover-stat-label">Steps</div>
+        </div>
+        <div class="cover-stat">
+          <div class="cover-stat-num">4</div>
+          <div class="cover-stat-label">Sections</div>
+        </div>
+        <div class="cover-stat">
+          <div class="cover-stat-num">~3min</div>
+          <div class="cover-stat-label">Completion</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 1: 포메이션 모드로 전환 ════════════════ -->
+  <div class="slide" data-slide="1">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <span style="font-size:11px; font-weight:600;">Bachata Rosa</span>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">128 BPM</span>
+          </div>
+
+          <!-- Mode bar -->
+          <div class="mode-bar">
+            <div class="mode-btn">Grid</div>
+            <div class="mode-btn active" style="box-shadow: 0 0 12px rgba(231,76,139,0.5);">Form</div>
+          </div>
+
+          <div class="overlay-pointer" style="top: 58px; left: 48px;">
+            <div class="pointer-circle tap" style="width:36px; height:36px;"></div>
+          </div>
+          <div class="tooltip-bubble arrow-down" style="top: 42px; left: 90px;">
+            Form 모드로 전환!
+          </div>
+
+          <!-- Placeholder stage (dimmed) -->
+          <div class="stage" style="margin-top:12px; opacity:0.4;">
+            <div class="stage-grid"></div>
+            <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
+              <div style="font-size:24px; opacity:0.4;">👥</div>
+            </div>
+          </div>
+
+          <div class="phrase-grid" style="margin-top: 8px; opacity: 0.5;">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 8px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:15%;"></div>
+              <div class="seekbar-thumb" style="left:13%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:12</span><span>3:24</span></div>
+          </div>
+          <div class="controls">
+            <div class="ctrl-btn" style="font-size:11px;">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9208;</div>
+            <div class="ctrl-btn" style="font-size:11px;">&#9197;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 1</div><span class="section-badge">포메이션 시작</span>
+      <div class="slide-title">포메이션 모드로 전환</div>
+      <div class="slide-subtitle">하단의 모드 전환 버튼을 눌러보세요</div>
+      <div class="slide-desc">
+        하단의 <span class="action">Form</span> 버튼을 눌러 포메이션 모드로 전환하세요.<br><br>
+        Grid 모드는 비트 편집, <span class="highlight">Form 모드</span>는 댄서 배치 편집이에요.<br>
+        두 모드를 자유롭게 오갈 수 있어요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 2: 스테이지 설정 ════════════════ -->
+  <div class="slide" data-slide="2">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <span style="font-size:11px; font-weight:600;">Bachata Rosa</span>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">128 BPM</span>
+          </div>
+
+          <!-- Dimmed background -->
+          <div style="opacity:0.2;">
+            <div class="stage" style="margin-top:8px; height:80px;"><div class="stage-grid"></div></div>
+          </div>
+
+          <!-- Setup Modal -->
+          <div class="context-menu-overlay" style="border-radius:0 0 33px 33px;"></div>
+          <div class="setup-modal" style="top:45%; width:220px;">
+            <div class="setup-modal-title">&#127917; Formation Setup</div>
+            <div class="setup-row">
+              <span class="setup-label">스테이지 크기</span>
+              <span class="setup-value">8 x 4</span>
+            </div>
+            <div class="preset-row">
+              <div class="preset-btn">6x3</div>
+              <div class="preset-btn active">8x4</div>
+              <div class="preset-btn">10x5</div>
+              <div class="preset-btn">12x6</div>
+            </div>
+            <div class="setup-row">
+              <span class="setup-label">댄서 수</span>
+              <span class="setup-value">4명</span>
+            </div>
+            <div class="setup-row" style="border:none;">
+              <span class="setup-label">구성</span>
+              <span class="setup-value">L2 + F2</span>
+            </div>
+            <div class="setup-start-btn">&#9654; 시작하기</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 2</div><span class="section-badge">포메이션 시작</span>
+      <div class="slide-title">스테이지 설정</div>
+      <div class="slide-subtitle">스테이지 크기와 댄서 수를 선택하세요</div>
+      <div class="slide-desc">
+        처음엔 기본값(<span class="highlight">8x4, 4명</span>)으로 시작하는 게 좋아요.<br><br>
+        프리셋 버튼으로 빠르게 크기를 변경하거나,<br>
+        댄서 수를 자유롭게 조정할 수 있어요.<br><br>
+        <span class="action">L = 리더</span>, <span class="action">F = 팔로워</span>로 자동 구성돼요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 3: 스테이지 살펴보기 ════════════════ -->
+  <div class="slide" data-slide="3">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <span style="font-size:11px; font-weight:600;">Bachata Rosa</span>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">128 BPM</span>
+          </div>
+
+          <div class="mode-bar">
+            <div class="mode-btn">Grid</div>
+            <div class="mode-btn active">Form</div>
+          </div>
+
+          <!-- Stage with dancers -->
+          <div class="stage" style="height:140px; margin-top:4px;">
+            <div class="stage-grid"></div>
+            <div class="stage-label top">BACKSTAGE</div>
+            <div class="stage-label bottom">AUDIENCE</div>
+            <div class="dancer leader" style="left:35px; top:30px;">L1</div>
+            <div class="dancer follower" style="left:100px; top:50px;">F1</div>
+            <div class="dancer leader" style="left:165px; top:30px;">L2</div>
+            <div class="dancer follower" style="left:220px; top:50px;">F2</div>
+          </div>
+
+          <!-- PhraseGrid below -->
+          <div class="phrase-grid" style="margin-top: 6px;">
+            <div class="grid-cell c1 current">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+            <div class="grid-cell c3">1</div><div class="grid-cell c3">2</div><div class="grid-cell c3">3</div><div class="grid-cell c3">4</div>
+            <div class="grid-cell c3">5</div><div class="grid-cell c3">6</div><div class="grid-cell c3">7</div><div class="grid-cell c3">8</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 4px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:5%;"></div>
+              <div class="seekbar-thumb" style="left:3%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:02</span><span>3:24</span></div>
+          </div>
+          <div class="controls">
+            <div class="ctrl-btn" style="font-size:11px;">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9208;</div>
+            <div class="ctrl-btn" style="font-size:11px;">&#9197;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 3</div><span class="section-badge">포메이션 시작</span>
+      <div class="slide-title">스테이지 살펴보기</div>
+      <div class="slide-subtitle">위가 스테이지, 아래가 비트 그리드</div>
+      <div class="slide-desc">
+        위쪽 영역이 <span class="highlight">스테이지</span>(위에서 본 시점)이에요.<br>
+        아래쪽은 익숙한 <span class="highlight">PhraseGrid</span>예요.<br><br>
+        댄서를 <span class="action">드래그</span>해서 위치를 바꿀 수 있어요.<br><br>
+        <ul class="feature-list" style="margin-top:12px;">
+          <li><span style="color:#4A90D9; font-weight:700;">L</span> = 리더 (파란 계열)</li>
+          <li><span style="color:#E74C8B; font-weight:700;">F</span> = 팔로워 (분홍 계열)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 4: 댄서 이동 (드래그) ════════════════ -->
+  <div class="slide" data-slide="4">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <span style="font-size:11px; font-weight:600;">Bachata Rosa</span>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">128 BPM</span>
+          </div>
+          <div class="mode-bar">
+            <div class="mode-btn">Grid</div>
+            <div class="mode-btn active">Form</div>
+          </div>
+
+          <div class="stage" style="height:140px; margin-top:4px;">
+            <div class="stage-grid"></div>
+            <div class="stage-label top">BACKSTAGE</div>
+            <div class="stage-label bottom">AUDIENCE</div>
+            <!-- Ghost (previous position) -->
+            <div class="dancer leader ghost" style="left:35px; top:30px;">L1</div>
+            <!-- Arrow from old to new -->
+            <div class="drag-arrow" style="left:52px; top:42px;">
+              <svg width="100" height="40">
+                <defs><marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#FFD700"/></marker></defs>
+                <line x1="0" y1="0" x2="90" y2="30" stroke="#FFD700" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#ah)"/>
+              </svg>
+            </div>
+            <!-- New position -->
+            <div class="dancer leader selected" style="left:130px; top:70px;">L1
+              <div class="kf-dot"></div>
+            </div>
+            <div class="dancer follower" style="left:100px; top:25px;">F1</div>
+            <div class="dancer leader" style="left:165px; top:30px;">L2</div>
+            <div class="dancer follower" style="left:220px; top:50px;">F2</div>
+
+            <div class="overlay-pointer" style="left:120px; top:60px;">
+              <div class="pointer-circle drag" style="width:36px; height:36px;"></div>
+            </div>
+          </div>
+
+          <div class="phrase-grid" style="margin-top: 6px;">
+            <div class="grid-cell c1">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1 current">4<div class="kf-mark"></div></div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 4px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:12%;"></div>
+              <div class="seekbar-thumb" style="left:10%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:08</span><span>3:24</span></div>
+          </div>
+          <div class="controls">
+            <div class="ctrl-btn" style="font-size:11px;">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9208;</div>
+            <div class="ctrl-btn" style="font-size:11px;">&#9197;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 4</div><span class="section-badge">댄서 조작</span>
+      <div class="slide-title">댄서 이동 (드래그)</div>
+      <div class="slide-subtitle">댄서를 드래그해서 원하는 위치로 옮기세요</div>
+      <div class="slide-desc">
+        댄서를 <span class="action">드래그</span>해서 원하는 위치로 옮기세요.<br><br>
+        이동하면 현재 비트에 <span class="highlight">키프레임이 자동 생성</span>돼요.<br>
+        점선 화살표는 이전 위치에서 새 위치로의 이동을 보여줘요.<br><br>
+        그리드 셀에 <span class="highlight">&#9679;</span> 표시가 있으면 키프레임이 있다는 뜻이에요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 5: 다중 선택 & 이동 ════════════════ -->
+  <div class="slide" data-slide="5">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <span style="font-size:11px; font-weight:600;">Bachata Rosa</span>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">128 BPM</span>
+          </div>
+          <div class="mode-bar">
+            <div class="mode-btn">Grid</div>
+            <div class="mode-btn active">Form</div>
+          </div>
+
+          <div class="stage" style="height:140px; margin-top:4px;">
+            <div class="stage-grid"></div>
+            <div class="stage-label top">BACKSTAGE</div>
+            <div class="stage-label bottom">AUDIENCE</div>
+            <!-- Selection rectangle -->
+            <div class="select-rect" style="left:20px; top:15px; width:140px; height:75px;"></div>
+            <!-- Selected dancers -->
+            <div class="dancer leader selected" style="left:35px; top:30px;">L1</div>
+            <div class="dancer follower selected" style="left:100px; top:50px;">F1</div>
+            <!-- Unselected -->
+            <div class="dancer leader" style="left:185px; top:30px;">L2</div>
+            <div class="dancer follower" style="left:220px; top:65px;">F2</div>
+
+            <div class="overlay-pointer" style="left:10px; top:8px;">
+              <div class="pointer-circle drag" style="width:30px; height:30px;"></div>
+            </div>
+          </div>
+
+          <div style="text-align:center; margin-top: 6px; padding: 6px; background: rgba(255,215,0,0.08); border-radius: 8px; border: 1px solid rgba(255,215,0,0.2);">
+            <div style="font-size: 10px; color: #FFD700; font-weight: 600;">2명 선택됨 &mdash; 함께 이동 가능</div>
+          </div>
+
+          <div class="phrase-grid" style="margin-top: 6px;">
+            <div class="grid-cell c1 current">1</div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8</div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 4px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:5%;"></div>
+              <div class="seekbar-thumb" style="left:3%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:02</span><span>3:24</span></div>
+          </div>
+          <div class="controls">
+            <div class="ctrl-btn" style="font-size:11px;">&#9198;</div>
+            <div class="ctrl-btn play paused">&#9208;</div>
+            <div class="ctrl-btn" style="font-size:11px;">&#9197;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 5</div><span class="section-badge">댄서 조작</span>
+      <div class="slide-title">다중 선택 & 이동</div>
+      <div class="slide-subtitle">빈 공간을 드래그해서 범위 선택</div>
+      <div class="slide-desc">
+        <span class="action">빈 공간을 드래그</span>하면 범위 안의 댄서들을 한번에 선택해요.<br><br>
+        선택된 댄서는 <span class="highlight">하얀 테두리</span>로 표시돼요.<br>
+        선택된 댄서들을 함께 움직일 수 있어요.<br><br>
+        빈 공간을 탭하면 선택이 해제돼요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 6: 댄서 이름/색상 변경 ════════════════ -->
+  <div class="slide" data-slide="6">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <span style="font-size:11px; font-weight:600;">Bachata Rosa</span>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">128 BPM</span>
+          </div>
+          <div class="mode-bar">
+            <div class="mode-btn">Grid</div>
+            <div class="mode-btn active">Form</div>
+          </div>
+
+          <div class="stage" style="height:100px; margin-top:4px; opacity:0.3;">
+            <div class="stage-grid"></div>
+            <div class="dancer leader" style="left:35px; top:25px;">L1</div>
+            <div class="dancer follower" style="left:100px; top:40px;">F1</div>
+            <div class="dancer leader" style="left:165px; top:25px;">L2</div>
+            <div class="dancer follower" style="left:220px; top:40px;">F2</div>
+          </div>
+
+          <!-- Overlay -->
+          <div class="context-menu-overlay" style="border-radius:0 0 33px 33px;"></div>
+
+          <!-- Dancer edit popup -->
+          <div class="dancer-popup" style="top:48%; left:50%; transform:translate(-50%,-50%);">
+            <div class="dancer-popup-title">&#9998; 댄서 편집</div>
+            <div class="name-input" style="display:flex; align-items:center; gap:6px;">
+              <span style="width:14px; height:14px; border-radius:50%; background:#4A90D9; display:inline-block; flex-shrink:0;"></span>
+              <span style="color:#fff; font-size:11px;">진우</span>
+              <span style="color:#666; font-size:9px; margin-left:auto;">L1</span>
+            </div>
+            <div style="font-size:9px; color:#888; margin-bottom:6px;">색상 선택</div>
+            <div class="color-palette">
+              <div class="color-swatch active" style="background:#4A90D9;"></div>
+              <div class="color-swatch" style="background:#E74C8B;"></div>
+              <div class="color-swatch" style="background:#10B981;"></div>
+              <div class="color-swatch" style="background:#8B5CF6;"></div>
+              <div class="color-swatch" style="background:#F97316;"></div>
+              <div class="color-swatch" style="background:#EAB308;"></div>
+              <div class="color-swatch" style="background:#06B6D4;"></div>
+              <div class="color-swatch" style="background:#EC4899;"></div>
+              <div class="color-swatch" style="background:#EF4444;"></div>
+              <div class="color-swatch" style="background:#84CC16;"></div>
+              <div class="color-swatch" style="background:#A855F7;"></div>
+              <div class="color-swatch" style="background:#F43F5E;"></div>
+              <div class="color-swatch" style="background:#14B8A6;"></div>
+              <div class="color-swatch" style="background:#6366F1;"></div>
+              <div class="color-swatch" style="background:#D946EF;"></div>
+              <div class="color-swatch" style="background:#78716C;"></div>
+            </div>
+            <div style="margin-top:10px; padding:8px; background:rgba(255,255,255,0.04); border-radius:8px;">
+              <div style="font-size:9px; color:#888; margin-bottom:4px;">크루 멤버 할당</div>
+              <div style="font-size:10px; color:#aaa;">진우, 유나, 민호, 서연...</div>
+            </div>
+          </div>
+
+          <div class="overlay-pointer" style="top:85px; left:25px;">
+            <div class="pointer-circle longpress" style="width:30px; height:30px;"></div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 6</div><span class="section-badge">댄서 조작</span>
+      <div class="slide-title">댄서 이름/색상 변경</div>
+      <div class="slide-subtitle">댄서를 길게 누르면 편집 팝업이 열려요</div>
+      <div class="slide-desc">
+        댄서를 <span class="action">길게 누르면</span> 이름과 색상을 바꿀 수 있어요.<br><br>
+        <span class="highlight">16가지 색상</span> 중 원하는 색을 선택하세요.<br>
+        크루 멤버를 할당하면 실제 멤버 이름이 표시돼요.<br><br>
+        각 댄서를 구분하기 쉽게 꾸며보세요!
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 7: 키프레임 개념 ════════════════ -->
+  <div class="slide" data-slide="7">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <span style="font-size:11px; font-weight:600;">Bachata Rosa</span>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">128 BPM</span>
+          </div>
+          <div class="mode-bar">
+            <div class="mode-btn">Grid</div>
+            <div class="mode-btn active">Form</div>
+          </div>
+
+          <!-- Stage showing keyframe vs interpolation -->
+          <div class="stage" style="height:110px; margin-top:4px;">
+            <div class="stage-grid"></div>
+            <div class="stage-label top">BACKSTAGE</div>
+            <div class="stage-label bottom">AUDIENCE</div>
+            <!-- Keyframe position (Beat 1) -->
+            <div class="dancer leader selected" style="left:30px; top:25px; width:26px; height:26px; font-size:7px;">L1
+              <div class="kf-dot"></div>
+            </div>
+            <!-- Interpolated position (ghost, Beat 4) -->
+            <div class="dancer leader" style="left:90px; top:45px; width:26px; height:26px; font-size:7px; opacity:0.5; border:1px dashed #4A90D9;">L1</div>
+            <!-- Keyframe position (Beat 8) -->
+            <div class="dancer leader selected" style="left:200px; top:65px; width:26px; height:26px; font-size:7px;">L1
+              <div class="kf-dot"></div>
+            </div>
+            <!-- Dotted path -->
+            <svg style="position:absolute; inset:0; z-index:3;" width="100%" height="100%">
+              <line x1="56" y1="38" x2="216" y2="78" stroke="#FFD700" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+            </svg>
+            <!-- Labels -->
+            <div style="position:absolute; left:18px; top:2px; font-size:7px; color:#FFD700; font-weight:600;">Beat 1 ●</div>
+            <div style="position:absolute; left:78px; top:72px; font-size:7px; color:#888; font-weight:600;">Beat 4 ○</div>
+            <div style="position:absolute; right:10px; top:88px; font-size:7px; color:#FFD700; font-weight:600;">Beat 8 ●</div>
+          </div>
+
+          <!-- PhraseGrid with keyframe dots -->
+          <div class="phrase-grid" style="margin-top: 6px;">
+            <div class="grid-cell c1 current">1<div class="kf-mark"></div></div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8<div class="kf-mark"></div></div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4<div class="kf-mark"></div></div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+          </div>
+
+          <!-- Legend -->
+          <div style="display:flex; gap:16px; margin-top:8px; justify-content:center;">
+            <div style="display:flex; align-items:center; gap:4px; font-size:9px;">
+              <div style="width:8px; height:8px; border-radius:50%; background:#FFD700;"></div>
+              <span style="color:#FFD700; font-weight:600;">● 키프레임</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:4px; font-size:9px;">
+              <div style="width:8px; height:8px; border-radius:50%; border:1px solid #888;"></div>
+              <span style="color:#888;">○ 보간</span>
+            </div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 4px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:5%;"></div>
+              <div class="seekbar-thumb" style="left:3%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:02</span><span>3:24</span></div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 7</div><span class="section-badge">키프레임 편집</span>
+      <div class="slide-title">키프레임 개념</div>
+      <div class="slide-subtitle">핵심 장면만 만들면, 나머지는 자동!</div>
+      <div class="slide-desc">
+        <span class="highlight">● 키프레임</span> = 댄서 위치를 직접 지정한 비트<br>
+        <span style="color:#888;">○ 보간</span> = 키프레임 사이에서 자동으로 계산된 위치<br><br>
+        영화 애니메이션처럼 <span class="action">핵심 장면만 만들면</span><br>
+        나머지는 자동으로 부드럽게 연결돼요!<br><br>
+        그리드 셀 좌상단의 <span class="highlight">검은 점</span>이 키프레임 표시예요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 8: 패턴 배치 ════════════════ -->
+  <div class="slide" data-slide="8">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <span style="font-size:11px; font-weight:600;">Bachata Rosa</span>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">128 BPM</span>
+          </div>
+          <div class="mode-bar">
+            <div class="mode-btn">Grid</div>
+            <div class="mode-btn active">Form</div>
+          </div>
+
+          <!-- Compare: Before and After -->
+          <div class="compare-box">
+            <div class="compare-label">BEFORE</div>
+            <div class="compare-stage" style="flex:1;">
+              <div class="stage" style="height:72px;">
+                <div class="stage-grid"></div>
+                <div class="dancer leader" style="left:15px; top:10px; width:20px; height:20px; font-size:6px;">L1</div>
+                <div class="dancer follower" style="left:55px; top:35px; width:20px; height:20px; font-size:6px;">F1</div>
+                <div class="dancer extra1" style="left:80px; top:12px; width:20px; height:20px; font-size:6px;">L2</div>
+                <div class="dancer extra2" style="left:95px; top:42px; width:20px; height:20px; font-size:6px;">F2</div>
+              </div>
+            </div>
+            <div class="compare-arrow">&rarr;</div>
+            <div class="compare-stage" style="flex:1;">
+              <div class="stage" style="height:72px;">
+                <div class="stage-grid"></div>
+                <!-- V pattern -->
+                <div class="dancer leader" style="left:15px; top:10px; width:20px; height:20px; font-size:6px;">L1</div>
+                <div class="dancer follower" style="left:40px; top:30px; width:20px; height:20px; font-size:6px;">F1</div>
+                <div class="dancer extra1" style="left:80px; top:30px; width:20px; height:20px; font-size:6px;">L2</div>
+                <div class="dancer extra2" style="left:105px; top:10px; width:20px; height:20px; font-size:6px;">F2</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Toolbar -->
+          <div class="toolbar" style="margin-top: 4px;">
+            <div class="tool-btn">&#9644; Line</div>
+            <div class="tool-btn">&#9644;&#9644; 2Lines</div>
+            <div class="tool-btn active">V</div>
+            <div class="tool-btn">&Lambda;</div>
+            <div class="tool-sep"></div>
+            <div class="tool-btn">&#128203; Copy</div>
+            <div class="tool-btn">&#128196; Paste</div>
+            <div class="tool-btn" style="color:#ef4444;">&#128465; Del</div>
+          </div>
+
+          <div class="overlay-pointer" style="top:192px; left:92px;">
+            <div class="pointer-circle tap" style="width:28px; height:28px;"></div>
+          </div>
+          <div class="tooltip-bubble arrow-up" style="top:226px; left:70px;">
+            V자 패턴 적용!
+          </div>
+
+          <div class="phrase-grid" style="margin-top: 6px;">
+            <div class="grid-cell c1 current">1<div class="kf-mark"></div></div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8<div class="kf-mark"></div></div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 4px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:5%;"></div>
+              <div class="seekbar-thumb" style="left:3%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:02</span><span>3:24</span></div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 8</div><span class="section-badge">키프레임 편집</span>
+      <div class="slide-title">패턴 배치 (Tool Bar)</div>
+      <div class="slide-subtitle">원클릭으로 댄서 대형을 정렬하세요</div>
+      <div class="slide-desc">
+        툴바의 패턴 버튼으로 한번에 정렬해보세요:<br><br>
+        <ul class="feature-list" style="margin-top:0;">
+          <li><span class="highlight">Line</span> &mdash; 일렬로 정렬</li>
+          <li><span class="highlight">2Lines</span> &mdash; 2줄로 정렬</li>
+          <li><span class="highlight">V</span> &mdash; V자 대형</li>
+          <li><span class="highlight">&Lambda;</span> &mdash; 역V자 대형</li>
+        </ul>
+        <br>
+        패턴 적용 후에도 개별 댄서를 드래그해서<br>
+        미세 조정할 수 있어요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 9: 복사 & 붙여넣기 ════════════════ -->
+  <div class="slide" data-slide="9">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <span style="font-size:11px; font-weight:600;">Bachata Rosa</span>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">128 BPM</span>
+          </div>
+          <div class="mode-bar">
+            <div class="mode-btn">Grid</div>
+            <div class="mode-btn active">Form</div>
+          </div>
+
+          <div class="stage" style="height:100px; margin-top:4px;">
+            <div class="stage-grid"></div>
+            <div class="stage-label top">BACKSTAGE</div>
+            <div class="stage-label bottom">AUDIENCE</div>
+            <!-- V pattern (pasted) -->
+            <div class="dancer leader" style="left:30px; top:15px; width:24px; height:24px; font-size:7px;">L1</div>
+            <div class="dancer follower" style="left:65px; top:35px; width:24px; height:24px; font-size:7px;">F1</div>
+            <div class="dancer extra1" style="left:130px; top:35px; width:24px; height:24px; font-size:7px;">L2</div>
+            <div class="dancer extra2" style="left:165px; top:15px; width:24px; height:24px; font-size:7px;">F2</div>
+          </div>
+
+          <!-- Toolbar with Copy highlighted then Paste -->
+          <div class="toolbar" style="margin-top: 4px;">
+            <div class="tool-btn">&#9644; Line</div>
+            <div class="tool-btn">&#9644;&#9644; 2Lines</div>
+            <div class="tool-btn">V</div>
+            <div class="tool-btn">&Lambda;</div>
+            <div class="tool-sep"></div>
+            <div class="tool-btn accent">&#128203; Copy</div>
+            <div class="tool-btn active">&#128196; Paste</div>
+            <div class="tool-btn" style="color:#ef4444;">&#128465; Del</div>
+          </div>
+
+          <!-- Copy/paste flow -->
+          <div style="display:flex; align-items:center; justify-content:center; gap:6px; margin-top:8px;">
+            <div style="padding:4px 10px; background:rgba(255,215,0,0.15); border-radius:8px; font-size:9px; color:#FFD700; font-weight:600; border:1px solid rgba(255,215,0,0.3);">Beat 1 Copy</div>
+            <span style="color:#FFD700; font-size:14px;">&rarr;</span>
+            <div style="padding:4px 10px; background:rgba(231,76,139,0.15); border-radius:8px; font-size:9px; color:#e74c8b; font-weight:600; border:1px solid rgba(231,76,139,0.3);">Beat 8 Paste</div>
+          </div>
+
+          <!-- PhraseGrid showing both keyframes -->
+          <div class="phrase-grid" style="margin-top: 6px;">
+            <div class="grid-cell c1">1<div class="kf-mark"></div></div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1 current">8<div class="kf-mark"></div></div>
+            <div class="grid-cell c2">1</div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4<div class="kf-mark"></div></div>
+            <div class="grid-cell c2">5</div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2">8</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 4px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:22%;"></div>
+              <div class="seekbar-thumb" style="left:20%;"></div>
+            </div>
+            <div class="seekbar-time"><span>0:16</span><span>3:24</span></div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 9</div><span class="section-badge">키프레임 편집</span>
+      <div class="slide-title">복사 & 붙여넣기</div>
+      <div class="slide-subtitle">마음에 드는 포메이션을 재활용하세요</div>
+      <div class="slide-desc">
+        마음에 드는 포메이션을 <span class="action">Copy</span>한 다음,<br>
+        다른 비트로 이동해서 <span class="action">Paste</span>하세요.<br><br>
+        불필요한 키프레임은 <span style="color:#ef4444; font-weight:600;">Del</span>로 삭제할 수 있어요.<br><br>
+        같은 포메이션을 여러 곳에 반복 배치할 때<br>
+        아주 유용해요!
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 10: 2D / 3D 전환 ════════════════ -->
+  <div class="slide" data-slide="10">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <span style="font-size:11px; font-weight:600;">Bachata Rosa</span>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">128 BPM</span>
+          </div>
+          <div class="mode-bar">
+            <div class="mode-btn">Grid</div>
+            <div class="mode-btn active">Form</div>
+            <div style="margin-left:auto;"></div>
+            <div class="mode-btn">2D</div>
+            <div class="mode-btn active">3D</div>
+          </div>
+
+          <!-- 2D vs 3D comparison -->
+          <div class="compare-box">
+            <div class="compare-label">2D</div>
+            <div class="compare-stage" style="flex:1;">
+              <div class="stage" style="height:80px;">
+                <div class="stage-grid"></div>
+                <div class="dancer leader" style="left:10px; top:15px; width:20px; height:20px; font-size:6px;">L1</div>
+                <div class="dancer follower" style="left:40px; top:35px; width:20px; height:20px; font-size:6px;">F1</div>
+                <div class="dancer extra1" style="left:70px; top:15px; width:20px; height:20px; font-size:6px;">L2</div>
+                <div class="dancer extra2" style="left:95px; top:40px; width:20px; height:20px; font-size:6px;">F2</div>
+              </div>
+            </div>
+            <div class="compare-arrow">&rarr;</div>
+            <div class="compare-stage" style="flex:1;">
+              <!-- 3D Stage -->
+              <div class="stage-3d" style="height:80px;">
+                <div class="stage-3d-floor"></div>
+                <div class="dancer-3d" style="left:14px; top:20px;">
+                  <div class="dancer-3d-head" style="background:#4A90D9;"></div>
+                  <div class="dancer-3d-body" style="background:#4A90D9; width:12px; height:20px;"></div>
+                  <div class="dancer-3d-shadow" style="width:14px; height:4px;"></div>
+                  <div class="dancer-3d-name">L1</div>
+                </div>
+                <div class="dancer-3d" style="left:40px; top:35px;">
+                  <div class="dancer-3d-head" style="background:#E74C8B;"></div>
+                  <div class="dancer-3d-body" style="background:#E74C8B; width:12px; height:20px;"></div>
+                  <div class="dancer-3d-shadow" style="width:14px; height:4px;"></div>
+                  <div class="dancer-3d-name">F1</div>
+                </div>
+                <div class="dancer-3d" style="left:72px; top:20px;">
+                  <div class="dancer-3d-head" style="background:#10B981;"></div>
+                  <div class="dancer-3d-body" style="background:#10B981; width:12px; height:20px;"></div>
+                  <div class="dancer-3d-shadow" style="width:14px; height:4px;"></div>
+                  <div class="dancer-3d-name">L2</div>
+                </div>
+                <div class="dancer-3d" style="left:100px; top:38px;">
+                  <div class="dancer-3d-head" style="background:#8B5CF6;"></div>
+                  <div class="dancer-3d-body" style="background:#8B5CF6; width:12px; height:20px;"></div>
+                  <div class="dancer-3d-shadow" style="width:14px; height:4px;"></div>
+                  <div class="dancer-3d-name">F2</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Full 3D view -->
+          <div class="stage-3d" style="height:110px; margin-top:6px;">
+            <div class="stage-3d-floor"></div>
+            <div class="dancer-3d" style="left:25px; top:20px;">
+              <div class="dancer-3d-head" style="background:#4A90D9;"></div>
+              <div class="dancer-3d-body" style="background:#4A90D9;"></div>
+              <div class="dancer-3d-shadow"></div>
+              <div class="dancer-3d-name">L1</div>
+            </div>
+            <div class="dancer-3d" style="left:80px; top:45px;">
+              <div class="dancer-3d-head" style="background:#E74C8B;"></div>
+              <div class="dancer-3d-body" style="background:#E74C8B;"></div>
+              <div class="dancer-3d-shadow"></div>
+              <div class="dancer-3d-name">F1</div>
+            </div>
+            <div class="dancer-3d" style="left:155px; top:20px;">
+              <div class="dancer-3d-head" style="background:#10B981;"></div>
+              <div class="dancer-3d-body" style="background:#10B981;"></div>
+              <div class="dancer-3d-shadow"></div>
+              <div class="dancer-3d-name">L2</div>
+            </div>
+            <div class="dancer-3d" style="left:210px; top:50px;">
+              <div class="dancer-3d-head" style="background:#8B5CF6;"></div>
+              <div class="dancer-3d-body" style="background:#8B5CF6;"></div>
+              <div class="dancer-3d-shadow"></div>
+              <div class="dancer-3d-name">F2</div>
+            </div>
+          </div>
+
+          <div class="phrase-grid" style="margin-top: 6px;">
+            <div class="grid-cell c1 current">1<div class="kf-mark"></div></div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8<div class="kf-mark"></div></div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 10</div><span class="section-badge">보기 & 확인</span>
+      <div class="slide-title">2D / 3D 전환</div>
+      <div class="slide-subtitle">실제 무대처럼 확인해보세요</div>
+      <div class="slide-desc">
+        <span class="highlight">2D</span>는 위에서 본 원형 도트 뷰예요.<br>
+        편집할 때 위치 파악이 쉬워요.<br><br>
+        <span class="highlight">3D</span>로 전환하면 실제 무대처럼 보여요.<br>
+        사람 형태의 필러와 그림자가 표시돼요.<br><br>
+        <span class="action">2D는 편집</span>할 때,<br>
+        <span class="action">3D는 결과를 확인</span>할 때 유용해요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 11: 뒤집기 (관객 시점) ════════════════ -->
+  <div class="slide" data-slide="11">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <span style="font-size:11px; font-weight:600;">Bachata Rosa</span>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">128 BPM</span>
+          </div>
+          <div class="mode-bar">
+            <div class="mode-btn">Grid</div>
+            <div class="mode-btn active">Form</div>
+            <div style="margin-left:auto;"></div>
+            <div class="flip-btn active" style="box-shadow: 0 0 8px rgba(139,92,246,0.4);">&#8597; Flip</div>
+          </div>
+
+          <!-- Compare: Normal vs Flipped -->
+          <div class="compare-box">
+            <div class="compare-label">&#127917; 연습자</div>
+            <div class="compare-stage" style="flex:1;">
+              <div class="stage" style="height:75px;">
+                <div class="stage-grid"></div>
+                <div class="stage-label top" style="font-size:6px;">BACK</div>
+                <div class="stage-label bottom" style="font-size:6px;">AUDIENCE</div>
+                <div class="dancer leader" style="left:10px; top:10px; width:18px; height:18px; font-size:5px;">L1</div>
+                <div class="dancer follower" style="left:40px; top:30px; width:18px; height:18px; font-size:5px;">F1</div>
+                <div class="dancer extra1" style="left:70px; top:10px; width:18px; height:18px; font-size:5px;">L2</div>
+                <div class="dancer extra2" style="left:95px; top:35px; width:18px; height:18px; font-size:5px;">F2</div>
+              </div>
+            </div>
+            <div class="compare-arrow">&harr;</div>
+            <div class="compare-stage" style="flex:1;">
+              <div class="stage" style="height:75px; border-color: #8b5cf6;">
+                <div class="stage-grid"></div>
+                <div class="stage-label top" style="font-size:6px; color:#8b5cf6;">AUDIENCE</div>
+                <div class="stage-label bottom" style="font-size:6px; color:#8b5cf6;">BACK</div>
+                <!-- Flipped positions (mirrored left-right & top-bottom) -->
+                <div class="dancer extra2" style="left:10px; top:10px; width:18px; height:18px; font-size:5px;">F2</div>
+                <div class="dancer extra1" style="left:30px; top:38px; width:18px; height:18px; font-size:5px;">L2</div>
+                <div class="dancer follower" style="left:65px; top:18px; width:18px; height:18px; font-size:5px;">F1</div>
+                <div class="dancer leader" style="left:90px; top:38px; width:18px; height:18px; font-size:5px;">L1</div>
+              </div>
+            </div>
+          </div>
+          <div class="compare-box" style="justify-content:center; margin:0;">
+            <div style="font-size:8px; color:#8b5cf6; font-weight:600;">&#128064; 관객이 보는 모습</div>
+          </div>
+
+          <!-- Full flipped view -->
+          <div class="stage" style="height:100px; margin-top:4px; border-color: #8b5cf6;">
+            <div class="stage-grid"></div>
+            <div class="stage-label top" style="color:#8b5cf6;">AUDIENCE</div>
+            <div class="stage-label bottom" style="color:#8b5cf6;">BACKSTAGE</div>
+            <div class="dancer extra2" style="left:25px; top:15px;">F2</div>
+            <div class="dancer extra1" style="left:75px; top:50px;">L2</div>
+            <div class="dancer follower" style="left:145px; top:20px;">F1</div>
+            <div class="dancer leader" style="left:210px; top:50px;">L1</div>
+          </div>
+
+          <div class="phrase-grid" style="margin-top: 6px;">
+            <div class="grid-cell c1 current">1<div class="kf-mark"></div></div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4</div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8<div class="kf-mark"></div></div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 11</div><span class="section-badge">보기 & 확인</span>
+      <div class="slide-title">뒤집기 (관객 시점)</div>
+      <div class="slide-subtitle">무대 위 vs 관객석에서 보는 모습</div>
+      <div class="slide-desc">
+        <span class="action">&#8597; Flip</span> 버튼을 누르면 관객 시점에서 볼 수 있어요.<br><br>
+        무대 위에서 <span class="highlight">연습할 때</span>와<br>
+        <span class="highlight">관객이 보는 모습</span>을 비교해보세요.<br><br>
+        좌우가 뒤집혀서 실제 공연 때<br>
+        관객에게 어떻게 보이는지 확인할 수 있어요.
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ SLIDE 12: 완료! ════════════════ -->
+  <div class="slide" data-slide="12">
+    <div class="slide-left">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="screen-header">
+            <span style="font-size:11px; font-weight:600;">Bachata Rosa</span>
+            <span style="font-size:10px; background:#2a1a3a; color:#8b5cf6; padding:2px 8px; border-radius:8px; font-weight:600;">128 BPM</span>
+          </div>
+          <div class="mode-bar">
+            <div class="mode-btn">Grid</div>
+            <div class="mode-btn active">Form</div>
+          </div>
+
+          <!-- Completed stage with colorful dancers -->
+          <div class="stage" style="height:120px; margin-top:4px;">
+            <div class="stage-grid"></div>
+            <div class="stage-label top">BACKSTAGE</div>
+            <div class="stage-label bottom">AUDIENCE</div>
+            <!-- V formation with diverse colors -->
+            <div class="dancer" style="background:#4A90D9; left:15px; top:15px;">&#128150;</div>
+            <div class="dancer" style="background:#E74C8B; left:55px; top:40px;">F1</div>
+            <div class="dancer" style="background:#10B981; left:95px; top:55px; width:26px; height:26px; font-size:7px;">L2</div>
+            <div class="dancer" style="background:#8B5CF6; left:135px; top:55px; width:26px; height:26px; font-size:7px;">F2</div>
+            <div class="dancer" style="background:#F97316; left:175px; top:40px; width:26px; height:26px; font-size:7px;">L3</div>
+            <div class="dancer" style="background:#EAB308; left:215px; top:15px; width:26px; height:26px; font-size:7px;">F3</div>
+          </div>
+
+          <!-- PhraseGrid with many keyframes -->
+          <div class="phrase-grid" style="margin-top: 6px;">
+            <div class="grid-cell c1">1<div class="kf-mark"></div></div><div class="grid-cell c1">2</div><div class="grid-cell c1">3</div><div class="grid-cell c1">4<div class="kf-mark"></div></div>
+            <div class="grid-cell c1">5</div><div class="grid-cell c1">6</div><div class="grid-cell c1">7</div><div class="grid-cell c1">8<div class="kf-mark"></div></div>
+            <div class="grid-cell c2">1<div class="kf-mark"></div></div><div class="grid-cell c2">2</div><div class="grid-cell c2">3</div><div class="grid-cell c2">4</div>
+            <div class="grid-cell c2">5<div class="kf-mark"></div></div><div class="grid-cell c2">6</div><div class="grid-cell c2">7</div><div class="grid-cell c2 current">8<div class="kf-mark"></div></div>
+            <div class="grid-cell c3">1<div class="kf-mark"></div></div><div class="grid-cell c3">2</div><div class="grid-cell c3">3</div><div class="grid-cell c3">4<div class="kf-mark"></div></div>
+            <div class="grid-cell c3">5</div><div class="grid-cell c3">6</div><div class="grid-cell c3">7</div><div class="grid-cell c3">8</div>
+          </div>
+
+          <div class="seekbar" style="margin-top: 4px;">
+            <div class="seekbar-track">
+              <div class="seekbar-fill" style="width:65%;"></div>
+              <div class="seekbar-thumb" style="left:63%;"></div>
+            </div>
+            <div class="seekbar-time"><span>2:12</span><span>3:24</span></div>
+          </div>
+          <div class="controls">
+            <div class="ctrl-btn" style="font-size:11px;">&#9198;</div>
+            <div class="ctrl-btn play">&#9654;</div>
+            <div class="ctrl-btn" style="font-size:11px;">&#9197;</div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">&#128218;</span>Library</div>
+          <div class="tab-item active"><span class="tab-icon">&#9654;&#65039;</span>Player</div>
+          <div class="tab-item"><span class="tab-icon">&#128101;</span>Community</div>
+          <div class="tab-item"><span class="tab-icon">&#128172;</span>Messages</div>
+          <div class="tab-item"><span class="tab-icon">&#9881;&#65039;</span>Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-right">
+      <div class="step-badge">STEP 12</div><span class="section-badge">마무리</span>
+      <div class="slide-title">완료!</div>
+      <div class="slide-subtitle">Formation Edit의 기본 기능을 모두 배웠어요</div>
+      <div class="slide-desc">
+        음악을 재생하면서 댄서들이 비트에 맞춰<br>
+        이동하는 모습을 확인해보세요!
+      </div>
+      <div class="summary-flow" style="margin-top: 20px;">
+        <div class="flow-step">
+          <div class="flow-num">1</div>
+          <div class="flow-text"><strong>Form 모드</strong>로 전환 + 스테이지 설정</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">2</div>
+          <div class="flow-text"><strong>드래그</strong>로 댄서 배치 (키프레임 자동 생성)</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">3</div>
+          <div class="flow-text"><strong>패턴</strong>으로 빠르게 대형 정렬</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">4</div>
+          <div class="flow-text"><strong>Copy/Paste</strong>로 포메이션 재활용</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">5</div>
+          <div class="flow-text"><strong>2D/3D</strong> 전환으로 결과 확인</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">6</div>
+          <div class="flow-text"><strong>Flip</strong>으로 관객 시점 확인</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Navigation -->
+<div class="nav-bar">
+  <button class="nav-btn" id="prevBtn" onclick="navigate(-1)">&larr;</button>
+  <div class="nav-dots" id="navDots"></div>
+  <span class="slide-counter" id="slideCounter">1 / 13</span>
+  <button class="nav-btn" id="nextBtn" onclick="navigate(1)">&rarr;</button>
+</div>
+
+<script>
+  let current = 0;
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+
+  // Build dots
+  const dotsEl = document.getElementById('navDots');
+  for (let i = 0; i < total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+    dot.onclick = () => goTo(i);
+    dotsEl.appendChild(dot);
+  }
+
+  function goTo(idx) {
+    if (idx < 0 || idx >= total) return;
+    slides[current].classList.remove('active');
+    dotsEl.children[current].classList.remove('active');
+    current = idx;
+    slides[current].classList.add('active');
+    dotsEl.children[current].classList.add('active');
+    document.getElementById('slideCounter').textContent = `${current + 1} / ${total}`;
+    document.getElementById('prevBtn').disabled = current === 0;
+    document.getElementById('nextBtn').disabled = current === total - 1;
+  }
+
+  function navigate(dir) { goTo(current + dir); }
+
+  // Keyboard
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); navigate(1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); navigate(-1); }
+  });
+
+  // Swipe
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', (e) => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) navigate(diff > 0 ? 1 : -1);
+  });
+
+  // Init
+  goTo(0);
+</script>
+
+</body>
+</html>
