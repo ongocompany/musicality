@@ -30,7 +30,16 @@ Latin dance (Bachata/Salsa) auto-count & choreography cue practice player app.
 - 비동기 작업 중복 실행 방지(guard/lock)
 - 서버 부하 작업은 큐잉/쓰로틀링
 
+## Build & Version Rules
+
+- **빌드 요청 시 자동으로 빌드번호 +1** (app.json의 ios.buildNumber + android.versionCode)
+- version (0.9.0)은 기능 변경 시에만 수동으로 올림
+- 빌드 후 `docs/BUILD_LOG.md`에 기록 (날짜, 버전, 빌드번호, 변경 요약)
+- APK/AAB는 Synology Drive에 백업, 프로젝트 폴더에 남기지 않음
+
 ## Reference Files (액션 시 참조)
+
+- **빌드 로그**: `docs/BUILD_LOG.md`
 
 - **빌드 환경/서버/API 키**: `docs/INFRASTRUCTURE.md`
 - **배치 분석 파이프라인**: `server/scripts/BATCH_PIPELINE_DOC.md`
