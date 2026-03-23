@@ -128,6 +128,7 @@ export function useAudioPlayer() {
         positionRef.current = 0;
         setPosition(0);
       }
+
       await soundRef.current.playAsync();
       setIsPlaying(true);
     }
