@@ -1,7 +1,12 @@
 import { useEffect } from 'react';
+import { LogBox } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, Alert } from 'react-native';
+
+// Suppress noisy network errors in dev mode (Supabase token refresh, sync)
+// These are transient and handled gracefully — no impact on production
+LogBox.ignoreLogs(['TypeError: Network request failed']);
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Linking from 'expo-linking';
 import { readAsStringAsync } from 'expo-file-system/legacy';
