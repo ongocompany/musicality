@@ -1,8 +1,15 @@
 from __future__ import annotations
 
 """
-Music structure analyzer for Latin dance music (v2.2).
+Music structure analyzer for Latin dance music (v2.3).
 Detects sections: intro, derecho, majao, mambo, bridge, outro.
+
+v2.3 improvements over v2.2 (calibrated with 53 human-labeled pnotes):
+- Lowered SSM novelty threshold (0.5→0.3 std, min 0.15→0.08) for more phrase boundaries
+- Reduced min peak distance (8→6 beats) to catch closer phrase changes
+- Expanded agglomerative k range (4-8→6-15) for finer segmentation
+- Reduced merge min_gap (5s→3s) and cluster window (3s→2s)
+- Target: 16% → 40%+ phrase recall vs human labels
 
 v2.2 improvements over v2.1:
 - SSM recurrence score: detects repeating sections (majao/chorus) vs unique (derecho/verse)
@@ -170,6 +177,12 @@ def analyze_structure_with_phrases(
 
     # 5. Snap boundaries to downbeats (phrase-aligned) or beats
     boundaries = _snap_to_phrases(boundaries, beats, downbeats)
+
+    # 5b. Fill gaps with periodic phrase boundaries
+    # v2.3: Latin dance music has regular phrase patterns (every 24-32 beats).
+    # SSM misses boundaries in repetitive sections. Fill large gaps with
+    # downbeat-aligned periodic boundaries.
+    boundaries = _fill_periodic_phrases(boundaries, beats, downbeats, duration)
 
     # ── Phrase boundaries = snapped boundaries (the core output) ──
     phrase_boundaries = [round(b, 3) for b in boundaries]
@@ -387,11 +400,13 @@ def _find_boundaries_ssm(
         novelty = novelty / np.max(novelty)
 
     # Peak picking with adaptive threshold
-    threshold = np.mean(novelty) + 0.5 * np.std(novelty)
-    threshold = max(threshold, 0.15)
+    # v2.3: lowered threshold for better phrase sensitivity (16% → target 50%+ recall)
+    threshold = np.mean(novelty) + 0.3 * np.std(novelty)
+    threshold = max(threshold, 0.08)
 
-    # Minimum distance between peaks: 8 beats (~2 bars)
-    min_dist = 8
+    # Minimum distance between peaks: 6 beats (~1.5 bars)
+    # v2.3: reduced from 8 to catch closer phrase changes
+    min_dist = 6
     peaks = []
     for i in range(1, len(novelty) - 1):
         if novelty[i] > threshold and novelty[i] >= novelty[i - 1] and novelty[i] >= novelty[i + 1]:
@@ -430,7 +445,8 @@ def _find_boundaries_agglomerative(
 
     novelty = np.sqrt(np.sum(np.diff(mfcc_sync, axis=1) ** 2, axis=0))
 
-    for k in range(4, 9):
+    # v2.3: expanded range to allow more segments (human avg ~14 per song)
+    for k in range(6, 16):
         try:
             bounds = librosa.segment.agglomerative(mfcc_sync, k=k)
 
@@ -460,22 +476,22 @@ def _find_boundaries_agglomerative(
 def _merge_boundaries(
     ssm_bounds: list[float],
     agg_bounds: list[float],
-    min_gap: float = 5.0,
+    min_gap: float = 3.0,
 ) -> list[float]:
     """
     Merge SSM and agglomerative boundaries.
-    Boundaries agreed by both methods (within 3s) are stronger.
+    v2.3: min_gap reduced from 5.0 to 3.0 for finer phrase detection.
     """
     all_bounds = sorted(ssm_bounds + agg_bounds)
     if not all_bounds:
         return []
 
-    # Cluster nearby boundaries (within 3s → take average)
+    # Cluster nearby boundaries (within 2s → take average)
     merged = []
     cluster = [all_bounds[0]]
 
     for b in all_bounds[1:]:
-        if b - cluster[-1] < 3.0:
+        if b - cluster[-1] < 2.0:
             cluster.append(b)
         else:
             merged.append(float(np.mean(cluster)))
@@ -514,6 +530,63 @@ def _snap_to_phrases(
         snapped.append(float(targets_arr[idx]))
 
     return sorted(set(snapped))
+
+
+def _fill_periodic_phrases(
+    boundaries: list[float],
+    beats: list[float],
+    downbeats: list[float] | None,
+    duration: float,
+    max_gap_beats: int = 48,
+    phrase_beats: int = 32,
+) -> list[float]:
+    """
+    Fill large gaps between boundaries with periodic phrase boundaries.
+
+    v2.3: Latin dance music (especially bachata) has very regular phrase
+    structure — typically every 24-32 beats. SSM-based detection misses
+    boundaries in repetitive sections where the timbre doesn't change.
+
+    For any gap larger than max_gap_beats, insert downbeat-aligned
+    boundaries every phrase_beats.
+    """
+    if not beats or len(beats) < 16:
+        return boundaries
+
+    beat_arr = np.array(beats)
+    snap_targets = np.array(downbeats if downbeats and len(downbeats) > 2 else beats)
+
+    # Build full boundary list including start and end
+    all_bounds = sorted(set([0.0] + boundaries + [duration]))
+
+    new_boundaries = list(boundaries)
+
+    for i in range(len(all_bounds) - 1):
+        seg_start = all_bounds[i]
+        seg_end = all_bounds[i + 1]
+
+        # Find beat indices in this segment
+        start_idx = np.searchsorted(beat_arr, seg_start)
+        end_idx = np.searchsorted(beat_arr, seg_end)
+        gap_beats = end_idx - start_idx
+
+        if gap_beats <= max_gap_beats:
+            continue
+
+        # Fill with periodic boundaries
+        cursor = start_idx + phrase_beats
+        while cursor < end_idx - phrase_beats // 2:
+            if cursor < len(beat_arr):
+                t = float(beat_arr[cursor])
+                # Snap to nearest downbeat
+                snap_idx = np.argmin(np.abs(snap_targets - t))
+                snapped_t = float(snap_targets[snap_idx])
+                # Only add if not too close to existing boundary
+                if all(abs(snapped_t - b) > 2.0 for b in new_boundaries):
+                    new_boundaries.append(snapped_t)
+            cursor += phrase_beats
+
+    return sorted(set(new_boundaries))
 
 
 # ─── SSM Recurrence Score ────────────────────────────────────────────
