@@ -171,6 +171,19 @@ async def analyze_track(request: Request, file: UploadFile = File(...)):
         file_hash = compute_file_hash(str(file_path))
         cached = lookup_cache(file_hash)
         if cached is not None:
+            # v2.3: re-run structure analysis if phrase_boundaries empty (stale cache)
+            if not cached.phrase_boundaries and cached.beats and len(cached.beats) >= 8:
+                logger.info(f"Cache HIT but stale phrases, re-analyzing structure for {filename}")
+                try:
+                    from services.structure_analyzer import analyze_structure_with_phrases
+                    sections, phrase_boundaries = analyze_structure_with_phrases(
+                        str(file_path), cached.duration, cached.beats, cached.downbeats
+                    )
+                    cached.sections = sections
+                    cached.phrase_boundaries = phrase_boundaries
+                    store_in_cache(file_hash, file_size, cached)
+                except Exception as e:
+                    logger.warning(f"Structure re-analysis failed: {e}")
             logger.info(f"Cache HIT (hash) for {filename}")
             file_path.unlink()
             return cached  # 200 OK
@@ -180,6 +193,18 @@ async def analyze_track(request: Request, file: UploadFile = File(...)):
             fp_duration, fp_string = compute_fingerprint(str(file_path))
             cached = lookup_cache_by_fingerprint(fp_string, fp_duration)
             if cached is not None:
+                # v2.3: same stale phrase check
+                if not cached.phrase_boundaries and cached.beats and len(cached.beats) >= 8:
+                    logger.info(f"Cache HIT (fp) but stale phrases, re-analyzing for {filename}")
+                    try:
+                        from services.structure_analyzer import analyze_structure_with_phrases
+                        sections, phrase_boundaries = analyze_structure_with_phrases(
+                            str(file_path), cached.duration, cached.beats, cached.downbeats
+                        )
+                        cached.sections = sections
+                        cached.phrase_boundaries = phrase_boundaries
+                    except Exception as e:
+                        logger.warning(f"Structure re-analysis failed: {e}")
                 logger.info(f"Cache HIT (fingerprint) for {filename}")
                 cached.file_hash = file_hash
                 store_in_cache(file_hash, file_size, cached)
