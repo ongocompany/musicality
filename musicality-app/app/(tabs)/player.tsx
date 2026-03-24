@@ -916,6 +916,7 @@ export default function PlayerScreen() {
               bpm: analysis.bpm ? String(Math.round(analysis.bpm)) : '',
               danceStyle,
               noteType: activeFormationData ? 'cnote' : 'pnote',
+              fingerprint: analysis.fingerprint || '',
             },
           });
         },

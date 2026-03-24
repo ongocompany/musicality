@@ -113,6 +113,7 @@ function mapSongThread(row: any): SongThread {
     youtubeId: row.youtube_id ?? null,
     bpm: row.bpm ?? null,
     danceStyle: row.dance_style ?? 'bachata',
+    fingerprint: row.fingerprint ?? null,
     postCount: row.post_count ?? 0,
     lastActivityAt: row.last_activity_at,
     createdBy: row.created_by,
@@ -536,6 +537,7 @@ export async function createSongThread(crewId: string, input: CreateThreadInput)
       youtube_id: input.youtubeId ?? null,
       bpm: input.bpm ?? null,
       dance_style: input.danceStyle ?? 'bachata',
+      fingerprint: input.fingerprint ?? null,
       created_by: user.id,
     })
     .select()

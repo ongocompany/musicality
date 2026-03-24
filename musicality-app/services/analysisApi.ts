@@ -40,6 +40,7 @@ function mapAnalysisResult(data: any): AnalysisResult {
     })),
     phraseBoundaries: data.phrase_boundaries ?? [],
     waveformPeaks: data.waveform_peaks ?? [],
+    fingerprint: data.fingerprint ?? undefined,
     metadata: data.metadata ? {
       title: data.metadata.title,
       artist: data.metadata.artist,

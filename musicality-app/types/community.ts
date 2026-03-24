@@ -121,6 +121,7 @@ export interface SongThread {
   youtubeId: string | null;
   bpm: number | null;
   danceStyle: string;
+  fingerprint: string | null;
   postCount: number;
   lastActivityAt: string;
   createdBy: string;
@@ -133,6 +134,7 @@ export interface CreateThreadInput {
   youtubeId?: string;
   bpm?: number;
   danceStyle?: string;
+  fingerprint?: string;
 }
 
 // ─── Thread PhraseNote ──────────────────────────────────

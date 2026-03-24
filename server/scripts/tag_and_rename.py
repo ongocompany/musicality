@@ -31,6 +31,28 @@ logger = logging.getLogger(__name__)
 
 ITUNES_SEARCH_URL = "https://itunes.apple.com/search"
 ITUNES_RATE_LIMIT = 0.35  # seconds between requests
+YT_ID_RE = re.compile(r'^[-_a-zA-Z0-9]{11}$')
+
+
+def parse_filename(stem: str) -> dict | None:
+    """Try to extract artist/title from filename patterns.
+    Supports: 'Artist - Title', 'Artist - Title [ytid]', 'Title only'
+    Returns None for bare YouTube IDs with no info.
+    """
+    # Strip [youtube_id] suffix
+    clean = re.sub(r'\s*\[[-_a-zA-Z0-9]{11}\]$', '', stem)
+
+    # Skip bare YouTube IDs
+    if YT_ID_RE.match(clean):
+        return None
+
+    # "Artist - Title" pattern
+    if ' - ' in clean:
+        parts = clean.split(' - ', 1)
+        return {"artist": parts[0].strip(), "title": parts[1].strip()}
+
+    # Title only — use as title, leave artist empty for iTunes search
+    return {"artist": "", "title": clean.strip()}
 
 
 def load_video_map(queue_path: str) -> dict:
@@ -90,74 +112,92 @@ def tag_and_rename(done_dir: Path, vid_map: dict, dry_run: bool = False):
     files = sorted(done_dir.glob("*.mp3"))
     logger.info(f"Found {len(files)} mp3 files in {done_dir}")
 
-    stats = {"tagged": 0, "renamed": 0, "art_added": 0, "skipped": 0, "no_map": 0}
+    stats = {"tagged": 0, "renamed": 0, "art_added": 0, "skipped": 0, "no_info": 0}
 
     for i, fp in enumerate(files, 1):
-        vid = fp.stem
-        info = vid_map.get(vid)
+        stem = fp.stem
+        info = vid_map.get(stem)
 
-        if not info or not info["artist"] or not info["title"]:
-            stats["no_map"] += 1
+        # Fallback: parse from filename if not in queue
+        if not info or not info.get("title"):
+            info = parse_filename(stem)
+
+        if not info or not info.get("title"):
+            stats["no_info"] += 1
             continue
 
-        artist = info["artist"]
+        artist = info.get("artist", "")
         title = info["title"]
 
-        # Check if already tagged (skip if artist tag exists)
+        # Check if already tagged AND already renamed (skip if both done)
         try:
             tags = ID3(str(fp))
-            if tags.get("TPE1"):
-                stats["skipped"] += 1
-                continue
+            has_artist_tag = bool(tags.get("TPE1"))
+            has_art = bool(tags.getall("APIC"))
         except ID3NoHeaderError:
             tags = ID3()
+            has_artist_tag = False
+            has_art = False
         except Exception:
             tags = ID3()
+            has_artist_tag = False
+            has_art = False
 
-        if dry_run:
-            new_name = sanitize_filename(f"{artist} - {title}") + ".mp3"
-            logger.info(f"  [{i}/{len(files)}] WOULD: {vid}.mp3 → {new_name}")
+        already_renamed = not YT_ID_RE.match(stem)
+        if has_artist_tag and has_art and already_renamed:
+            stats["skipped"] += 1
             continue
 
-        # 1. Add ID3 tags
-        tags.add(TIT2(encoding=3, text=title))
-        tags.add(TPE1(encoding=3, text=artist))
-        tags.save(str(fp))
-        stats["tagged"] += 1
+        if dry_run:
+            display_name = f"{artist} - {title}" if artist else title
+            new_name = sanitize_filename(display_name) + ".mp3"
+            if new_name != fp.name:
+                logger.info(f"  [{i}/{len(files)}] WOULD: {fp.name} → {new_name}")
+            continue
 
-        # 2. Fetch album art
-        art = fetch_album_art(artist, title)
-        if art:
-            tags = ID3(str(fp))
-            tags.add(APIC(
-                encoding=3,
-                mime="image/jpeg",
-                type=3,  # Cover (front)
-                desc="Cover",
-                data=art,
-            ))
+        # 1. Add ID3 tags (if missing)
+        if not has_artist_tag:
+            if artist:
+                tags.add(TPE1(encoding=3, text=artist))
+            tags.add(TIT2(encoding=3, text=title))
             tags.save(str(fp))
-            stats["art_added"] += 1
-        time.sleep(ITUNES_RATE_LIMIT)
+            stats["tagged"] += 1
 
-        # 3. Rename file
-        new_name = sanitize_filename(f"{artist} - {title}") + ".mp3"
-        new_path = fp.parent / new_name
+        # 2. Fetch album art (if missing)
+        if not has_art:
+            search_query = f"{artist} {title}" if artist else title
+            art = fetch_album_art(artist or title, title if artist else "")
+            if art:
+                tags = ID3(str(fp))
+                tags.add(APIC(
+                    encoding=3,
+                    mime="image/jpeg",
+                    type=3,  # Cover (front)
+                    desc="Cover",
+                    data=art,
+                ))
+                tags.save(str(fp))
+                stats["art_added"] += 1
+            time.sleep(ITUNES_RATE_LIMIT)
 
-        # Avoid overwriting existing files
-        if new_path.exists() and new_path != fp:
-            # Append video ID to avoid collision
-            new_name = sanitize_filename(f"{artist} - {title} [{vid}]") + ".mp3"
+        # 3. Rename file (only if still a YouTube ID)
+        if YT_ID_RE.match(stem):
+            display_name = f"{artist} - {title}" if artist else title
+            new_name = sanitize_filename(display_name) + ".mp3"
             new_path = fp.parent / new_name
 
-        fp.rename(new_path)
-        stats["renamed"] += 1
+            if new_path.exists() and new_path != fp:
+                new_name = sanitize_filename(f"{display_name} [{stem}]") + ".mp3"
+                new_path = fp.parent / new_name
 
-        if i % 50 == 0:
+            fp.rename(new_path)
+            stats["renamed"] += 1
+
+        if i % 100 == 0:
             logger.info(f"  [{i}/{len(files)}] tagged={stats['tagged']}, art={stats['art_added']}, renamed={stats['renamed']}")
 
     logger.info(f"\nDone! tagged={stats['tagged']}, art={stats['art_added']}, "
-                f"renamed={stats['renamed']}, skipped={stats['skipped']}, no_map={stats['no_map']}")
+                f"renamed={stats['renamed']}, skipped={stats['skipped']}, no_info={stats['no_info']}")
 
 
 def main():

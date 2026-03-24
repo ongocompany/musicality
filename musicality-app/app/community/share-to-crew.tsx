@@ -27,6 +27,7 @@ export default function ShareToCrewScreen() {
     bpm?: string;
     danceStyle?: string;
     noteType?: string;
+    fingerprint?: string;
   }>();
   const noteLabel = params.noteType === 'cnote' ? 'ChoreoNote' : 'PhraseNote';
 
@@ -74,6 +75,7 @@ export default function ShareToCrewScreen() {
         title: newThreadTitle.trim(),
         bpm: params.bpm ? parseFloat(params.bpm) : undefined,
         danceStyle: params.danceStyle || 'bachata',
+        fingerprint: params.fingerprint || undefined,
       });
       // Find the newly created thread
       const newThread = activeSongThreads.find((t) => t.id === threadId);

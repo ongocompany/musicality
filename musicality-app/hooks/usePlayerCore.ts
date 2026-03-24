@@ -530,6 +530,7 @@ export function usePlayerCore() {
               bpm: analysis.bpm ? String(Math.round(analysis.bpm)) : '',
               danceStyle,
               noteType: activeFormationData ? 'cnote' : 'pnote',
+              fingerprint: analysis.fingerprint || '',
             },
           });
         },
