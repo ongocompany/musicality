@@ -133,6 +133,7 @@
     "deletePhraseEditionConfirm": "このPhraseNoteエディションを削除しますか？",
     "deleteChoreoEdition": "Ⓒ エディション {{id}} を削除",
     "deleteChoreoEditionConfirm": "このChoreoNoteエディションを削除しますか？",
+    "searchPlaceholder": "タイトルまたはアーティストで検索",
     "rename": "名前変更",
     "renameTrack": "トラック名を変更",
     "renameTrackPrompt": "新しいタイトルを入力："
@@ -482,6 +483,8 @@
     "tabCalendar": "カレンダー",
     "tabMembers": "メンバー",
     "noSongs": "共有された曲はまだありません",
+    "searchPlaceholder": "曲と投稿を検索",
+    "noSearchResults": "結果なし",
     "noteCount": "{{count}}件のノート",
     "mySettings": "マイ設定",
     "tapChangePhoto": "タップして写真を変更",

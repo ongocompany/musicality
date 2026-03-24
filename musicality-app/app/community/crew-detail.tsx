@@ -1,12 +1,14 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -72,6 +74,7 @@ export default function CrewDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const crew = id ? crewCache[id] : undefined;
   const isMember = id ? myCrewIds.includes(id) : false;
@@ -134,6 +137,32 @@ export default function CrewDetailScreen() {
       </>
     );
   }
+
+  // ─── Search filter ─────────────────────────────────
+  const isSearching = searchQuery.trim().length > 0;
+  const filteredSongs = useMemo(() => {
+    if (!isSearching) return activeSongThreads;
+    const q = searchQuery.trim().toLowerCase();
+    return activeSongThreads.filter(t =>
+      t.title.toLowerCase().includes(q)
+    );
+  }, [activeSongThreads, searchQuery, isSearching]);
+
+  const filteredPosts = useMemo(() => {
+    if (!isSearching) return activeGeneralPosts;
+    const q = searchQuery.trim().toLowerCase();
+    return activeGeneralPosts.filter(p =>
+      p.content.toLowerCase().includes(q) ||
+      (p.profile?.displayName?.toLowerCase().includes(q))
+    );
+  }, [activeGeneralPosts, searchQuery, isSearching]);
+
+  // Ensure both songs & board data are loaded for cross-tab search
+  useEffect(() => {
+    if (!id || !isSearching) return;
+    if (activeSongThreads.length === 0) fetchSongThreads(id);
+    if (activeGeneralPosts.length === 0) fetchGeneralPosts(id);
+  }, [id, isSearching]);
 
   const pendingCount = activePendingRequests.length;
   const captainMember = activeCrewMembers.find(m => m.role === 'captain');
@@ -230,6 +259,26 @@ export default function CrewDetailScreen() {
               ))}
             </View>
 
+            {/* Search Bar */}
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={16} color={Colors.textMuted} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder={t('crew.searchPlaceholder')}
+                placeholderTextColor={Colors.textMuted}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCorrect={false}
+                clearButtonMode="while-editing"
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && Platform.OS === 'android' && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+
             {/* Tab Content */}
             <ScrollView
               style={styles.tabContent}
@@ -238,6 +287,63 @@ export default function CrewDetailScreen() {
                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
               }
             >
+              {/* ─── Search Results (cross-tab) ─── */}
+              {isSearching ? (
+                <>
+                  {/* Songs section */}
+                  <Text style={styles.searchSectionLabel}>
+                    <Ionicons name="musical-notes" size={14} color={NoteTypeColors.phraseNote} />
+                    {' '}{t('crew.tabSongs')} ({filteredSongs.length})
+                  </Text>
+                  {filteredSongs.length === 0 ? (
+                    <Text style={styles.searchNoResult}>{t('crew.noSearchResults')}</Text>
+                  ) : (
+                    filteredSongs.map((thread) => (
+                      <TouchableOpacity
+                        key={thread.id}
+                        style={styles.threadCard}
+                        onPress={() => router.push({ pathname: '/community/song-thread', params: { id: thread.id, crewId: id! } })}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name={thread.latestNoteFormat === 'cnote' ? 'people' : 'musical-note'} size={20} color={thread.latestNoteFormat === 'cnote' ? NoteTypeColors.choreoNote : NoteTypeColors.phraseNote} />
+                        <View style={styles.threadInfo}>
+                          <Text style={styles.threadTitle} numberOfLines={1}>{thread.title}</Text>
+                          <Text style={styles.threadMeta}>
+                            {t('crew.noteCount', { count: thread.postCount })}
+                            {thread.bpm ? ` · ${thread.bpm} BPM` : ''}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+                      </TouchableOpacity>
+                    ))
+                  )}
+
+                  {/* Board section */}
+                  <Text style={[styles.searchSectionLabel, { marginTop: Spacing.md }]}>
+                    <Ionicons name="chatbubbles" size={14} color={Colors.primary} />
+                    {' '}{t('crew.tabBoard')} ({filteredPosts.length})
+                  </Text>
+                  {filteredPosts.length === 0 ? (
+                    <Text style={styles.searchNoResult}>{t('crew.noSearchResults')}</Text>
+                  ) : (
+                    filteredPosts.map((post) => (
+                      <PostItem
+                        key={post.id}
+                        post={post}
+                        currentUserId={user?.id}
+                        onLike={togglePostLike}
+                        onDelete={async (postId) => { await deleteGeneralPost(postId); }}
+                        onReply={async (parentId, content) => {
+                          if (!id) return;
+                          await createGeneralPost(id, content, parentId);
+                        }}
+                        onFetchReplies={fetchPostReplies}
+                      />
+                    ))
+                  )}
+                </>
+              ) : (
+              <>
               {activeTab === 'songs' && (
                 <>
                   {activeSongThreads.length === 0 ? (
@@ -376,6 +482,8 @@ export default function CrewDetailScreen() {
                     </TouchableOpacity>
                   ))}
                 </>
+              )}
+              </>
               )}
             </ScrollView>
           </>
@@ -530,6 +638,36 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: Colors.primary,
+  },
+  // Search Bar
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: Spacing.md,
+    marginVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 4,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 8,
+    gap: 6,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    color: Colors.text,
+    padding: 0,
+  },
+  searchSectionLabel: {
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    marginBottom: 4,
+  },
+  searchNoResult: {
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
+    paddingVertical: Spacing.sm,
+    textAlign: 'center',
   },
   // Tab Content
   tabContent: {

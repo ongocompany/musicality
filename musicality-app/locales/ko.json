@@ -133,6 +133,7 @@
     "deletePhraseEditionConfirm": "이 PhraseNote 에디션을 삭제하시겠습니까?",
     "deleteChoreoEdition": "Ⓒ 에디션 {{id}} 삭제",
     "deleteChoreoEditionConfirm": "이 ChoreoNote 에디션을 삭제하시겠습니까?",
+    "searchPlaceholder": "제목 또는 아티스트 검색",
     "rename": "이름 변경",
     "renameTrack": "트랙 이름 변경",
     "renameTrackPrompt": "새 제목을 입력하세요:"
@@ -483,6 +484,8 @@
     "tabCalendar": "캘린더",
     "tabMembers": "멤버",
     "noSongs": "아직 공유된 곡이 없습니다",
+    "searchPlaceholder": "곡 & 게시글 검색",
+    "noSearchResults": "검색 결과 없음",
     "noteCount": "{{count}}개 노트",
     "mySettings": "내 설정",
     "tapChangePhoto": "탭하여 사진 변경",

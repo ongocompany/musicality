@@ -133,6 +133,7 @@
     "deletePhraseEditionConfirm": "Удалить эту редакцию PhraseNote?",
     "deleteChoreoEdition": "Удалить редакцию Ⓒ {{id}}",
     "deleteChoreoEditionConfirm": "Удалить эту редакцию ChoreoNote?",
+    "searchPlaceholder": "Поиск по названию или исполнителю",
     "rename": "Переименовать",
     "renameTrack": "Переименовать трек",
     "renameTrackPrompt": "Введите новое название:"
@@ -482,6 +483,8 @@
     "tabCalendar": "Календарь",
     "tabMembers": "Участники",
     "noSongs": "Пока нет общих песен",
+    "searchPlaceholder": "Поиск песен и постов",
+    "noSearchResults": "Нет результатов",
     "noteCount": "{{count}} заметок",
     "mySettings": "Мои настройки",
     "tapChangePhoto": "Нажмите, чтобы изменить фото",

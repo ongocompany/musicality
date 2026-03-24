@@ -328,6 +328,7 @@ export default function LibraryScreen() {
   const [analyzeMenuVisible, setAnalyzeMenuVisible] = useState(false);
   const [analyzeTarget, setAnalyzeTarget] = useState<Track | null>(null);
   const [choreoDancerCount, setChoreoDancerCount] = useState(4);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Text input prompt (cross-platform replacement for Alert.prompt)
   const [promptVisible, setPromptVisible] = useState(false);
@@ -413,6 +414,17 @@ export default function LibraryScreen() {
     for (const t of displayTracks) items.push({ type: 'track', track: t });
     return items;
   }, [folders, displayTracks, folderTrackCounts, currentFolderId, activeTab]);
+
+  // ─── Search filter ─────────────────────────────────
+  const filteredListData = useMemo(() => {
+    if (!searchQuery.trim()) return listData;
+    const q = searchQuery.trim().toLowerCase();
+    return listData.filter(item => {
+      if (item.type === 'folder') return item.folder.name.toLowerCase().includes(q);
+      return item.track.title.toLowerCase().includes(q) ||
+        (item.track.artist?.toLowerCase().includes(q));
+    });
+  }, [listData, searchQuery]);
 
   // ─── Handlers ─────────────────────────────────────
   const importingRef = useRef(false);
@@ -809,8 +821,28 @@ export default function LibraryScreen() {
         </View>
       )}
 
+      {/* ②-b Search Bar */}
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={16} color={Colors.textMuted} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder={t('library.searchPlaceholder')}
+          placeholderTextColor={Colors.textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCorrect={false}
+          clearButtonMode="while-editing"
+          returnKeyType="search"
+        />
+        {searchQuery.length > 0 && Platform.OS === 'android' && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* ③ Track List */}
-      {listData.length === 0 ? (
+      {filteredListData.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons
             name={currentFolderId ? 'folder-open-outline' : activeTab === 'youtube' ? 'logo-youtube' : activeTab === 'video' ? 'videocam-outline' : 'musical-notes-outline'}
@@ -826,7 +858,7 @@ export default function LibraryScreen() {
         </View>
       ) : (
         <FlatList
-          data={listData}
+          data={filteredListData}
           keyExtractor={(item) => item.type === 'folder' ? `folder_${item.folder.id}` : `track_${item.track.id}`}
           renderItem={({ item }) => {
             if (item.type === 'folder') {
@@ -1126,6 +1158,25 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     color: Colors.text,
     fontWeight: '700',
+  },
+
+  // ─── Search Bar ─────────────────────────────────────
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: Spacing.md,
+    marginVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 4,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 8,
+    gap: 6,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    color: Colors.text,
+    padding: 0,
   },
 
   // ─── Empty ────────────────────────────────────────

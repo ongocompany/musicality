@@ -133,6 +133,7 @@
     "deletePhraseEditionConfirm": "Diese PhraseNote-Edition löschen?",
     "deleteChoreoEdition": "Ⓒ Edition {{id}} löschen",
     "deleteChoreoEditionConfirm": "Diese ChoreoNote-Edition löschen?",
+    "searchPlaceholder": "Nach Titel oder Künstler suchen",
     "rename": "Umbenennen",
     "renameTrack": "Track umbenennen",
     "renameTrackPrompt": "Neuen Titel eingeben:"
@@ -482,6 +483,8 @@
     "tabCalendar": "Kalender",
     "tabMembers": "Mitglieder",
     "noSongs": "Noch keine geteilten Songs",
+    "searchPlaceholder": "Songs & Beiträge suchen",
+    "noSearchResults": "Keine Ergebnisse",
     "noteCount": "{{count}} Notizen",
     "mySettings": "Meine Einstellungen",
     "tapChangePhoto": "Tippen zum Ändern des Fotos",

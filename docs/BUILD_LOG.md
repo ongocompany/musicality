@@ -7,6 +7,8 @@
 | 2026-03-19 | 0.9.0 | 1 | Android | Initial release build |
 | 2026-03-20 | 0.9.0 | 2 | Android | Community features, i18n |
 | 2026-03-22 | 0.9.0 | 2 | iOS | First TestFlight external testing submission |
+| 2026-03-23 | 0.9.0 | 3 | Android | Library search filter, SDK setup |
+| 2026-03-24 | 0.9.0 | 4 | Android | Community crew search (songs + board) |
 
 ## Notes
 

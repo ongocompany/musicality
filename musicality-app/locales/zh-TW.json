@@ -133,6 +133,7 @@
     "deletePhraseEditionConfirm": "確定要刪除此 PhraseNote 版本嗎？",
     "deleteChoreoEdition": "刪除 Ⓒ 版本 {{id}}",
     "deleteChoreoEditionConfirm": "確定要刪除此 ChoreoNote 版本嗎？",
+    "searchPlaceholder": "按標題或藝術家搜尋",
     "rename": "重新命名",
     "renameTrack": "重新命名曲目",
     "renameTrackPrompt": "請輸入新標題："
@@ -482,6 +483,8 @@
     "tabCalendar": "行事曆",
     "tabMembers": "成員",
     "noSongs": "尚無共享歌曲",
+    "searchPlaceholder": "搜尋歌曲和貼文",
+    "noSearchResults": "無結果",
     "noteCount": "{{count}} 個筆記",
     "mySettings": "我的設定",
     "tapChangePhoto": "點擊更換照片",
