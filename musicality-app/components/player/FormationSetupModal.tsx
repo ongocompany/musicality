@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
   presetBtnActive: {
-    backgroundColor: 'rgba(187,134,252,0.2)',
+    backgroundColor: 'rgba(212,168,84,0.2)',
     borderColor: Colors.primary,
   },
   presetBtnText: { fontSize: 13, color: Colors.textSecondary },
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   stepperValue: { fontSize: 18, fontWeight: '700', color: Colors.text, minWidth: 24, textAlign: 'center' },
   createBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: 'rgba(187,134,252,0.15)', borderRadius: 10,
+    backgroundColor: 'rgba(212,168,84,0.15)', borderRadius: 10,
     paddingVertical: 12, marginTop: 4,
   },
   createBtnText: { fontSize: 14, fontWeight: '600', color: Colors.primary },

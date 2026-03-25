@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Colors, Spacing, FontSize, getPhraseColor, blendColors } from '../../constants/theme';
+import { Colors, Spacing, FontSize, Fonts, getPhraseColor, blendColors } from '../../constants/theme';
 import { CountInfo } from '../../utils/beatCounter';
 
 interface CountDisplayProps {
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
   },
   count: {
-    fontWeight: '800',
+    fontFamily: Fonts.display,
     fontVariant: ['tabular-nums'],
   },
   countMuted: {

@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { PlayPauseIcon } from '../../components/ui/PlayPauseIcon';
 import { useTranslation } from 'react-i18next';
 
 import { usePlayerCore } from '../../hooks/usePlayerCore';
@@ -64,13 +65,16 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
       <View style={styles.scrollArea}>
         {/* ① Header */}
         <View style={styles.header}>
-          <Ionicons name="musical-notes" size={18} color={Colors.primary} style={{ marginRight: Spacing.xs }} />
-          <MarqueeTitle text={currentTrack.title} style={styles.headerTitle} />
-          {currentBpm && (
-            <View style={styles.bpmBadge}>
-              <Text style={styles.bpmText}>{currentBpm} BPM</Text>
-            </View>
-          )}
+          <View style={styles.headerLeft}>
+            <Text style={styles.slotLabel}>R</Text>
+          </View>
+          <View style={styles.headerRight}>
+            {currentBpm && (
+              <View style={styles.bpmBadge}>
+                <Text style={styles.bpmText}>{currentBpm} BPM</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* ② Stage + Grid OR empty state */}
@@ -181,7 +185,7 @@ export function AudioFormViewScreen({ playerCore, playerMode }: AudioFormViewScr
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
-          <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
+          <PlayPauseIcon isPlaying={isPlaying} size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
           <TouchableOpacity onPress={handleSkipForward}>
@@ -206,13 +210,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scrollArea: { flex: 1 },
   header: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.md, paddingVertical: 6,
   },
-  headerTitle: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  slotLabel: { fontSize: 14, fontWeight: '900', color: Colors.primary },
   bpmBadge: {
     paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
-    backgroundColor: 'rgba(187,134,252,0.2)',
+    backgroundColor: 'rgba(212,168,84,0.2)',
   },
   bpmText: { fontSize: 10, fontWeight: '700', color: Colors.primary },
   countSection: { flex: 1, alignItems: 'center' },
@@ -224,7 +230,7 @@ const styles = StyleSheet.create({
   createBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
-    backgroundColor: 'rgba(187,134,252,0.15)',
+    backgroundColor: 'rgba(212,168,84,0.15)',
   },
   createBtnText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
   seekSection: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
@@ -232,7 +238,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', paddingVertical: 4,
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
-  focusHandleActive: { backgroundColor: 'rgba(187,134,252,0.1)' },
+  focusHandleActive: { backgroundColor: 'rgba(212,168,84,0.1)' },
   bottomBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,

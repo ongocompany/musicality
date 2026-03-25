@@ -295,19 +295,7 @@
     "memberLimitLabel": "Member Limit (2-200)"
   },
   "messages": {
-    "groupChat": "Group Chat",
-    "noMessages": "No messages",
-    "typeMessage": "Type a message...",
-    "send": "Send",
-    "invite": "Invite",
-    "inviteMember": "Invite Member",
-    "kick": "Kick",
-    "kickConfirm": "Kick {{name}}?",
-    "memberNotFound": "Member \"{{name}}\" not found",
-    "closeRoom": "Close Room",
-    "closeRoomConfirm": "Close this chat room?",
-    "closeLabel": "Close",
-    "roomClosed": "This chat room has been closed"
+    "conversation": "Conversation"
   },
   "board": {
     "deletePost": "Delete Post",
@@ -501,7 +489,8 @@
     "loadingCrew": "Loading crew...",
     "type": "Type",
     "inviteCode": "Invite Code",
-    "role": "Role: {{role}}"
+    "role": "Role: {{role}}",
+    "deleteThreadConfirm": "Delete this song and all its notes?"
   },
   "songThread": {
     "noMatch": "No Match",
@@ -530,9 +519,6 @@
   "import": {
     "importFailed": "Import Failed",
     "cannotReadFile": "Cannot read the file."
-  },
-  "messages": {
-    "conversation": "Conversation"
   },
   "formation": {
     "namePlaceholder": "Name"

@@ -1086,7 +1086,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabBadgeActive: {
-    backgroundColor: 'rgba(187, 134, 252, 0.2)',
+    backgroundColor: 'rgba(212, 168, 84, 0.2)',
   },
   tabBadgeText: {
     fontSize: 10,
@@ -1236,14 +1236,14 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   trackItemSelected: {
-    backgroundColor: 'rgba(187, 134, 252, 0.1)',
+    backgroundColor: 'rgba(212, 168, 84, 0.1)',
     borderWidth: 1,
     borderColor: Colors.primary,
   },
   trackItemNowPlaying: {
     borderWidth: 1,
-    borderColor: 'rgba(187, 134, 252, 0.6)',
-    backgroundColor: 'rgba(187, 134, 252, 0.06)',
+    borderColor: 'rgba(212, 168, 84, 0.6)',
+    backgroundColor: 'rgba(212, 168, 84, 0.06)',
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
@@ -1286,10 +1286,10 @@ const styles = StyleSheet.create({
   trackMeta: { color: Colors.textSecondary, fontSize: FontSize.sm },
   badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   badgeDone: { backgroundColor: 'rgba(76, 175, 80, 0.2)' },
-  badgeAnalyzing: { backgroundColor: 'rgba(255, 193, 7, 0.15)' },
+  badgeAnalyzing: { backgroundColor: 'rgba(232, 168, 48, 0.15)' },
   badgeError: { backgroundColor: 'rgba(244, 67, 54, 0.15)' },
   badgeText: { color: '#4CAF50', fontSize: FontSize.xs, fontWeight: '600' },
-  badgeAnalyzingText: { color: '#FFC107', fontSize: FontSize.xs, fontWeight: '600' },
+  badgeAnalyzingText: { color: Colors.warning, fontSize: FontSize.xs, fontWeight: '600' },
   analyzeButton: {
     width: 36,
     height: 36,
@@ -1349,11 +1349,11 @@ const styles = StyleSheet.create({
   },
 
   // ─── Swipeable Actions ────────────────────────────
-  swipeEditionUser: { backgroundColor: 'rgba(156, 39, 176, 0.25)' },
+  swipeEditionUser: { backgroundColor: 'rgba(212, 168, 84, 0.25)' },
   swipeEditionActive: { borderWidth: 2, borderColor: Colors.text },
   swipeEditionText: { fontSize: 18, fontWeight: '800' },
-  swipeEditionTextServer: { color: '#FFC107' },
-  swipeEditionTextUser: { color: '#CE93D8' },
+  swipeEditionTextServer: { color: Colors.warning },
+  swipeEditionTextUser: { color: Colors.primaryLight },
 
   swipeSelectBtn: {
     width: 50,
@@ -1362,15 +1362,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 8,
     marginRight: 4,
-    backgroundColor: 'rgba(3, 218, 198, 0.15)',
+    backgroundColor: 'rgba(201, 169, 110, 0.15)',
     marginBottom: Spacing.sm,
   },
 
   // ─── Edition Indicators ───────────────────────────
   editionIndicators: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   editionDot: { width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
-  editionDotServer: { backgroundColor: 'rgba(255, 193, 7, 0.3)' },
-  editionDotUser: { backgroundColor: 'rgba(156, 39, 176, 0.3)' },
+  editionDotServer: { backgroundColor: 'rgba(232, 168, 48, 0.3)' },
+  editionDotUser: { backgroundColor: 'rgba(212, 168, 84, 0.3)' },
   editionDotActive: { borderWidth: 1.5, borderColor: Colors.text, opacity: 1 },
   editionDotText: { fontSize: 9, fontWeight: '700', color: Colors.text },
 

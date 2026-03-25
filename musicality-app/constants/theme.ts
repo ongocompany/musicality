@@ -1,20 +1,21 @@
 export const Colors = {
-  background: '#121212',
-  surface: '#1E1E1E',
-  surfaceLight: '#2A2A2A',
-  primary: '#BB86FC',
-  primaryDark: '#9C64E8',
-  accent: '#03DAC6',
-  error: '#CF6679',
-  warning: '#FFC107',
+  background: '#0D0D0F',
+  surface: '#1A1A1C',
+  surfaceLight: '#252528',
+  primary: '#D4A854',
+  primaryDark: '#B8923E',
+  primaryLight: '#E8C878',
+  accent: '#C9A96E',
+  error: '#E85D75',
+  warning: '#E8A830',
   success: '#4CAF50',
-  text: '#FFFFFF',
-  textSecondary: '#B0B0B0',
-  textMuted: '#666666',
-  border: '#333333',
-  loopHighlight: 'rgba(187, 134, 252, 0.2)',
-  beatPulse: '#BB86FC',
-  tapAccent: '#FF9800',
+  text: '#F5F0E8',
+  textSecondary: '#A8A298',
+  textMuted: '#5A5750',
+  border: '#2A2A2D',
+  loopHighlight: 'rgba(212, 168, 84, 0.2)',
+  beatPulse: '#D4A854',
+  tapAccent: '#E8913A',
 };
 
 export const SectionColors: Record<string, string> = {
@@ -28,8 +29,8 @@ export const SectionColors: Record<string, string> = {
 
 // ─── Note type identity colors ──────────────────────
 export const NoteTypeColors = {
-  phraseNote: '#BB86FC',   // purple (matches primary)
-  choreoNote: '#FFD700',   // gold
+  phraseNote: '#D4A854',   // gold (matches primary)
+  choreoNote: '#E8C878',   // light gold
 };
 
 // ─── Phrase rainbow colors (빨주노초파남보) ────────────
@@ -80,4 +81,8 @@ export const FontSize = {
   xl: 20,
   xxl: 28,
   count: 200,
+};
+
+export const Fonts = {
+  display: 'BebasNeue',  // for count numbers, big headings
 };

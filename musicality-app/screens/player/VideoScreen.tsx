@@ -8,6 +8,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform, Dimensions, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { PlayPauseIcon } from '../../components/ui/PlayPauseIcon';
 import { useTranslation } from 'react-i18next';
 import { Video, ResizeMode } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
@@ -136,20 +137,15 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
       <View style={styles.scrollArea}>
         {/* ① Header — S● + BPM + ⚙️ */}
         <View style={styles.header}>
-          <Ionicons
-            name={isYouTube ? 'logo-youtube' : 'videocam'}
-            size={18}
-            color={isYouTube ? '#FF0000' : Colors.primary}
-            style={{ marginRight: Spacing.xs }}
-          />
-          <MarqueeTitle text={currentTrack.title} style={styles.headerTitle} />
-          <View style={styles.headerMeta}>
+          <View style={styles.headerLeft}>
             {hasDoneAnalysis && (
               <TouchableOpacity style={styles.slotBadge} onPress={slot.toggleSlotBar}>
                 <Text style={styles.slotText}>{slot.slotLabel}</Text>
                 <View style={styles.autoDot} />
               </TouchableOpacity>
             )}
+          </View>
+          <View style={styles.headerRight}>
             {displayBpm > 0 && (
               <View style={styles.bpmBadge}>
                 <Text style={styles.bpmText}>{displayBpm} BPM</Text>
@@ -368,7 +364,7 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
-          <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
+          <PlayPauseIcon isPlaying={isPlaying} size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
           <TouchableOpacity onPress={handleSkipForward}>
@@ -386,7 +382,7 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
       {focus.focusMode && (
         <>
           <TouchableOpacity style={styles.focusPlayButton} onPress={togglePlay} activeOpacity={0.7}>
-            <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#fff" />
+            <PlayPauseIcon isPlaying={isPlaying} size={18} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.focusExitHandle} onPress={focus.exitFocusMode} activeOpacity={0.7}>
             <Ionicons name="chevron-up" size={16} color={Colors.primary} />
@@ -423,22 +419,22 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scrollArea: { flex: 1 },
   header: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.md, paddingVertical: 6,
   },
-  headerTitle: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  headerMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   slotBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
-    borderWidth: 1.5, borderColor: 'rgba(187,134,252,0.5)',
-    backgroundColor: 'rgba(187,134,252,0.08)',
+    borderWidth: 1.5, borderColor: 'rgba(212,168,84,0.5)',
+    backgroundColor: 'rgba(212,168,84,0.08)',
   },
   slotText: { fontSize: 10, fontWeight: '800', color: Colors.primary },
   autoDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.success },
   bpmBadge: {
     paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
-    backgroundColor: 'rgba(187,134,252,0.2)',
+    backgroundColor: 'rgba(212,168,84,0.2)',
   },
   bpmText: { fontSize: 10, fontWeight: '700', color: Colors.primary },
   settingsBtn: {
@@ -462,7 +458,7 @@ const styles = StyleSheet.create({
   },
   collapseHandleExpanded: {
     paddingVertical: 12,
-    backgroundColor: 'rgba(187,134,252,0.1)',
+    backgroundColor: 'rgba(212,168,84,0.1)',
   },
   dragBar: {
     width: 36,
@@ -528,7 +524,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', paddingVertical: 4,
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
-  focusHandleActive: { backgroundColor: 'rgba(187,134,252,0.1)' },
+  focusHandleActive: { backgroundColor: 'rgba(212,168,84,0.1)' },
   seekSection: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   bottomBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -546,17 +542,17 @@ const styles = StyleSheet.create({
   modeBtn: {
     width: 32, height: 32, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'rgba(187,134,252,0.2)',
+    backgroundColor: 'rgba(212,168,84,0.2)',
   },
   focusPlayButton: {
     position: 'absolute', bottom: 12, right: 12,
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(187,134,252,0.8)',
+    backgroundColor: 'rgba(212,168,84,0.8)',
     alignItems: 'center', justifyContent: 'center',
   },
   focusExitHandle: {
     position: 'absolute', bottom: 0, alignSelf: 'center',
     paddingHorizontal: 24, paddingVertical: 4,
-    backgroundColor: 'rgba(187,134,252,0.15)', borderTopLeftRadius: 12, borderTopRightRadius: 12,
+    backgroundColor: 'rgba(212,168,84,0.15)', borderTopLeftRadius: 12, borderTopRightRadius: 12,
   },
 });

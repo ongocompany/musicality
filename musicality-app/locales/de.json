@@ -294,19 +294,7 @@
     "memberLimitLabel": "Mitgliederlimit (2-200)"
   },
   "messages": {
-    "groupChat": "Gruppenchat",
-    "noMessages": "Keine Nachrichten",
-    "typeMessage": "Nachricht eingeben...",
-    "send": "Senden",
-    "invite": "Einladen",
-    "inviteMember": "Mitglied einladen",
-    "kick": "Entfernen",
-    "kickConfirm": "{{name}} entfernen?",
-    "memberNotFound": "Mitglied \"{{name}}\" nicht gefunden",
-    "closeRoom": "Raum schließen",
-    "closeRoomConfirm": "Diesen Chatraum schließen?",
-    "closeLabel": "Schließen",
-    "roomClosed": "Dieser Chatraum wurde geschlossen"
+    "conversation": "Unterhaltung"
   },
   "board": {
     "deletePost": "Beitrag löschen",
@@ -356,7 +344,7 @@
   },
   "tutorial": {
     "welcomeTitle": "Tippe auf den Demo-Song!",
-    "welcomeDesc": "„Un Solo Latido\u201C ist der offizielle Song von Ritmo.\nTippe darauf, um ihn im Player zu öffnen.",
+    "welcomeDesc": "„Un Solo Latido“ ist der offizielle Song von Ritmo.\nTippe darauf, um ihn im Player zu öffnen.",
     "analysisTitle": "KI-Beat-Analyse abgeschlossen!",
     "analysisDesc": "Ritmo KI hat BPM, Beats und Songabschnitte automatisch erkannt.\nDas Beat-Raster zeigt jeden Beat als farbige Zelle an.",
     "playTitle": "Abspielen und den Beat spüren",
@@ -500,7 +488,8 @@
     "loadingCrew": "Crew wird geladen...",
     "type": "Typ",
     "inviteCode": "Einladungscode",
-    "role": "Rolle: {{role}}"
+    "role": "Rolle: {{role}}",
+    "deleteThreadConfirm": "Dieses Lied und alle Notizen löschen?"
   },
   "songThread": {
     "noMatch": "Keine Übereinstimmung",
@@ -529,9 +518,6 @@
   "import": {
     "importFailed": "Import fehlgeschlagen",
     "cannotReadFile": "Datei konnte nicht gelesen werden."
-  },
-  "messages": {
-    "conversation": "Unterhaltung"
   },
   "formation": {
     "namePlaceholder": "Name"

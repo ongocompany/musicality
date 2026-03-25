@@ -1189,7 +1189,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.xs,
     paddingVertical: 4,
-    backgroundColor: 'rgba(187, 134, 252, 0.15)',
+    backgroundColor: 'rgba(212, 168, 84, 0.15)',
     borderRadius: 8,
   },
   repeatHintText: {

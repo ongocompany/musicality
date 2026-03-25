@@ -7,6 +7,7 @@
 import { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { PlayPauseIcon } from '../../components/ui/PlayPauseIcon';
 import { useTranslation } from 'react-i18next';
 
 import { usePlayerCore } from '../../hooks/usePlayerCore';
@@ -68,12 +69,14 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
       <View style={styles.scrollArea}>
         {/* ① Header — BPM only */}
         <View style={styles.header}>
-          <Ionicons name="musical-notes" size={18} color={Colors.primary} style={{ marginRight: Spacing.xs }} />
-          {currentBpm && (
-            <View style={styles.bpmBadge}>
-              <Text style={styles.bpmText}>{currentBpm} BPM</Text>
-            </View>
-          )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {currentBpm && (
+              <View style={styles.bpmBadge}>
+                <Text style={styles.bpmText}>{currentBpm} BPM</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* ② Count (large) — album art behind count */}
@@ -194,7 +197,7 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
-          <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
+          <PlayPauseIcon isPlaying={isPlaying} size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
           <TouchableOpacity onPress={handleSkipForward}>
@@ -207,7 +210,7 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
       {focus.focusMode && (
         <>
           <TouchableOpacity style={styles.focusPlayButton} onPress={togglePlay} activeOpacity={0.7}>
-            <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#fff" />
+            <PlayPauseIcon isPlaying={isPlaying} size={18} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.focusExitHandle} onPress={focus.exitFocusMode} activeOpacity={0.7}>
             <Ionicons name="chevron-up" size={16} color={Colors.primary} />
@@ -222,12 +225,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scrollArea: { flex: 1 },
   header: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.md, paddingVertical: 6,
   },
   bpmBadge: {
     paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
-    backgroundColor: 'rgba(187,134,252,0.2)',
+    backgroundColor: 'rgba(212,168,84,0.2)',
   },
   bpmText: { fontSize: 10, fontWeight: '700', color: Colors.primary },
   countSection: { flex: 1, alignItems: 'center' },
@@ -266,7 +269,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', paddingVertical: 4,
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
-  focusHandleActive: { backgroundColor: 'rgba(187,134,252,0.1)' },
+  focusHandleActive: { backgroundColor: 'rgba(212,168,84,0.1)' },
   bottomBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,
@@ -284,12 +287,12 @@ const styles = StyleSheet.create({
   focusPlayButton: {
     position: 'absolute', bottom: 12, right: 12,
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(187,134,252,0.8)',
+    backgroundColor: 'rgba(212,168,84,0.8)',
     alignItems: 'center', justifyContent: 'center',
   },
   focusExitHandle: {
     position: 'absolute', bottom: 0, alignSelf: 'center',
     paddingHorizontal: 24, paddingVertical: 4,
-    backgroundColor: 'rgba(187,134,252,0.15)', borderTopLeftRadius: 12, borderTopRightRadius: 12,
+    backgroundColor: 'rgba(212,168,84,0.15)', borderTopLeftRadius: 12, borderTopRightRadius: 12,
   },
 });

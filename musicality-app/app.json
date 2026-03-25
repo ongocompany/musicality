@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "7",
+      "buildNumber": "8",
       "bundleIdentifier": "kr.ritmo.musicality",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -27,7 +27,7 @@
     },
     "android": {
       "package": "com.ongocompany.musicality",
-      "versionCode": 7,
+      "versionCode": 8,
       "adaptiveIcon": {
         "backgroundColor": "#121212",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -51,7 +51,8 @@
       "expo-router",
       "expo-document-picker",
       "expo-web-browser",
-      "expo-localization"
+      "expo-localization",
+      "expo-font"
     ],
     "extra": {
       "router": {},

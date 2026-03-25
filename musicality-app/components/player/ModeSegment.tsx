@@ -50,7 +50,7 @@ export function ModeSegment({
 
 function segBg(state: SegmentState) {
   if (state === 'view') return { backgroundColor: 'rgba(3,218,198,0.2)' };
-  if (state === 'edit') return { backgroundColor: 'rgba(187,134,252,0.25)' };
+  if (state === 'edit') return { backgroundColor: 'rgba(212,168,84,0.25)' };
   return {};
 }
 

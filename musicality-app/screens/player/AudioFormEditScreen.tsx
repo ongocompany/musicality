@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { PlayPauseIcon } from '../../components/ui/PlayPauseIcon';
 import { useTranslation } from 'react-i18next';
 
 import { usePlayerCore } from '../../hooks/usePlayerCore';
@@ -80,13 +81,13 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
       <View style={styles.scrollArea}>
         {/* ① Header — S● + BPM + ⚙️ */}
         <View style={styles.header}>
-          <Ionicons name="musical-notes" size={18} color={Colors.primary} style={{ marginRight: Spacing.xs }} />
-          <MarqueeTitle text={currentTrack.title} style={styles.headerTitle} />
-          <View style={styles.headerMeta}>
+          <View style={styles.headerLeft}>
             <TouchableOpacity style={[styles.slotBadge, { borderColor: slot.slotColor + '80' }]} onPress={slot.toggleSlotBar}>
               <Text style={[styles.slotText, { color: slot.slotColor }]}>{slot.slotLabel}</Text>
               {!slot.isReadOnly && <View style={[styles.autoDot, { backgroundColor: slot.slotColor }]} />}
             </TouchableOpacity>
+          </View>
+          <View style={styles.headerRight}>
             {displayBpm > 0 && (
               <View style={styles.bpmBadge}>
                 <Text style={styles.bpmText}>{displayBpm} BPM</Text>
@@ -220,7 +221,7 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
-          <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
+          <PlayPauseIcon isPlaying={isPlaying} size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
           <TouchableOpacity onPress={handleSkipForward}>
@@ -283,23 +284,23 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scrollArea: { flex: 1 },
   header: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.md, paddingVertical: 6,
   },
-  headerTitle: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  headerMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   slotBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
-    borderWidth: 1.5, borderColor: 'rgba(187,134,252,0.5)',
-    backgroundColor: 'rgba(187,134,252,0.08)',
+    borderWidth: 1.5, borderColor: 'rgba(212,168,84,0.5)',
+    backgroundColor: 'rgba(212,168,84,0.08)',
     minWidth: 32, justifyContent: 'center',
   },
   slotText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
   autoDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.success },
   bpmBadge: {
     paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
-    backgroundColor: 'rgba(187,134,252,0.2)',
+    backgroundColor: 'rgba(212,168,84,0.2)',
   },
   bpmText: { fontSize: 10, fontWeight: '700', color: Colors.primary },
   settingsBtn: {
@@ -325,7 +326,7 @@ const styles = StyleSheet.create({
   createFormBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
-    backgroundColor: 'rgba(187,134,252,0.15)',
+    backgroundColor: 'rgba(212,168,84,0.15)',
   },
   createFormBtnText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
   seekSection: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
@@ -333,7 +334,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', paddingVertical: 4,
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
-  focusHandleActive: { backgroundColor: 'rgba(187,134,252,0.1)' },
+  focusHandleActive: { backgroundColor: 'rgba(212,168,84,0.1)' },
   bottomBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,
@@ -354,6 +355,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
   modeBtnActive: {
-    backgroundColor: 'rgba(187,134,252,0.2)',
+    backgroundColor: 'rgba(212,168,84,0.2)',
   },
 });

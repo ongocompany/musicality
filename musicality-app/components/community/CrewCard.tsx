@@ -1,6 +1,7 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize } from '../../constants/theme';
+import { PressableScale } from '../ui/PressableScale';
 import type { Crew } from '../../types/community';
 
 /** Convert ISO country code to flag emoji, 'global' → 🌐 */
@@ -22,7 +23,7 @@ interface CrewCardProps {
 
 export default function CrewCard({ crew, isMember, isCaptain, onPress }: CrewCardProps) {
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <PressableScale style={styles.card} onPress={onPress} scaleDown={0.97}>
       {/* Thumbnail */}
       <View style={styles.thumbnail}>
         {crew.thumbnailUrl ? (
@@ -85,7 +86,7 @@ export default function CrewCard({ crew, isMember, isCaptain, onPress }: CrewCar
 
       {/* Arrow */}
       <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-    </TouchableOpacity>
+    </PressableScale>
   );
 }
 
@@ -99,6 +100,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
+    borderTopColor: 'rgba(212, 168, 84, 0.15)',
   },
   thumbnail: {
     width: 52,

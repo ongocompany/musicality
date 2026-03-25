@@ -294,19 +294,7 @@
     "memberLimitLabel": "Límite de miembros (2-200)"
   },
   "messages": {
-    "groupChat": "Chat grupal",
-    "noMessages": "No hay mensajes",
-    "typeMessage": "Escribe un mensaje...",
-    "send": "Enviar",
-    "invite": "Invitar",
-    "inviteMember": "Invitar miembro",
-    "kick": "Expulsar",
-    "kickConfirm": "¿Expulsar a {{name}}?",
-    "memberNotFound": "No se encontró al miembro \"{{name}}\"",
-    "closeRoom": "Cerrar sala",
-    "closeRoomConfirm": "¿Cerrar esta sala de chat?",
-    "closeLabel": "Cerrar",
-    "roomClosed": "Esta sala de chat ha sido cerrada"
+    "conversation": "Conversación"
   },
   "board": {
     "deletePost": "Eliminar publicación",
@@ -500,7 +488,8 @@
     "loadingCrew": "Cargando crew...",
     "type": "Tipo",
     "inviteCode": "Código de invitación",
-    "role": "Rol: {{role}}"
+    "role": "Rol: {{role}}",
+    "deleteThreadConfirm": "¿Eliminar esta canción y todas sus notas?"
   },
   "songThread": {
     "noMatch": "Sin coincidencias",
@@ -529,9 +518,6 @@
   "import": {
     "importFailed": "Importación fallida",
     "cannotReadFile": "No se puede leer el archivo."
-  },
-  "messages": {
-    "conversation": "Conversación"
   },
   "formation": {
     "namePlaceholder": "Nombre"

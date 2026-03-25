@@ -1,7 +1,8 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing } from '../../constants/theme';
-import { MarqueeTitle } from './MarqueeTitle';
+
+// MarqueeTitle removed — title now shown in count area
 
 interface PlayerHeaderProps {
   title: string;
@@ -17,23 +18,20 @@ export function PlayerHeader({
   isEdit = false, slotId,
   onSettingsPress,
 }: PlayerHeaderProps) {
-  const icon = mediaType === 'youtube' ? 'logo-youtube'
-    : mediaType === 'video' ? 'videocam' : 'musical-notes';
-  const iconColor = mediaType === 'youtube' ? '#FF0000' : Colors.primary;
-
   return (
     <View style={styles.header}>
-      <Ionicons name={icon} size={18} color={iconColor} style={{ marginRight: Spacing.xs }} />
-      <MarqueeTitle text={title} style={styles.title} />
-
-      <View style={styles.meta}>
+      {/* Left: slot button */}
+      <View style={styles.leftMeta}>
         {isEdit && slotId && (
           <View style={styles.slot}>
             <Text style={styles.slotText}>S</Text>
             <View style={styles.autoDot} />
           </View>
         )}
+      </View>
 
+      {/* Right: BPM + settings */}
+      <View style={styles.rightMeta}>
         {bpm != null && (
           <View style={styles.bpmBadge}>
             <Text style={styles.bpmText}>{Math.round(bpm)} BPM</Text>
@@ -54,17 +52,18 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: Colors.surface,
   },
-  title: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text,
+  leftMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  meta: {
+  rightMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -77,8 +76,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: 'rgba(187,134,252,0.5)',
-    backgroundColor: 'rgba(187,134,252,0.08)',
+    borderColor: 'rgba(212,168,84,0.5)',
+    backgroundColor: 'rgba(212,168,84,0.08)',
   },
   slotText: {
     fontSize: 10,
@@ -95,7 +94,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 10,
-    backgroundColor: 'rgba(187,134,252,0.2)',
+    backgroundColor: 'rgba(212,168,84,0.2)',
   },
   bpmText: {
     fontSize: 10,

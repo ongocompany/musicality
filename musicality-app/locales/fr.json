@@ -294,19 +294,7 @@
     "memberLimitLabel": "Limite de membres (2-200)"
   },
   "messages": {
-    "groupChat": "Discussion de groupe",
-    "noMessages": "Aucun message",
-    "typeMessage": "Saisissez un message...",
-    "send": "Envoyer",
-    "invite": "Inviter",
-    "inviteMember": "Inviter un membre",
-    "kick": "Expulser",
-    "kickConfirm": "Expulser {{name}} ?",
-    "memberNotFound": "Membre \"{{name}}\" introuvable",
-    "closeRoom": "Fermer le salon",
-    "closeRoomConfirm": "Fermer ce salon de discussion ?",
-    "closeLabel": "Fermer",
-    "roomClosed": "Ce salon de discussion a été fermé"
+    "conversation": "Conversation"
   },
   "board": {
     "deletePost": "Supprimer la publication",
@@ -500,7 +488,8 @@
     "loadingCrew": "Chargement du crew...",
     "type": "Type",
     "inviteCode": "Code d'invitation",
-    "role": "Rôle : {{role}}"
+    "role": "Rôle : {{role}}",
+    "deleteThreadConfirm": "Supprimer cette chanson et toutes ses notes ?"
   },
   "songThread": {
     "noMatch": "Aucune correspondance",
@@ -529,9 +518,6 @@
   "import": {
     "importFailed": "Impossible d'importer",
     "cannotReadFile": "Impossible de lire le fichier."
-  },
-  "messages": {
-    "conversation": "Conversation"
   },
   "formation": {
     "namePlaceholder": "Nom"

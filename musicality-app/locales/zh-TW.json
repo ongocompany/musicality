@@ -294,19 +294,7 @@
     "memberLimitLabel": "成員上限（2-200）"
   },
   "messages": {
-    "groupChat": "群組聊天",
-    "noMessages": "沒有訊息",
-    "typeMessage": "輸入訊息...",
-    "send": "傳送",
-    "invite": "邀請",
-    "inviteMember": "邀請成員",
-    "kick": "踢除",
-    "kickConfirm": "確定要踢除 {{name}} 嗎？",
-    "memberNotFound": "找不到成員「{{name}}」",
-    "closeRoom": "關閉聊天室",
-    "closeRoomConfirm": "確定要關閉此聊天室嗎？",
-    "closeLabel": "關閉",
-    "roomClosed": "此聊天室已關閉"
+    "conversation": "對話"
   },
   "board": {
     "deletePost": "刪除貼文",
@@ -500,7 +488,8 @@
     "loadingCrew": "載入舞團中...",
     "type": "類型",
     "inviteCode": "邀請碼",
-    "role": "角色: {{role}}"
+    "role": "角色: {{role}}",
+    "deleteThreadConfirm": "刪除此歌曲及所有筆記？"
   },
   "songThread": {
     "noMatch": "無符合項目",
@@ -529,9 +518,6 @@
   "import": {
     "importFailed": "匯入失敗",
     "cannotReadFile": "無法讀取檔案。"
-  },
-  "messages": {
-    "conversation": "對話"
   },
   "formation": {
     "namePlaceholder": "名稱"

@@ -13,6 +13,8 @@ import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { PhraseGrid } from '../../components/ui/PhraseGrid';
 import { FormationStageView } from '../../components/ui/FormationStageView';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
+import { PlayPauseIcon } from '../../components/ui/PlayPauseIcon';
+import { PressableScale } from '../../components/ui/PressableScale';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useTutorialStore } from '../../stores/tutorialStore';
@@ -1308,7 +1310,7 @@ export default function PlayerScreen() {
               <Text style={styles.beatOffsetBtnText}>-100ms</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.beatOffsetCenter, beatTimeOffset !== 0 && { backgroundColor: 'rgba(187,134,252,0.2)' }]}
+              style={[styles.beatOffsetCenter, beatTimeOffset !== 0 && { backgroundColor: 'rgba(212,168,84,0.2)' }]}
               onPress={() => setBeatTimeOffset(currentTrack.id, 0)}
             >
               <Text style={[styles.beatOffsetCenterText, beatTimeOffset !== 0 && { color: Colors.primary }]}>
@@ -1929,27 +1931,21 @@ export default function PlayerScreen() {
             </TouchableOpacity>
           )}
           <SpeedPopup currentRate={playbackRate} rates={RATES} onSelectRate={setPlaybackRate} />
-          <TouchableOpacity onPress={handleSkipBack} onLongPress={() => seekTo(0)} delayLongPress={400}>
+          <PressableScale onPress={handleSkipBack} onLongPress={() => seekTo(0)} scaleDown={0.85}>
             <Ionicons name="play-back" size={22} color={Colors.text} />
-          </TouchableOpacity>
+          </PressableScale>
         </View>
-        <TouchableOpacity
+        <PressableScale
           style={styles.playButton}
           onPress={togglePlay}
-          onLayout={(e) => {
-            e.target.measureInWindow((x: number, y: number, w: number, h: number) => {
-              if (w > 0 && h > 0) {
-                useTutorialStore.getState().setElementRect('playButton', { x, y, width: w, height: h });
-              }
-            });
-          }}
+          scaleDown={0.88}
         >
-          <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
-        </TouchableOpacity>
+          <PlayPauseIcon isPlaying={isPlaying} size={28} color={Colors.text} />
+        </PressableScale>
         <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
-          <TouchableOpacity onPress={handleSkipForward}>
+          <PressableScale onPress={handleSkipForward} scaleDown={0.85}>
             <Ionicons name="play-forward" size={22} color={Colors.text} />
-          </TouchableOpacity>
+          </PressableScale>
           {activeFormationData && (
             <TouchableOpacity
               onPress={() => setEditMode(editMode === 'formation' ? 'none' : 'formation')}
@@ -1980,7 +1976,7 @@ export default function PlayerScreen() {
             onPress={togglePlay}
             activeOpacity={0.7}
           >
-            <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#fff" />
+            <PlayPauseIcon isPlaying={isPlaying} size={18} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.focusExitHandle}
@@ -2116,7 +2112,7 @@ export default function PlayerScreen() {
 
             {/* Start button */}
             <TouchableOpacity
-              style={[styles.analyzeMenuOption, { backgroundColor: 'rgba(187,134,252,0.15)', borderRadius: 10, marginTop: 8 }]}
+              style={[styles.analyzeMenuOption, { backgroundColor: 'rgba(212,168,84,0.15)', borderRadius: 10, marginTop: 8 }]}
               onPress={() => {
                 if (!currentTrack) return;
                 const preset = STAGE_PRESETS[setupStagePresetIdx];
@@ -2468,13 +2464,15 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   playButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginHorizontal: Spacing.md,
+    borderWidth: 2,
+    borderColor: Colors.primaryLight,
   },
   editModeToggle: {
     padding: Spacing.xs,
@@ -2561,7 +2559,7 @@ const styles = StyleSheet.create({
   },
   stagePresetBtnActive: {
     borderColor: Colors.primary,
-    backgroundColor: 'rgba(187,134,252,0.15)',
+    backgroundColor: 'rgba(212,168,84,0.15)',
   },
   stagePresetBtnText: {
     color: Colors.textSecondary,
@@ -2711,9 +2709,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: 'rgba(187, 134, 252, 0.15)',
+    backgroundColor: 'rgba(212, 168, 84, 0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(187, 134, 252, 0.4)',
+    borderColor: 'rgba(212, 168, 84, 0.4)',
   },
   draftUndoText: {
     color: Colors.primary,
@@ -2829,7 +2827,7 @@ const styles = StyleSheet.create({
   },
   editionChipActive: {
     borderColor: Colors.primary,
-    backgroundColor: 'rgba(187, 134, 252, 0.15)',
+    backgroundColor: 'rgba(212, 168, 84, 0.15)',
   },
   editionChipImported: {
     backgroundColor: 'rgba(45, 212, 191, 0.1)',
@@ -2871,7 +2869,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(187,134,252,0.6)',
+    backgroundColor: 'rgba(212,168,84,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
   },

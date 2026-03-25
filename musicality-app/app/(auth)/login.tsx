@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.primary,
     letterSpacing: 2,
-    textShadowColor: 'rgba(187, 134, 252, 0.4)',
+    textShadowColor: 'rgba(212, 168, 84, 0.4)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 12,
   },

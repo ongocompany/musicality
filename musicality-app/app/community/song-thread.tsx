@@ -28,10 +28,12 @@ export default function SongThreadScreen() {
   const {
     activeSongThreads,
     activeThreadNotes,
+    crewCache,
     loading,
     fetchThreadNotes,
     postPhraseNote,
     deleteThreadNote,
+    deleteSongThread,
   } = useCommunityStore();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -42,6 +44,33 @@ export default function SongThreadScreen() {
   const setActiveImportedNote = useSettingsStore((s) => s.setActiveImportedNote);
 
   const thread = activeSongThreads.find((t) => t.id === id);
+  const crew = crewId ? crewCache[crewId] : undefined;
+  const isCreator = thread?.createdBy === user?.id;
+  const isCaptain = crew?.captainId === user?.id;
+  const canDeleteThread = isCreator || isCaptain;
+
+  const handleDeleteThread = useCallback(() => {
+    if (!id || !crewId) return;
+    Alert.alert(
+      t('common.delete'),
+      t('crew.deleteThreadConfirm'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteSongThread(id, crewId);
+              router.back();
+            } catch (err: any) {
+              Alert.alert(t('common.error'), err.message);
+            }
+          },
+        },
+      ],
+    );
+  }, [id, crewId, deleteSongThread]);
 
   const handleImportNote = useCallback((phraseNoteData: any, authorName?: string, avatarUrl?: string | null) => {
     try {
@@ -145,13 +174,6 @@ export default function SongThreadScreen() {
       <Stack.Screen
         options={{
           title: thread.title,
-          headerRight: () => (
-            <View style={styles.headerMeta}>
-              {thread.bpm ? (
-                <Text style={styles.headerBpm}>{thread.bpm} BPM</Text>
-              ) : null}
-            </View>
-          ),
         }}
       />
       <View style={styles.container}>
@@ -172,6 +194,11 @@ export default function SongThreadScreen() {
                 {thread.danceStyle} · {t('crew.noteCount', { count: thread.postCount })}
               </Text>
             </View>
+            {canDeleteThread && (
+              <TouchableOpacity onPress={handleDeleteThread} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="trash-outline" size={18} color={Colors.textMuted} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Notes List */}

@@ -1201,9 +1201,9 @@ export function FormationStageView({
               width: selectionRect.endX - selectionRect.startX,
               height: selectionRect.endY - selectionRect.startY,
               borderWidth: 1.5,
-              borderColor: 'rgba(187,134,252,0.8)',
+              borderColor: 'rgba(212,168,84,0.8)',
               borderStyle: 'dashed',
-              backgroundColor: 'rgba(187,134,252,0.1)',
+              backgroundColor: 'rgba(212,168,84,0.1)',
               zIndex: 20,
             }}
             pointerEvents="none"

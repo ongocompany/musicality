@@ -294,19 +294,7 @@
     "memberLimitLabel": "メンバー上限（2-200）"
   },
   "messages": {
-    "groupChat": "グループチャット",
-    "noMessages": "メッセージはありません",
-    "typeMessage": "メッセージを入力...",
-    "send": "送信",
-    "invite": "招待",
-    "inviteMember": "メンバーを招待",
-    "kick": "退出させる",
-    "kickConfirm": "{{name}}さんを退出させますか？",
-    "memberNotFound": "メンバー「{{name}}」が見つかりません",
-    "closeRoom": "ルームを閉じる",
-    "closeRoomConfirm": "このチャットルームを閉じますか？",
-    "closeLabel": "閉じる",
-    "roomClosed": "このチャットルームは閉鎖されました"
+    "conversation": "会話"
   },
   "board": {
     "deletePost": "投稿を削除",
@@ -500,7 +488,8 @@
     "loadingCrew": "クルーを読み込み中...",
     "type": "タイプ",
     "inviteCode": "招待コード",
-    "role": "役割: {{role}}"
+    "role": "役割: {{role}}",
+    "deleteThreadConfirm": "この曲とすべてのノートを削除しますか？"
   },
   "songThread": {
     "noMatch": "マッチなし",
@@ -529,9 +518,6 @@
   "import": {
     "importFailed": "インポート失敗",
     "cannotReadFile": "ファイルを読み取ることができません。"
-  },
-  "messages": {
-    "conversation": "会話"
   },
   "formation": {
     "namePlaceholder": "名前"

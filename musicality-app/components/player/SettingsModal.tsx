@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.1)',
   },
   stagePresetBtnActive: {
-    backgroundColor: 'rgba(187,134,252,0.2)',
+    backgroundColor: 'rgba(212,168,84,0.2)',
     borderColor: Colors.primary,
   },
   stagePresetText: { fontSize: 11, color: Colors.textSecondary },

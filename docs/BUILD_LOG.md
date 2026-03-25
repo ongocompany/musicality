@@ -12,6 +12,7 @@
 | 2026-03-25 | 0.9.0 | 5 | Android | Fix fingerprint mapping, song thread fingerprint |
 | 2026-03-25 | 0.9.0 | 6 | Android | Multi-file import (max 10), fingerprint fix |
 | 2026-03-25 | 0.9.0 | 7 | Android | Song title on count area, play state fix, library glow style |
+| 2026-03-26 | 0.9.0 | 8 | Android | Dancer long-press 1500ms, Spotify album art auto-fetch, fingerprint cache 500 |
 
 ## Notes
 

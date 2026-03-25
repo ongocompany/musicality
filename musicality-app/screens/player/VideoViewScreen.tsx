@@ -8,6 +8,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { View, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, Animated, Platform, Dimensions, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { PlayPauseIcon } from '../../components/ui/PlayPauseIcon';
 import { Video, ResizeMode } from 'expo-av';
 import YoutubePlayer from 'react-native-youtube-iframe';
 
@@ -110,13 +111,10 @@ export function VideoViewScreen({ playerCore, playerMode }: VideoViewScreenProps
       <View style={styles.scrollArea}>
         {/* ① Header (minimal) */}
         <View style={styles.header}>
-          <Ionicons
-            name={isYouTube ? 'logo-youtube' : 'videocam'}
-            size={18}
-            color={isYouTube ? '#FF0000' : Colors.primary}
-            style={{ marginRight: Spacing.xs }}
-          />
-          <MarqueeTitle text={currentTrack.title} style={styles.headerTitle} />
+          <View style={styles.headerLeft}>
+            <Text style={styles.slotLabel}>R</Text>
+          </View>
+          <View style={styles.headerRight} />
         </View>
 
         {/* ② YouTube Player */}
@@ -266,7 +264,7 @@ export function VideoViewScreen({ playerCore, playerMode }: VideoViewScreenProps
               </TouchableOpacity>
             </View>
             <TouchableOpacity style={styles.playButton} onPress={togglePlay}>
-              <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={Colors.text} />
+              <PlayPauseIcon isPlaying={isPlaying} size={24} color={Colors.text} />
             </TouchableOpacity>
             <View style={[styles.bottomBarSide, { justifyContent: 'flex-start' }]}>
               <TouchableOpacity onPress={handleSkipForward}>
@@ -280,7 +278,7 @@ export function VideoViewScreen({ playerCore, playerMode }: VideoViewScreenProps
       {/* Mini play button — visible when controls are hidden */}
       {!controlsVisible && (
         <TouchableOpacity style={styles.focusPlayButton} onPress={togglePlay} activeOpacity={0.7}>
-          <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#fff" />
+          <PlayPauseIcon isPlaying={isPlaying} size={18} color="#fff" />
         </TouchableOpacity>
       )}
     </View>
@@ -291,10 +289,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scrollArea: { flex: 1 },
   header: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.md, paddingVertical: 6,
   },
-  headerTitle: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  slotLabel: { fontSize: 14, fontWeight: '900', color: Colors.primary },
   videoSection: { width: '100%', alignItems: 'center' },
   youtubeContainer: { width: '100%', position: 'relative' },
   youtubeOverlay: {
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   },
   collapseHandleExpanded: {
     paddingVertical: 12,
-    backgroundColor: 'rgba(187,134,252,0.1)',
+    backgroundColor: 'rgba(212,168,84,0.1)',
   },
   controlsOverlay: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
   focusPlayButton: {
     position: 'absolute', bottom: 12, right: 12,
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(187,134,252,0.8)',
+    backgroundColor: 'rgba(212,168,84,0.8)',
     alignItems: 'center', justifyContent: 'center',
   },
 });

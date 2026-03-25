@@ -294,19 +294,7 @@
     "memberLimitLabel": "Лимит участников (2-200)"
   },
   "messages": {
-    "groupChat": "Групповой чат",
-    "noMessages": "Нет сообщений",
-    "typeMessage": "Введите сообщение...",
-    "send": "Отправить",
-    "invite": "Пригласить",
-    "inviteMember": "Пригласить участника",
-    "kick": "Исключить",
-    "kickConfirm": "Исключить {{name}}?",
-    "memberNotFound": "Участник \"{{name}}\" не найден",
-    "closeRoom": "Закрыть комнату",
-    "closeRoomConfirm": "Закрыть этот чат?",
-    "closeLabel": "Закрыть",
-    "roomClosed": "Этот чат был закрыт"
+    "conversation": "Разговор"
   },
   "board": {
     "deletePost": "Удалить публикацию",
@@ -500,7 +488,8 @@
     "loadingCrew": "Загрузка команды...",
     "type": "Тип",
     "inviteCode": "Код приглашения",
-    "role": "Роль: {{role}}"
+    "role": "Роль: {{role}}",
+    "deleteThreadConfirm": "Удалить эту песню и все заметки?"
   },
   "songThread": {
     "noMatch": "Совпадений не найдено",
@@ -529,9 +518,6 @@
   "import": {
     "importFailed": "Ошибка импорта",
     "cannotReadFile": "Не удалось прочитать файл."
-  },
-  "messages": {
-    "conversation": "Разговор"
   },
   "formation": {
     "namePlaceholder": "Имя"

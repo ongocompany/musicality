@@ -629,6 +629,45 @@ async function getThreadPostCount(threadId: string): Promise<number> {
   return count ?? 0;
 }
 
+export async function deleteSongThread(threadId: string, crewId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Check: must be thread creator or crew captain
+  const { data: thread } = await supabase
+    .from('song_threads')
+    .select('created_by')
+    .eq('id', threadId)
+    .single();
+
+  const { data: crew } = await supabase
+    .from('crews')
+    .select('captain_id')
+    .eq('id', crewId)
+    .single();
+
+  const isCreator = thread?.created_by === user.id;
+  const isCaptain = crew?.captain_id === user.id;
+
+  if (!isCreator && !isCaptain) {
+    throw new Error('Only the creator or crew captain can delete this thread');
+  }
+
+  // Delete all notes in this thread first
+  await supabase
+    .from('thread_phrase_notes')
+    .delete()
+    .eq('thread_id', threadId);
+
+  // Delete the thread
+  const { error } = await supabase
+    .from('song_threads')
+    .delete()
+    .eq('id', threadId);
+
+  if (error) throw new Error(error.message);
+}
+
 // ─── General Posts ──────────────────────────────────────
 
 /** Attach profiles to posts via batch fetch (avoids FK join issues) */

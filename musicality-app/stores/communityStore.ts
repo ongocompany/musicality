@@ -53,6 +53,7 @@ interface CommunityState {
   fetchThreadNotes: (threadId: string) => Promise<void>;
   postPhraseNote: (threadId: string, data: Record<string, unknown>, description?: string) => Promise<void>;
   deleteThreadNote: (noteId: string, threadId: string) => Promise<void>;
+  deleteSongThread: (threadId: string, crewId: string) => Promise<void>;
 
   // ─── General Board ────────────────────
   fetchGeneralPosts: (crewId: string) => Promise<void>;
@@ -267,6 +268,16 @@ export const useCommunityStore = create<CommunityState>()(
             ...s.activeThreadNotes,
             [threadId]: (s.activeThreadNotes[threadId] ?? []).filter((n) => n.id !== noteId),
           },
+        }));
+      },
+
+      deleteSongThread: async (threadId: string, crewId: string) => {
+        await api.deleteSongThread(threadId, crewId);
+        set((s) => ({
+          activeSongThreads: s.activeSongThreads.filter((t) => t.id !== threadId),
+          activeThreadNotes: Object.fromEntries(
+            Object.entries(s.activeThreadNotes).filter(([k]) => k !== threadId),
+          ),
         }));
       },
 
