@@ -1232,6 +1232,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   trackItemSelected: {
     backgroundColor: 'rgba(187, 134, 252, 0.1)',
@@ -1239,9 +1241,14 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   trackItemNowPlaying: {
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.primary,
-    backgroundColor: 'rgba(187, 134, 252, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(187, 134, 252, 0.6)',
+    backgroundColor: 'rgba(187, 134, 252, 0.06)',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
   },
   selectCheck: {
     width: 22,

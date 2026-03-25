@@ -17,7 +17,6 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { PhraseGrid } from '../../components/ui/PhraseGrid';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
-import { MarqueeTitle } from '../../components/player/MarqueeTitle';
 import { CountDisplay } from '../../components/player/CountDisplay';
 import { SettingsModal } from '../../components/player/SettingsModal';
 import { SlotBar } from '../../components/player/SlotBar';
@@ -76,7 +75,6 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
         {/* ① Header — S● + BPM + ⚙️ */}
         <View style={styles.header}>
           <Ionicons name="musical-notes" size={18} color={Colors.primary} style={{ marginRight: Spacing.xs }} />
-          <MarqueeTitle text={currentTrack.title} style={styles.headerTitle} />
           <View style={styles.headerMeta}>
             <TouchableOpacity style={[styles.slotBadge, { borderColor: slot.slotColor + '80' }]} onPress={slot.toggleSlotBar}>
               <Text style={[styles.slotText, { color: slot.slotColor }]}>{slot.slotLabel}</Text>
@@ -118,10 +116,18 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
                   resizeMode="cover"
                 />
                 <View style={styles.artOverlay} />
+                <Text style={styles.songTitleOverlay} numberOfLines={2} ellipsizeMode="tail">
+                  {currentTrack.title}
+                </Text>
                 <CountDisplay count={countInfo?.count ?? '--'} color={countColor} size="large" />
               </View>
             ) : (
-              <CountDisplay count={countInfo?.count ?? '--'} color={countColor} size="large" />
+              <>
+                <Text style={styles.songTitlePlain} numberOfLines={2} ellipsizeMode="tail">
+                  {currentTrack.title}
+                </Text>
+                <CountDisplay count={countInfo?.count ?? '--'} color={countColor} size="large" />
+              </>
             )}
 
             <View style={{ flex: 1, width: '100%' }}>
@@ -261,8 +267,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.md, paddingVertical: 6,
   },
-  headerTitle: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  headerMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerMeta: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   slotBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
@@ -293,6 +298,23 @@ const styles = StyleSheet.create({
   artOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  songTitleOverlay: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.85)',
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+    zIndex: 1,
+    marginTop: 8,
+  },
+  songTitlePlain: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.text,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+    marginTop: 4,
   },
   seekSection: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   focusHandle: {

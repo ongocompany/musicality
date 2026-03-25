@@ -18,7 +18,6 @@ import { PhraseGrid } from '../../components/ui/PhraseGrid';
 import { SectionTimeline } from '../../components/ui/SectionTimeline';
 import { SpeedPopup } from '../../components/ui/SpeedPopup';
 import { ModeSegment } from '../../components/player/ModeSegment';
-import { MarqueeTitle } from '../../components/player/MarqueeTitle';
 import { CountDisplay } from '../../components/player/CountDisplay';
 
 import { Colors, Spacing, getPhraseColor, blendColors } from '../../constants/theme';
@@ -67,10 +66,9 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
   return (
     <View style={styles.container}>
       <View style={styles.scrollArea}>
-        {/* ① Header */}
+        {/* ① Header — BPM only */}
         <View style={styles.header}>
           <Ionicons name="musical-notes" size={18} color={Colors.primary} style={{ marginRight: Spacing.xs }} />
-          <MarqueeTitle text={currentTrack.title} style={styles.headerTitle} />
           {currentBpm && (
             <View style={styles.bpmBadge}>
               <Text style={styles.bpmText}>{currentBpm} BPM</Text>
@@ -89,6 +87,9 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
                   resizeMode="cover"
                 />
                 <View style={styles.artOverlay} />
+                <Text style={styles.songTitleOverlay} numberOfLines={2} ellipsizeMode="tail">
+                  {currentTrack.title}
+                </Text>
                 <CountDisplay
                   count={countInfo?.count ?? '--'}
                   color={countColor}
@@ -96,11 +97,16 @@ export function AudioViewScreen({ playerCore, playerMode }: AudioViewScreenProps
                 />
               </View>
             ) : (
-              <CountDisplay
-                count={countInfo?.count ?? '--'}
-                color={countColor}
-                size="large"
-              />
+              <>
+                <Text style={styles.songTitlePlain} numberOfLines={2} ellipsizeMode="tail">
+                  {currentTrack.title}
+                </Text>
+                <CountDisplay
+                  count={countInfo?.count ?? '--'}
+                  color={countColor}
+                  size="large"
+                />
+              </>
             )}
 
             {/* PhraseGrid (read-only) */}
@@ -219,7 +225,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.md, paddingVertical: 6,
   },
-  headerTitle: { fontSize: 14, fontWeight: '600', color: Colors.text },
   bpmBadge: {
     paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
     backgroundColor: 'rgba(187,134,252,0.2)',
@@ -236,6 +241,23 @@ const styles = StyleSheet.create({
   artOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  songTitleOverlay: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.85)',
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+    zIndex: 1,
+    marginTop: 8,
+  },
+  songTitlePlain: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.text,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+    marginTop: 4,
   },
   seekSection: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between' },

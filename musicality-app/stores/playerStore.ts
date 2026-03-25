@@ -66,7 +66,7 @@ interface PlayerState {
 
 export const usePlayerStore = create<PlayerState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // Library
       tracks: [],
       addTrack: (track) => set((state) => {
@@ -199,7 +199,15 @@ export const usePlayerStore = create<PlayerState>()(
 
       // Playback
       currentTrack: null,
-      setCurrentTrack: (track) => set({ currentTrack: track, position: 0, isPlaying: false, loopEnabled: false, loopStart: null, loopEnd: null, videoAspectRatio: 16 / 9 }),
+      setCurrentTrack: (track) => {
+        const prev = get().currentTrack;
+        const isSameTrack = prev && prev.id === track.id;
+        set({
+          currentTrack: track,
+          ...(isSameTrack ? {} : { position: 0, isPlaying: false }),
+          loopEnabled: false, loopStart: null, loopEnd: null, videoAspectRatio: 16 / 9,
+        });
+      },
       isPlaying: false,
       setIsPlaying: (playing) => set({ isPlaying: playing }),
       position: 0,

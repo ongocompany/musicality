@@ -9,6 +9,8 @@
 | 2026-03-22 | 0.9.0 | 2 | iOS | First TestFlight external testing submission |
 | 2026-03-23 | 0.9.0 | 3 | Android | Library search filter, SDK setup |
 | 2026-03-24 | 0.9.0 | 4 | Android | Community crew search (songs + board) |
+| 2026-03-25 | 0.9.0 | 5 | Android | Fix fingerprint mapping, song thread fingerprint |
+| 2026-03-25 | 0.9.0 | 6 | Android | Multi-file import (max 10), fingerprint fix |
 
 ## Notes
 
