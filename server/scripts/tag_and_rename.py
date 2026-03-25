@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Tag & Rename analyzed mp3 files.
-Adds ID3 tags (artist, title) from playlist_queue.json and fetches album art from iTunes.
+Adds ID3 tags (artist, title) from playlist_queue.json and fetches album art from Spotify.
 Renames files from YouTube ID to "Artist - Title.mp3".
 
 Does NOT affect analysis results — DB stores file_hash from analysis time,
@@ -21,16 +21,24 @@ import re
 import time
 from pathlib import Path
 
+import base64
+
 import requests
+from dotenv import load_dotenv
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC, ID3NoHeaderError
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
                     datefmt="%H:%M:%S")
 logger = logging.getLogger(__name__)
 
-ITUNES_SEARCH_URL = "https://itunes.apple.com/search"
-ITUNES_RATE_LIMIT = 0.35  # seconds between requests
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "")
+SPOTIFY_RATE_LIMIT = 0.1  # seconds between requests
+_spotify_token = ""
+_spotify_token_expires = 0.0
 YT_ID_RE = re.compile(r'^[-_a-zA-Z0-9]{11}$')
 
 
@@ -77,28 +85,62 @@ def sanitize_filename(name: str) -> str:
     return name[:200]  # limit length
 
 
-def fetch_album_art(artist: str, title: str) -> bytes | None:
-    """Search iTunes for album art. Returns JPEG bytes or None."""
+def _get_spotify_token() -> str:
+    """Get or refresh Spotify access token (Client Credentials flow)."""
+    global _spotify_token, _spotify_token_expires
+    if _spotify_token and time.time() < _spotify_token_expires - 60:
+        return _spotify_token
+    if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
+        return ""
     try:
-        query = f"{artist} {title}"
-        resp = requests.get(ITUNES_SEARCH_URL, params={
-            "term": query,
-            "media": "music",
-            "limit": 3,
-        }, timeout=10)
+        auth = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()).decode()
+        resp = requests.post("https://accounts.spotify.com/api/token",
+            headers={"Authorization": f"Basic {auth}"},
+            data={"grant_type": "client_credentials"}, timeout=10)
         resp.raise_for_status()
-        results = resp.json().get("results", [])
+        data = resp.json()
+        _spotify_token = data["access_token"]
+        _spotify_token_expires = time.time() + data.get("expires_in", 3600)
+        logger.info("Spotify token refreshed")
+        return _spotify_token
+    except Exception as e:
+        logger.warning(f"Spotify token failed: {e}")
+        return ""
 
-        if not results:
+
+def fetch_album_art(artist: str, title: str) -> bytes | None:
+    """Search Spotify for album art. Returns JPEG bytes or None."""
+    token = _get_spotify_token()
+    if not token:
+        return None
+    try:
+        # Clean title for better matching
+        clean_title = title
+        for junk in ["(Official Video)", "(Audio)", "(Lyrics)", "(Video)", "(Visualizer)",
+                      "(Cover Audio)", "(Official Visualizer)", "(Letra)", "(Official Audio)",
+                      "Video Oficial", "(Lyric Video)", "(Live)", "[Official Video]"]:
+            clean_title = clean_title.replace(junk, "").strip()
+
+        query = f"{artist} {clean_title}" if artist else clean_title
+        resp = requests.get("https://api.spotify.com/v1/search",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"q": query[:100], "type": "track", "limit": 1},
+            timeout=10)
+        resp.raise_for_status()
+        items = resp.json().get("tracks", {}).get("items", [])
+
+        if not items:
             return None
 
-        # Pick best match (first result usually good enough)
-        art_url = results[0].get("artworkUrl100", "")
+        images = items[0].get("album", {}).get("images", [])
+        if not images:
+            return None
+
+        # Pick 640px image (first is largest)
+        art_url = images[0].get("url", "")
         if not art_url:
             return None
 
-        # Get higher resolution (600x600)
-        art_url = art_url.replace("100x100", "600x600")
         art_resp = requests.get(art_url, timeout=10)
         art_resp.raise_for_status()
         return art_resp.content
@@ -178,7 +220,7 @@ def tag_and_rename(done_dir: Path, vid_map: dict, dry_run: bool = False):
                 ))
                 tags.save(str(fp))
                 stats["art_added"] += 1
-            time.sleep(ITUNES_RATE_LIMIT)
+            time.sleep(SPOTIFY_RATE_LIMIT)
 
         # 3. Rename file (only if still a YouTube ID)
         if YT_ID_RE.match(stem):

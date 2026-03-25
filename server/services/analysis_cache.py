@@ -149,7 +149,7 @@ def _sqlite_lookup_fingerprint(fingerprint: str, duration: float) -> Optional[di
         with _sqlite_lock:
             candidates = conn.execute(
                 "SELECT * FROM analysis_cache WHERE analyzer_version = ? "
-                "AND duration BETWEEN ? AND ? AND fingerprint != '' LIMIT 50",
+                "AND duration BETWEEN ? AND ? AND fingerprint != '' LIMIT 500",
                 (CURRENT_ANALYZER_VERSION, duration - 5.0, duration + 5.0)
             ).fetchall()
 
