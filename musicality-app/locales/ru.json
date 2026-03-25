@@ -134,6 +134,8 @@
     "deleteChoreoEdition": "Удалить редакцию Ⓒ {{id}}",
     "deleteChoreoEditionConfirm": "Удалить эту редакцию ChoreoNote?",
     "searchPlaceholder": "Поиск по названию или исполнителю",
+    "importLimitTitle": "Лимит импорта",
+    "importLimitMsg": "Вы можете импортировать до {{max}} файлов за раз. Будут добавлены только первые {{max}}.",
     "rename": "Переименовать",
     "renameTrack": "Переименовать трек",
     "renameTrackPrompt": "Введите новое название:"

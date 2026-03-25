@@ -134,6 +134,8 @@
     "deleteChoreoEdition": "删除 Ⓒ 版本 {{id}}",
     "deleteChoreoEditionConfirm": "删除此 ChoreoNote 版本？",
     "searchPlaceholder": "按标题或艺术家搜索",
+    "importLimitTitle": "导入限制",
+    "importLimitMsg": "一次最多可导入{{max}}个文件。仅添加前{{max}}个。",
     "rename": "重命名",
     "renameTrack": "重命名曲目",
     "renameTrackPrompt": "请输入新标题："

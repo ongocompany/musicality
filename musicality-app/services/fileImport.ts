@@ -311,9 +311,15 @@ export async function pickMediaFiles(filterType?: 'audio' | 'video'): Promise<Tr
       return [];
     }
 
-    console.log(`[FileImport] Processing ${result.assets.length} file(s)...`);
+    // Limit to first 10 files
+    const assets = result.assets.slice(0, 10);
+    if (result.assets.length > 10) {
+      console.log(`[FileImport] Selected ${result.assets.length} files, processing first 10 only`);
+    }
+
+    console.log(`[FileImport] Processing ${assets.length} file(s)...`);
     const tracks: Track[] = [];
-    for (const asset of result.assets) {
+    for (const asset of assets) {
       try {
         const track = await processAsset(asset);
         if (track) tracks.push(track);

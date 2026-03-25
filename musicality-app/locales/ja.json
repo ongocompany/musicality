@@ -134,6 +134,8 @@
     "deleteChoreoEdition": "Ⓒ エディション {{id}} を削除",
     "deleteChoreoEditionConfirm": "このChoreoNoteエディションを削除しますか？",
     "searchPlaceholder": "タイトルまたはアーティストで検索",
+    "importLimitTitle": "インポート制限",
+    "importLimitMsg": "一度に{{max}}ファイルまでインポートできます。最初の{{max}}ファイルのみ追加されます。",
     "rename": "名前変更",
     "renameTrack": "トラック名を変更",
     "renameTrackPrompt": "新しいタイトルを入力："

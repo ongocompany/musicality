@@ -9,7 +9,7 @@ import { usePlayerStore } from '../../stores/playerStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useTutorialStore } from '../../stores/tutorialStore';
 import { DEMO_TRACK_ID } from '../../utils/demoTrack';
-import { pickMediaFile, parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
+import { pickMediaFiles, parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
 import { analyzeTrack, resumeAnalysisJob } from '../../services/analysisApi';
 // Cloud sync disabled — library is local-only
 import { Colors, Spacing, FontSize, NoteTypeColors } from '../../constants/theme';
@@ -427,14 +427,28 @@ export default function LibraryScreen() {
   }, [listData, searchQuery]);
 
   // ─── Handlers ─────────────────────────────────────
+  const MAX_IMPORT_FILES = 10;
   const importingRef = useRef(false);
   const handleImport = async () => {
-    if (importingRef.current) return;  // 중복 클릭 방지
+    if (importingRef.current) return;
     importingRef.current = true;
     try {
       const filterType = activeTab === 'youtube' ? undefined : activeTab;
-      const track = await pickMediaFile(filterType);
-      if (track) addTrack(track);
+      const imported = await pickMediaFiles(filterType);
+      if (imported.length > MAX_IMPORT_FILES) {
+        Alert.alert(
+          t('library.importLimitTitle'),
+          t('library.importLimitMsg', { max: MAX_IMPORT_FILES }),
+        );
+        // Add only first 10
+        for (const track of imported.slice(0, MAX_IMPORT_FILES)) {
+          addTrack(track);
+        }
+      } else {
+        for (const track of imported) {
+          addTrack(track);
+        }
+      }
     } finally {
       importingRef.current = false;
     }

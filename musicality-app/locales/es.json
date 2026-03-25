@@ -134,6 +134,8 @@
     "deleteChoreoEdition": "Eliminar Ⓒ Edición {{id}}",
     "deleteChoreoEditionConfirm": "¿Eliminar esta edición de ChoreoNote?",
     "searchPlaceholder": "Buscar por título o artista",
+    "importLimitTitle": "Límite de importación",
+    "importLimitMsg": "Puedes importar hasta {{max}} archivos a la vez. Solo se agregarán los primeros {{max}}.",
     "rename": "Renombrar",
     "renameTrack": "Renombrar pista",
     "renameTrackPrompt": "Introduce el nuevo título:"
