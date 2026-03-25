@@ -380,7 +380,7 @@ export function FormationStageView({
           longPressTimerRef.current = setTimeout(() => {
             handleLongPressDancer(dancer);
             setDragDancerId(null);
-          }, 500);
+          }, 1500);
         } else {
           // Empty space → start selection rectangle
           selectionStartRef.current = { normX, normY };
