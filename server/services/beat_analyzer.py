@@ -12,8 +12,7 @@ from madmom.features.downbeats import RNNDownBeatProcessor, DBNDownBeatTrackingP
 
 from models.schemas import AnalysisResult
 from services.structure_analyzer import analyze_structure, analyze_structure_with_phrases
-# Metadata lookup disabled — AcoustID/MusicBrainz rarely matches Latin dance remixes
-# from services.metadata_lookup import lookup_metadata
+from services.metadata_lookup import lookup_spotify
 
 logger = logging.getLogger(__name__)
 

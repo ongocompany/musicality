@@ -1,18 +1,107 @@
 """
-metadata_lookup.py — AcoustID + MusicBrainz + Cover Art Archive
-Chromaprint fingerprint -> AcoustID -> MusicBrainz recording -> album art
+metadata_lookup.py — Album art & metadata lookup
+1. Spotify API (artist+title search → album art URL) — primary, high hit rate
+2. AcoustID + MusicBrainz + Cover Art Archive — fallback for fingerprint-based lookup
 """
 
+import base64
 import logging
 import os
+import re
 import time
 import requests
 
 logger = logging.getLogger(__name__)
 
+# Spotify
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "")
+_spotify_token = ""
+_spotify_token_expires = 0.0
+
+# AcoustID (fallback)
 ACOUSTID_API_KEY = os.getenv("ACOUSTID_API_KEY", "5urpeh7f0F")
 ACOUSTID_URL = "https://api.acoustid.org/v2/lookup"
 COVERART_URL = "https://coverartarchive.org/release"
+
+# ══════════════════════════════════════════════════════════════════
+# Spotify (primary — high hit rate for Latin music)
+# ══════════════════════════════════════════════════════════════════
+
+def _get_spotify_token() -> str:
+    """Get or refresh Spotify access token."""
+    global _spotify_token, _spotify_token_expires
+    if _spotify_token and time.time() < _spotify_token_expires - 60:
+        return _spotify_token
+    if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
+        return ""
+    try:
+        auth = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()).decode()
+        resp = requests.post("https://accounts.spotify.com/api/token",
+            headers={"Authorization": f"Basic {auth}"},
+            data={"grant_type": "client_credentials"}, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        _spotify_token = data["access_token"]
+        _spotify_token_expires = time.time() + data.get("expires_in", 3600)
+        return _spotify_token
+    except Exception as e:
+        logger.warning(f"[Spotify] Token failed: {e}")
+        return ""
+
+
+def _clean_title(title: str) -> str:
+    """Strip common junk from title for better search matching."""
+    for junk in ["(Official Video)", "(Audio)", "(Lyrics)", "(Video)", "(Visualizer)",
+                  "(Cover Audio)", "(Official Visualizer)", "(Letra)", "(Official Audio)",
+                  "Video Oficial", "(Lyric Video)", "(Live)", "[Official Video]",
+                  "(Bachata Version)", "(Bachata Remix)", "(Salsa Version)"]:
+        title = title.replace(junk, "")
+    # Strip trailing whitespace and common suffixes
+    title = re.sub(r'\s*[\(\[].*(remix|version|cover|edit|bachata|salsa).*[\)\]]', '', title, flags=re.IGNORECASE)
+    return title.strip()
+
+
+def lookup_spotify(artist: str, title: str) -> dict | None:
+    """
+    Search Spotify for track metadata and album art.
+    Returns dict with keys: title, artist, album, album_art_url
+    or None if not found.
+    """
+    token = _get_spotify_token()
+    if not token:
+        return None
+    try:
+        clean = _clean_title(title)
+        query = f"{artist} {clean}" if artist else clean
+        resp = requests.get("https://api.spotify.com/v1/search",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"q": query[:100], "type": "track", "limit": 1},
+            timeout=10)
+        resp.raise_for_status()
+        items = resp.json().get("tracks", {}).get("items", [])
+        if not items:
+            return None
+
+        track = items[0]
+        images = track.get("album", {}).get("images", [])
+        # First image is largest (640px)
+        art_url = images[0].get("url") if images else None
+
+        return {
+            "title": track.get("name"),
+            "artist": ", ".join(a["name"] for a in track.get("artists", [])),
+            "album": track.get("album", {}).get("name"),
+            "album_art_url": art_url,
+        }
+    except Exception as e:
+        logger.debug(f"[Spotify] Search failed: {e}")
+        return None
+
+
+# ══════════════════════════════════════════════════════════════════
+# AcoustID + MusicBrainz (fallback)
+# ══════════════════════════════════════════════════════════════════
 
 # MusicBrainz requires a User-Agent header
 MB_HEADERS = {

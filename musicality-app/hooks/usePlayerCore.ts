@@ -9,6 +9,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Alert, AppState } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
+import * as FileSystem from 'expo-file-system/legacy';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { syncAllEditionsForTrack, restoreEditionsFromServer } from '../services/editionSyncService';
 import { ensureFileAvailable } from '../services/fileImport';
@@ -37,7 +38,7 @@ export function usePlayerCore() {
     setPlaybackRate, loopEnabled, loopStart, loopEnd,
     setLoopStart, setLoopEnd, clearLoop, setIsSeeking,
     setTrackAnalysisStatus, setTrackAnalysis, setTrackPendingJobId,
-    updateTrackData,
+    setTrackThumbnail, updateTrackData,
   } = usePlayerStore();
   const tracks = usePlayerStore((s) => s.tracks);
 
@@ -431,7 +432,20 @@ export function usePlayerCore() {
       );
       setTrackAnalysis(currentTrack.id, result);
 
-      // Auto-tag disabled — AcoustID/MusicBrainz metadata lookup removed from server
+      // Auto-set album art from server metadata (Spotify)
+      if (result.metadata?.albumArtUrl && !currentTrack.thumbnailUri) {
+        try {
+          const artDir = FileSystem.documentDirectory + 'album-art/';
+          await FileSystem.makeDirectoryAsync(artDir, { intermediates: true }).catch(() => {});
+          const artPath = artDir + currentTrack.id + '.jpg';
+          const dl = await FileSystem.downloadAsync(result.metadata.albumArtUrl, artPath);
+          if (dl.status === 200) {
+            setTrackThumbnail(currentTrack.id, dl.uri);
+          }
+        } catch (e) {
+          // Best-effort — album art is optional
+        }
+      }
 
       if (result.phraseBoundaries && result.phraseBoundaries.length > 0) {
         const boundaryBeatIndices = result.phraseBoundaries.map(ts => {

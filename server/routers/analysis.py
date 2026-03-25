@@ -16,6 +16,7 @@ from services.analysis_cache import (
     compute_file_hash, compute_fingerprint,
     lookup_cache, lookup_cache_by_fingerprint, store_in_cache,
 )
+from services.metadata_lookup import lookup_spotify
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,17 @@ UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".mp4", ".mov"}
+
+
+def _parse_artist_title(filename: str) -> tuple[str, str]:
+    """Extract artist and title from upload filename. Returns (artist, title)."""
+    stem = os.path.splitext(filename)[0]
+    # Undo sanitization: underscores back to spaces
+    stem = stem.replace("_", " ")
+    if " - " in stem:
+        parts = stem.split(" - ", 1)
+        return parts[0].strip(), parts[1].strip()
+    return "", stem.strip()
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 
 # ── Async job store (in-memory, single worker) ──────────────────
@@ -75,6 +87,25 @@ def _run_analysis_background(job_id: str, file_path: Path,
 
         result = analyze_audio(str(file_path))
         result.file_hash = file_hash
+
+        # Lookup album art via Spotify (non-blocking, best-effort)
+        if not result.metadata:
+            try:
+                artist, title = _parse_artist_title(filename)
+                if title:
+                    meta = lookup_spotify(artist, title)
+                    if meta:
+                        from models.schemas import TrackMetadata
+                        result.metadata = TrackMetadata(
+                            title=meta.get("title"),
+                            artist=meta.get("artist"),
+                            album=meta.get("album"),
+                            album_art_url=meta.get("album_art_url"),
+                        )
+                        logger.info(f"[Job {job_id[:8]}] Spotify art: {meta.get('album_art_url', 'none')[:60]}")
+            except Exception as e:
+                logger.debug(f"[Job {job_id[:8]}] Spotify lookup failed: {e}")
+
         store_in_cache(file_hash, file_size, result)
 
         with _jobs_lock:
