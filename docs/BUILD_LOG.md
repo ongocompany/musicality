@@ -11,6 +11,7 @@
 | 2026-03-24 | 0.9.0 | 4 | Android | Community crew search (songs + board) |
 | 2026-03-25 | 0.9.0 | 5 | Android | Fix fingerprint mapping, song thread fingerprint |
 | 2026-03-25 | 0.9.0 | 6 | Android | Multi-file import (max 10), fingerprint fix |
+| 2026-03-25 | 0.9.0 | 7 | Android | Song title on count area, play state fix, library glow style |
 
 ## Notes
 
