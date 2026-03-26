@@ -26,7 +26,7 @@
       "privacyUrl": "https://ritmo.kr/privacy.html"
     },
     "android": {
-      "package": "com.ongocompany.musicality",
+      "package": "com.ongocompany.ritmo",
       "versionCode": 10,
       "adaptiveIcon": {
         "backgroundColor": "#0D0D0F",
@@ -52,7 +52,8 @@
       "expo-document-picker",
       "expo-web-browser",
       "expo-localization",
-      "expo-font"
+      "expo-font",
+      "./plugins/withReleaseSigning"
     ],
     "extra": {
       "router": {},

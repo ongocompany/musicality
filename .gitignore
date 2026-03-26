@@ -34,6 +34,12 @@ yarn-error.log*
 tmp/
 temp/
 
+# Keystore (signing keys - DO NOT commit)
+*.keystore
+*.jks
+*.pem
+!musicality-app/android/app/debug.keystore
+
 # Python
 __pycache__/
 *.pyc
