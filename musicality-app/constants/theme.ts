@@ -33,18 +33,19 @@ export const NoteTypeColors = {
   choreoNote: '#E8C878',   // light gold
 };
 
-// ─── Phrase rainbow colors (빨주노초파남보) ────────────
+// ─── Phrase colors (10-color scheme from coolors.co) ────────────
 export const PhraseColors: string[] = [
-  '#FF4444',  // 빨 (red)
-  '#FF8C00',  // 주 (orange)
-  '#FFD700',  // 노 (yellow)
-  '#44BB44',  // 초 (green)
-  '#4488FF',  // 파 (blue)
-  '#6A5ACD',  // 남 (slate blue – readable on dark bg)
-  '#9B59B6',  // 보 (violet)
+  '#F9393C',  // red
+  '#F9A339',  // orange
+  '#F97939',  // deep orange
+  '#FAD275',  // yellow
+  '#90BE6D',  // green
+  '#40A083',  // teal
+  '#6687A3',  // steel blue
+  '#206683',  // deep blue
 ];
 
-/** Get rainbow color for a phrase index (cycles if > 7 phrases). */
+/** Get phrase color for a phrase index (cycles if > 8 phrases). */
 export function getPhraseColor(phraseIndex: number): string {
   return PhraseColors[((phraseIndex % PhraseColors.length) + PhraseColors.length) % PhraseColors.length];
 }

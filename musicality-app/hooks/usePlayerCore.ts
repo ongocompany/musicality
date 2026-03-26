@@ -204,6 +204,14 @@ export function usePlayerCore() {
 
   // ─── Count info (stable reference) ───
   const prevCountRef = useRef<CountInfo | null>(null);
+  const prevPhraseMapRef = useRef(phraseMap);
+
+  // Invalidate cache when phraseMap changes (after grid edit)
+  if (prevPhraseMapRef.current !== phraseMap) {
+    prevCountRef.current = null;
+    prevPhraseMapRef.current = phraseMap;
+  }
+
   const countInfo = useMemo(() => {
     const effBeats = effectiveBeats.length > 0 ? effectiveBeats : null;
     const effOffset = effectiveAnalysisData?.offsetBeatIndex ?? offsetBeatIndex;

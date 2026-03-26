@@ -558,7 +558,14 @@ export default function PlayerScreen() {
   // Stable countInfo — poll positionRef instead of subscribing to position state
   // Only triggers re-render when beatIndex or phraseIndex actually changes
   const prevCountRef = useRef<CountInfo | null>(null);
+  const prevPhraseMapRef = useRef(phraseMap);
   const [countInfo, setCountInfo] = useState<CountInfo | null>(null);
+
+  // Invalidate cache when phraseMap changes (after grid edit)
+  if (prevPhraseMapRef.current !== phraseMap) {
+    prevCountRef.current = null;
+    prevPhraseMapRef.current = phraseMap;
+  }
 
   const computeCountInfo = useCallback(() => {
     const effBeats = effectiveBeats.length > 0 ? effectiveBeats : null;

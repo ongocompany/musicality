@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react';
-import { Audio, AVPlaybackStatus } from 'expo-av';
+import { Audio, AVPlaybackStatus, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import { usePlayerStore } from '../stores/playerStore';
 import { ensureFileAvailable } from '../services/fileImport';
 
@@ -47,6 +47,9 @@ export function useAudioPlayer() {
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        shouldDuckAndroid: false,
       });
 
       const { sound } = await Audio.Sound.createAsync(
