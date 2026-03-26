@@ -78,10 +78,11 @@ export function CountDisplay({ countInfo, hasAnalysis }: CountDisplayProps) {
             color: countColor,
             fontSize: emphasisFontSize,
             transform: [{ scale: pulseAnim }],
+            textShadowColor: 'rgba(255,255,255,0.8)',
+            textShadowOffset: { width: 0, height: 0 },
+            textShadowRadius: 3,
           },
           isEmphasis ? {
-            textShadowColor: countColor,
-            textShadowOffset: { width: 0, height: 0 },
             textShadowRadius: 24,
           } : undefined,
         ]}
