@@ -94,11 +94,17 @@ export function usePlayerCore() {
   const removeImportedNote = useSettingsStore((s) => s.removeImportedNote);
   const setActiveImportedNote = useSettingsStore((s) => s.setActiveImportedNote);
 
-  // ─── Undo stack (PhraseNote) ───
+  // ─── Undo stack (PhraseNote) — max 5 per track ───
+  const UNDO_MAX = 5;
   const undoStackRef = useRef<Record<string, number[][]>>({});
   const pushUndo = useCallback((trackId: string, boundaries: number[]) => {
     if (!undoStackRef.current[trackId]) undoStackRef.current[trackId] = [];
-    undoStackRef.current[trackId].push([...boundaries]);
+    const stack = undoStackRef.current[trackId];
+    stack.push([...boundaries]);
+    if (stack.length > UNDO_MAX) stack.shift();
+  }, []);
+  const clearUndo = useCallback(() => {
+    undoStackRef.current = {};
   }, []);
   const handleUndo = useCallback(() => {
     if (!currentTrack) return;
@@ -617,7 +623,7 @@ export function usePlayerCore() {
     handleSetCellNote, handleClearCellNote,
     handleSkipBack, handleSkipForward,
     handleSetLoopPoint, handleNowIsOne,
-    handleUndo,
+    handleUndo, clearUndo,
     handleSelectMine, handleSelectImported, handleDeleteImported,
     handleImportPhraseNote, handleSharePhraseNote,
   };

@@ -3,7 +3,7 @@
  * 헤더(S● + ⚙️) + 비디오(축소) + PhraseGrid(편집) + 컨트롤바(↩)
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform, Dimensions, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PlayPauseIcon } from '../../components/ui/PlayPauseIcon';
@@ -56,7 +56,11 @@ export function VideoGridEditScreen({ playerCore, playerMode }: VideoGridEditScr
     handleReArrangePhrase, handleReArrangePhraseLocal, handleSplitPhraseHere, handleMergeWithPrevious,
     handleSetCellNote, handleClearCellNote,
     handleSharePhraseNote, runAnalysis,
+    clearUndo,
   } = playerCore;
+
+  // Clear undo stack on unmount to free memory
+  useEffect(() => () => { clearUndo(); }, []);
 
   // ─── Video collapse/expand ───
   const videoCollapseAnim = useRef(new Animated.Value(1)).current;

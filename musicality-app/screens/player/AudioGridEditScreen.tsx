@@ -3,7 +3,7 @@
  * 헤더(S● + ⚙️) + 카운트(小) + PhraseGrid(편집) + 시크바 + 컨트롤바(↩ undo)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PlayPauseIcon } from '../../components/ui/PlayPauseIcon';
@@ -58,7 +58,11 @@ export function AudioGridEditScreen({ playerCore, playerMode }: AudioGridEditScr
     handleReArrangePhrase, handleReArrangePhraseLocal, handleSplitPhraseHere, handleMergeWithPrevious,
     handleSetCellNote, handleClearCellNote,
     handleSharePhraseNote, runAnalysis,
+    clearUndo,
   } = playerCore;
+
+  // Clear undo stack on unmount to free memory
+  useEffect(() => () => { clearUndo(); }, []);
 
   if (!currentTrack) return null;
 

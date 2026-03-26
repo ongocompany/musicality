@@ -330,6 +330,9 @@ export default function LibraryScreen() {
   const [choreoDancerCount, setChoreoDancerCount] = useState(4);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Track long-press action sheet (custom modal, replaces Alert.alert for cross-platform)
+  const [actionSheetTrack, setActionSheetTrack] = useState<Track | null>(null);
+
   // Text input prompt (cross-platform replacement for Alert.prompt)
   const [promptVisible, setPromptVisible] = useState(false);
   const [promptTitle, setPromptTitle] = useState('');
@@ -509,25 +512,8 @@ export default function LibraryScreen() {
 
   const handleLongPress = useCallback((track: Track) => {
     if (selectMode) return;
-    const options: any[] = [
-      {
-        text: t('library.rename'),
-        onPress: () => {
-          showPrompt(t('library.renameTrack'), track.title, (newTitle) => {
-            if (newTitle.trim()) renameTrack(track.id, newTitle.trim());
-          });
-        },
-      },
-    ];
-    if (track.mediaType !== 'youtube' && track.analysisStatus === 'done') {
-      options.push({ text: t('library.reanalyze'), onPress: () => handleReanalyze(track) });
-    }
-    options.push(
-      { text: t('common.delete'), style: 'destructive', onPress: () => { removeTrack(track.id); } },
-      { text: t('common.cancel'), style: 'cancel' },
-    );
-    Alert.alert(track.title, undefined, options);
-  }, [selectMode, renameTrack, removeTrack, t]);
+    setActionSheetTrack(track);
+  }, [selectMode]);
 
   // ─── Analysis queue (max 3, process one at a time) ───
   const [analysisQueue, setAnalysisQueue] = useState<string[]>([]);
@@ -1039,6 +1025,65 @@ export default function LibraryScreen() {
           </KeyboardAvoidingView>
         </Pressable>
       </Modal>
+
+      {/* Track Long-Press Action Sheet */}
+      <Modal
+        visible={actionSheetTrack !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActionSheetTrack(null)}
+      >
+        <Pressable style={styles.analyzeBackdrop} onPress={() => setActionSheetTrack(null)}>
+          <Pressable style={styles.actionSheetContainer} onPress={() => {}}>
+            <Text style={styles.actionSheetTitle} numberOfLines={2}>{actionSheetTrack?.title}</Text>
+            <View style={styles.actionSheetDivider} />
+            <TouchableOpacity
+              style={styles.actionSheetOption}
+              onPress={() => {
+                const track = actionSheetTrack!;
+                setActionSheetTrack(null);
+                showPrompt(t('library.renameTrack'), track.title, (newTitle) => {
+                  if (newTitle.trim()) renameTrack(track.id, newTitle.trim());
+                });
+              }}
+            >
+              <Ionicons name="pencil-outline" size={20} color={Colors.text} />
+              <Text style={styles.actionSheetOptionText}>{t('library.rename')}</Text>
+            </TouchableOpacity>
+            {actionSheetTrack && actionSheetTrack.mediaType !== 'youtube' && actionSheetTrack.analysisStatus === 'done' && (
+              <TouchableOpacity
+                style={styles.actionSheetOption}
+                onPress={() => {
+                  const track = actionSheetTrack!;
+                  setActionSheetTrack(null);
+                  handleReanalyze(track);
+                }}
+              >
+                <Ionicons name="refresh-outline" size={20} color={Colors.text} />
+                <Text style={styles.actionSheetOptionText}>{t('library.reanalyze')}</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.actionSheetOption}
+              onPress={() => {
+                const trackId = actionSheetTrack!.id;
+                setActionSheetTrack(null);
+                removeTrack(trackId);
+              }}
+            >
+              <Ionicons name="trash-outline" size={20} color={Colors.error} />
+              <Text style={[styles.actionSheetOptionText, { color: Colors.error }]}>{t('common.delete')}</Text>
+            </TouchableOpacity>
+            <View style={styles.actionSheetDivider} />
+            <TouchableOpacity
+              style={styles.actionSheetOption}
+              onPress={() => setActionSheetTrack(null)}
+            >
+              <Text style={[styles.actionSheetOptionText, { color: Colors.textSecondary, textAlign: 'center', flex: 1 }]}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1511,5 +1556,38 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: FontSize.md,
     fontWeight: '700',
+  },
+
+  // ─── Track Action Sheet ────────────────────────────
+  actionSheetContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    width: 280,
+    gap: 4,
+  },
+  actionSheetTitle: {
+    color: Colors.text,
+    fontSize: FontSize.md,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  actionSheetDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: 4,
+  },
+  actionSheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  actionSheetOptionText: {
+    color: Colors.text,
+    fontSize: FontSize.md,
+    fontWeight: '500',
   },
 });

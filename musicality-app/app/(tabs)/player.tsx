@@ -778,7 +778,7 @@ export default function PlayerScreen() {
       if (!formationUndoRef.current[currentTrack.id]) formationUndoRef.current[currentTrack.id] = [];
       const stack = formationUndoRef.current[currentTrack.id];
       stack.push(current);
-      if (stack.length > 30) stack.shift(); // limit stack size
+      if (stack.length > 5) stack.shift(); // limit stack size
     }
     setDraftFormation(currentTrack.id, data);
   }, [currentTrack, setDraftFormation, draftFormation]);

@@ -45,7 +45,8 @@ export function useFormationEditor({
     return userEd?.data ?? tf.server?.data ?? null;
   }, [currentTrack, trackFormations, draftFormation]);
 
-  // ─── Undo stack ───
+  // ─── Undo stack — max 5 per track ───
+  const UNDO_MAX = 5;
   const formationUndoRef = useRef<Record<string, FormationData[]>>({});
 
   const handleFormationUpdate = useCallback((data: FormationData) => {
@@ -55,10 +56,14 @@ export function useFormationEditor({
       if (!formationUndoRef.current[currentTrack.id]) formationUndoRef.current[currentTrack.id] = [];
       const stack = formationUndoRef.current[currentTrack.id];
       stack.push(current);
-      if (stack.length > 30) stack.shift();
+      if (stack.length > UNDO_MAX) stack.shift();
     }
     setDraftFormation(currentTrack.id, data);
   }, [currentTrack, setDraftFormation, draftFormation]);
+
+  const clearFormationUndo = useCallback(() => {
+    formationUndoRef.current = {};
+  }, []);
 
   const handleFormationUndo = useCallback(() => {
     if (!currentTrack) return;
@@ -150,7 +155,7 @@ export function useFormationEditor({
     stageConfig,
     canUndoFormation,
     trackFormations, draftFormation,
-    saveFormationDraftAsEdition, clearFormationDraft, formationUndoRef,
+    saveFormationDraftAsEdition, clearFormationDraft, clearFormationUndo,
 
     handleFormationUpdate,
     handleFormationUndo,

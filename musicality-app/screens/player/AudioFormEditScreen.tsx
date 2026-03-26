@@ -57,6 +57,7 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
     handleReArrangePhrase, handleReArrangePhraseLocal, handleSplitPhraseHere, handleMergeWithPrevious,
     handleSetCellNote, handleClearCellNote,
     handleSharePhraseNote, runAnalysis,
+    clearUndo,
   } = playerCore;
 
   const formation = useFormationEditor({
@@ -71,6 +72,12 @@ export function AudioFormEditScreen({ playerCore, playerMode }: AudioFormEditScr
       setSetupVisible(true);
     }
   }, []); // 최초 마운트 시 1회만
+
+  // Clear undo stacks on unmount to free memory
+  useEffect(() => () => {
+    clearUndo();
+    formation.clearFormationUndo();
+  }, []);
 
   if (!currentTrack) return null;
 
