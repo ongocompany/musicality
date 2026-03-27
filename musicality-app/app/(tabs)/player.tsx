@@ -22,7 +22,6 @@ import { useTapTempoStore } from '../../stores/tapTempoStore';
 import { useAudioPlayer } from '../../hooks/useAudioPlayer';
 import { useVideoPlayer } from '../../hooks/useVideoPlayer';
 import { useYouTubePlayer } from '../../hooks/useYouTubePlayer';
-import { analyzeTrack } from '../../services/analysisApi';
 import { usePlayerCore } from '../../hooks/usePlayerCore';
 import { usePlayerMode } from '../../hooks/usePlayerMode';
 import { AudioViewScreen } from '../../screens/player/AudioViewScreen';
@@ -204,7 +203,6 @@ export default function PlayerScreen() {
   const defaultBeatsPerPhrase = useSettingsStore((s) => s.defaultBeatsPerPhrase);
   const phraseMarks = useSettingsStore((s) => s.phraseMarks);
   const trackEditions = useSettingsStore((s) => s.trackEditions);
-  const setServerEdition = useSettingsStore((s) => s.setServerEdition);
   const draftBoundaries = useSettingsStore((s) => s.draftBoundaries);
   const setDraftBoundaries = useSettingsStore((s) => s.setDraftBoundaries);
   const clearDraft = useSettingsStore((s) => s.clearDraft);
@@ -1163,45 +1161,11 @@ export default function PlayerScreen() {
     if (currentTrack.analysisStatus === 'done') {
       Alert.alert(t('player.reanalyze'), '', [
         { text: t('common.cancel'), style: 'cancel' },
-        { text: t('common.ok'), onPress: () => runAnalysis() },
+        { text: t('common.ok'), onPress: () => { setAnalyzeMenuVisible(false); playerCore.runAnalysis(); } },
       ]);
     } else {
-      runAnalysis();
-    }
-  };
-
-  const runAnalysis = async () => {
-    if (!currentTrack) return;
-    setAnalyzeMenuVisible(false);
-
-    setTrackAnalysisStatus(currentTrack.id, 'analyzing');
-    try {
-      const result = await analyzeTrack(
-        currentTrack.uri, currentTrack.title, currentTrack.format,
-        (jobId) => setTrackPendingJobId(currentTrack.id, jobId),
-      );
-      setTrackAnalysis(currentTrack.id, result);
-      // Store server phrase boundaries as 'S' edition (beat indices)
-      if (result.phraseBoundaries && result.phraseBoundaries.length > 0) {
-        const boundaryBeatIndices = result.phraseBoundaries.map(ts => {
-          let closest = 0;
-          let minDiff = Math.abs(result.beats[0] - ts);
-          for (let i = 1; i < result.beats.length; i++) {
-            const diff = Math.abs(result.beats[i] - ts);
-            if (diff < minDiff) { minDiff = diff; closest = i; }
-          }
-          return closest;
-        });
-        setServerEdition(currentTrack.id, boundaryBeatIndices);
-      }
-    } catch (e: any) {
-      const isBackgroundError = e.name === 'AbortError'
-        || e.message?.includes('aborted')
-        || e.message?.includes('Network request failed');
-      if (isBackgroundError && usePlayerStore.getState().tracks.find(t => t.id === currentTrack.id)?.pendingJobId) return;
-      setTrackAnalysisStatus(currentTrack.id, 'error');
-      setTrackPendingJobId(currentTrack.id, undefined);
-      Alert.alert(t('player.analysisFailed'), e.message || 'Could not connect to analysis server.');
+      setAnalyzeMenuVisible(false);
+      playerCore.runAnalysis();
     }
   };
 
@@ -2051,7 +2015,7 @@ export default function PlayerScreen() {
             <Text style={styles.analyzeMenuTitle}>{t('player.analyze')}</Text>
             <TouchableOpacity
               style={styles.analyzeMenuOption}
-              onPress={() => runAnalysis()}
+              onPress={() => { setAnalyzeMenuVisible(false); playerCore.runAnalysis(); }}
             >
               <Ionicons name="musical-notes-outline" size={22} color={Colors.primary} />
               <View style={styles.analyzeMenuOptionText}>

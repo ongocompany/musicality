@@ -53,24 +53,21 @@ export function getSyncStatus(): SyncStatus {
 
 export async function startCloudSync(): Promise<void> {
   if (_isSyncing) return;
+  _isSyncing = true;  // Set immediately to prevent race condition
 
   const { user } = useAuthStore.getState();
-  if (!user) { console.log('[CloudSync] Skip: not logged in'); return; }
+  if (!user) { _isSyncing = false; console.log('[CloudSync] Skip: not logged in'); return; }
 
   const settings = useSettingsStore.getState();
-  if (!settings.cloudSyncEnabled) { console.log('[CloudSync] Skip: sync disabled'); return; }
+  if (!settings.cloudSyncEnabled) { _isSyncing = false; console.log('[CloudSync] Skip: sync disabled'); return; }
 
   // Network check — simple connectivity test (no native module needed)
   try {
     const probe = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
-    if (!probe.ok) return;
+    if (!probe.ok) { _isSyncing = false; return; }
   } catch {
-    return; // offline
+    _isSyncing = false; return; // offline
   }
-  // Wi-Fi-only check is deferred to native build (expo-network)
-  // For now, sync runs on any connection
-
-  _isSyncing = true;
   _syncStatus = 'syncing';
   _abortController = new AbortController();
   console.log('[CloudSync] ▶ Sync started');
@@ -169,7 +166,7 @@ async function _runSync(userId: string): Promise<void> {
   }
 
   for (const [fp, lt] of localByFp) {
-    if (!cloudByFp.has(fp) && lt.analysisStatus === 'done') {
+    if (!cloudByFp.has(fp) && lt.analysisStatus === 'done' && lt.mediaType === 'audio') {
       toRegister.push(lt);
     }
   }
@@ -225,17 +222,29 @@ async function _downloadAndRegisterLocally(
     const fullTrack = fullData?.find((d: any) => d.cloud_track_id === ct.cloud_track_id);
 
     // Extract album art from downloaded MP3
-    let thumbnailUri: string | undefined = ct.album_art_url || undefined;
+    let thumbnailUri: string | undefined;
+    if (ct.album_art_url) {
+      // Download Spotify album art
+      try {
+        const artPath = `${mediaDir}art-${Date.now()}.jpg`;
+        const artDl = await FileSystem.downloadAsync(ct.album_art_url, artPath);
+        if (artDl.status === 200) {
+          thumbnailUri = artDl.uri;
+        }
+      } catch (e: any) {
+        console.debug(`[CloudSync] Album art download failed: ${e.message}`);
+      }
+    }
     if (!thumbnailUri) {
+      // Extract from ID3 tags in downloaded MP3
       try {
         const { extractMetadata } = require('../modules/my-module');
         const meta = await extractMetadata(localPath);
         if (meta?.albumArt) {
-          const { File, Paths } = require('expo-file-system/next');
-          const mediaDir = `${Paths.document}/media/`;
-          const artFile = new File(mediaDir, `art-${Date.now()}.jpg`);
-          new File(meta.albumArt.startsWith('/') ? `file://${meta.albumArt}` : meta.albumArt).copy(artFile);
-          thumbnailUri = artFile.uri;
+          const artDest = `${mediaDir}art-${Date.now()}.jpg`;
+          const artSrc = meta.albumArt.startsWith('/') ? `file://${meta.albumArt}` : meta.albumArt;
+          await FileSystem.copyAsync({ from: artSrc, to: artDest });
+          thumbnailUri = artDest;
         }
       } catch (e: any) {
         console.debug(`[CloudSync] Album art extraction failed: ${e.message}`);
@@ -285,6 +294,22 @@ async function _downloadAndRegisterLocally(
     }
 
     addTrack(track);
+
+    // Set server edition (Ⓟ badge) — cloud restore = already server-analyzed
+    if (track.analysis) {
+      const pb = track.analysis.phraseBoundaries ?? [];
+      const boundaryBeatIndices = pb.map(ts => {
+        let closest = 0;
+        let minDiff = Math.abs(track.analysis!.beats[0] - ts);
+        for (let i = 1; i < track.analysis!.beats.length; i++) {
+          const diff = Math.abs(track.analysis!.beats[i] - ts);
+          if (diff < minDiff) { minDiff = diff; closest = i; }
+        }
+        return closest;
+      });
+      useSettingsStore.getState().setServerEdition(track.id, boundaryBeatIndices);
+    }
+
     console.log(`[CloudSync] Downloaded: ${ct.title}`);
 
   } catch (e: any) {

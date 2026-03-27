@@ -554,8 +554,8 @@ export default function LibraryScreen() {
         (jobId) => setTrackPendingJobId(track.id, jobId),
       );
       applyAnalysisResult(track.id, result);
-      // Cloud Library: auto-register if cloud_track_id received
-      if (result.cloudTrackId) {
+      // Cloud Library: auto-register audio tracks (video has no cloud restore)
+      if (result.cloudTrackId && track.mediaType === 'audio') {
         usePlayerStore.getState().updateTrackData(track.id, { cloudTrackId: result.cloudTrackId });
         registerCloudTrack(result.cloudTrackId, track.title).catch(() => {});
       }
