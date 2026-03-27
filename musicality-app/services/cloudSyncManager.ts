@@ -280,40 +280,54 @@ async function _registerToCloud(track: Track, token: string): Promise<void> {
   try {
     if (!track.analysis?.fingerprint) return;
 
-    // Check if already in cloud_tracks by querying the analyze endpoint
-    // (the server auto-registers to cloud_tracks on analysis)
-    // Just need to register in user_library
-    const cloudTrackId = track.analysis?.cloudTrackId;
-    if (!cloudTrackId) {
-      // Track was analyzed before cloud feature — need to find cloud_track by fingerprint
-      // The server already has this track in cloud_tracks from migration
-      // We can call register with a fingerprint-based lookup
-      console.log(`[CloudSync] Skip register (no cloud_track_id): ${track.title}`);
-      return;
-    }
-
-    // Get folder name
     const { folders } = usePlayerStore.getState();
     const folder = track.folderId ? folders.find(f => f.id === track.folderId) : null;
+    const folderName = folder?.name || null;
 
-    const resp = await fetch(`${API_BASE_URL}/cloud/register`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        cloud_track_id: cloudTrackId,
-        custom_title: track.title,
-        dance_style: 'bachata',
-        folder_name: folder?.name || null,
-      }),
-    });
+    let resp: Response;
+
+    if (track.cloudTrackId) {
+      // Has cloud_track_id → register directly
+      resp = await fetch(`${API_BASE_URL}/cloud/register`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cloud_track_id: track.cloudTrackId,
+          custom_title: track.title,
+          dance_style: 'bachata',
+          folder_name: folderName,
+        }),
+      });
+    } else {
+      // No cloud_track_id (analyzed before cloud feature) → register by fingerprint
+      resp = await fetch(`${API_BASE_URL}/cloud/register-by-fingerprint`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fingerprint: track.analysis.fingerprint,
+          custom_title: track.title,
+          dance_style: 'bachata',
+          folder_name: folderName,
+        }),
+      });
+    }
 
     if (resp.ok) {
-      console.log(`[CloudSync] Registered: ${track.title}`);
+      const data = await resp.json();
+      // Save cloud_track_id to local track for future syncs
+      if (data.cloud_track_id && !track.cloudTrackId) {
+        usePlayerStore.getState().updateTrackData(track.id, { cloudTrackId: data.cloud_track_id });
+      }
+      console.log(`[CloudSync] Registered: ${track.title} (${data.status})`);
     } else {
-      console.warn(`[CloudSync] Register failed for ${track.title}: ${resp.status}`);
+      const errText = await resp.text().catch(() => '');
+      console.warn(`[CloudSync] Register failed for ${track.title}: ${resp.status} ${errText.slice(0, 100)}`);
     }
   } catch (e: any) {
     if (e.name === 'AbortError') throw e;

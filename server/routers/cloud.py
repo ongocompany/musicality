@@ -44,6 +44,13 @@ class RegisterRequest(BaseModel):
     folder_name: Optional[str] = None
 
 
+class RegisterByFingerprintRequest(BaseModel):
+    fingerprint: str
+    custom_title: Optional[str] = None
+    dance_style: str = "bachata"
+    folder_name: Optional[str] = None
+
+
 # ─── GET /cloud/library ──────────────────────────────
 
 @router.get("/library")
@@ -226,6 +233,72 @@ async def register_track(body: RegisterRequest, request: Request):
         raise
     except Exception as e:
         logger.error(f"register_track failed: {e}")
+        raise HTTPException(status_code=500, detail="Registration failed")
+
+
+# ─── POST /cloud/register-by-fingerprint ──────────────
+
+@router.post("/register-by-fingerprint")
+async def register_by_fingerprint(body: RegisterByFingerprintRequest, request: Request):
+    """fingerprint로 cloud_track을 찾아서 user_library에 등록."""
+    user_id = get_user_id(request)
+
+    try:
+        client = _get_supabase()
+        fp_hash = hashlib.md5(body.fingerprint.encode()).hexdigest()
+
+        # cloud_track 찾기
+        track = (client.table("cloud_tracks")
+                 .select("id")
+                 .eq("fp_hash", fp_hash)
+                 .limit(1)
+                 .execute())
+
+        if not track.data:
+            raise HTTPException(status_code=404, detail="Track not found in cloud")
+
+        cloud_track_id = track.data[0]["id"]
+
+        # 이미 등록됐는지 확인
+        existing = (client.table("user_library")
+                    .select("id, is_deleted")
+                    .eq("user_id", user_id)
+                    .eq("cloud_track_id", cloud_track_id)
+                    .limit(1)
+                    .execute())
+
+        if existing.data:
+            row = existing.data[0]
+            if row.get("is_deleted"):
+                client.table("user_library").update({"is_deleted": False}).eq("id", row["id"]).execute()
+                return {"status": "restored", "cloud_track_id": cloud_track_id}
+            return {"status": "already_registered", "cloud_track_id": cloud_track_id}
+
+        # 1000곡 제한
+        count_resp = (client.table("user_library")
+                      .select("id", count="exact")
+                      .eq("user_id", user_id)
+                      .eq("is_deleted", False)
+                      .execute())
+        if (count_resp.count or 0) >= MAX_LIBRARY_SIZE:
+            raise HTTPException(status_code=429, detail=f"Library limit reached ({MAX_LIBRARY_SIZE})")
+
+        # 등록
+        client.table("user_library").insert({
+            "user_id": user_id,
+            "cloud_track_id": cloud_track_id,
+            "custom_title": body.custom_title,
+            "dance_style": body.dance_style,
+            "folder_name": body.folder_name,
+        }).execute()
+
+        logger.info(f"register-by-fp: user={user_id[:8]} track={cloud_track_id[:8]}")
+        return {"status": "registered", "cloud_track_id": cloud_track_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"register_by_fingerprint failed: {e}")
         raise HTTPException(status_code=500, detail="Registration failed")
 
 
