@@ -224,6 +224,24 @@ async function _downloadAndRegisterLocally(
     const { data: fullData } = await supabase.rpc('get_cloud_library');
     const fullTrack = fullData?.find((d: any) => d.cloud_track_id === ct.cloud_track_id);
 
+    // Extract album art from downloaded MP3
+    let thumbnailUri: string | undefined = ct.album_art_url || undefined;
+    if (!thumbnailUri) {
+      try {
+        const { extractMetadata } = require('../modules/my-module');
+        const meta = await extractMetadata(localPath);
+        if (meta?.albumArt) {
+          const { File, Paths } = require('expo-file-system/next');
+          const mediaDir = `${Paths.document}/media/`;
+          const artFile = new File(mediaDir, `art-${Date.now()}.jpg`);
+          new File(meta.albumArt.startsWith('/') ? `file://${meta.albumArt}` : meta.albumArt).copy(artFile);
+          thumbnailUri = artFile.uri;
+        }
+      } catch (e: any) {
+        console.debug(`[CloudSync] Album art extraction failed: ${e.message}`);
+      }
+    }
+
     // Create local track
     const track: Track = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -234,7 +252,7 @@ async function _downloadAndRegisterLocally(
       mediaType: 'audio',
       importedAt: Date.now(),
       artist: ct.artist || undefined,
-      thumbnailUri: ct.album_art_url || undefined,
+      thumbnailUri,
       folderId: undefined,  // Will be set after folder matching
       analysisStatus: fullTrack ? 'done' : 'idle',
       analysis: fullTrack ? {
