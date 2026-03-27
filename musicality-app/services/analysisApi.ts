@@ -1,6 +1,8 @@
 import { API_BASE_URL, ANALYSIS_TIMEOUT_MS } from '../constants/config';
 import { AnalysisResult } from '../types/analysis';
 import { supabase } from '../lib/supabase';
+import * as Crypto from 'expo-crypto';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const POLL_INTERVAL_MS = 2000; // Poll every 2 seconds
 
@@ -186,6 +188,29 @@ export async function analyzeTrack(
   const timeout = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT_MS);
 
   const t0 = Date.now();
+
+  // ── Pre-check: compute file hash and check cache without uploading ──
+  try {
+    const fileBase64 = await FileSystem.readAsStringAsync(uploadUri, { encoding: FileSystem.EncodingType.Base64 });
+    const fileHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, fileBase64);
+    console.log(`[Analysis] Hash check: ${fileHash.slice(0, 12)}...`);
+
+    const checkResp = await fetch(`${API_BASE_URL}/analyze/check/${fileHash}`, {
+      signal: controller.signal,
+    });
+    if (checkResp.ok) {
+      const result = mapAnalysisResult(await checkResp.json());
+      const checkMs = Date.now() - t0;
+      console.log(`[Analysis] Hash pre-check HIT: BPM=${result.bpm}, total=${(checkMs / 1000).toFixed(1)}s (no upload!)`);
+      clearTimeout(timeout);
+      return result;
+    }
+    // 404 = not cached, proceed with upload
+  } catch (e: any) {
+    // Hash check failed (non-critical), proceed with upload
+    console.debug(`[Analysis] Hash pre-check skipped: ${e.message?.slice(0, 50)}`);
+  }
+
   console.log(`[Analysis] Uploading ${uploadFormat} to ${API_BASE_URL}/analyze (${uploadUri.slice(-50)})`);
 
   try {

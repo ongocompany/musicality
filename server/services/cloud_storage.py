@@ -213,10 +213,12 @@ def register_cloud_track_async(
     file_size: int,
     result,  # AnalysisResult
     source_file_path: Optional[str] = None,
+    delete_source_after: bool = False,
 ):
     """
     비동기로 cloud_track 등록 + 192kbps 변환.
     분석 완료 후 호출. 분석 응답을 지연시키지 않음.
+    delete_source_after=True이면 변환 완료 후 소스 파일 삭제.
     """
     def _run():
         storage_path = None
@@ -227,5 +229,14 @@ def register_cloud_track_async(
                 storage_path = convert_to_192kbps(source_file_path, fingerprint)
 
         upsert_cloud_track(fingerprint, file_hash, file_size, result, storage_path)
+
+        # 변환 완료 후 소스 파일 삭제
+        if delete_source_after and source_file_path:
+            try:
+                p = Path(source_file_path)
+                if p.exists():
+                    p.unlink()
+            except Exception:
+                pass
 
     threading.Thread(target=_run, daemon=True).start()
