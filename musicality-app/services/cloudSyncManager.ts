@@ -178,13 +178,13 @@ async function _runSync(userId: string): Promise<void> {
 
   // 5. Download cloud-only tracks (1 at a time)
   for (const ct of toDownload) {
-    _abortController?.signal.throwIfAborted();
+    if (_abortController?.signal.aborted) throw new DOMException('Aborted', 'AbortError');
     await _downloadAndRegisterLocally(ct, token);
   }
 
   // 6. Register local-only tracks to cloud (1 at a time)
   for (const lt of toRegister) {
-    _abortController?.signal.throwIfAborted();
+    if (_abortController?.signal.aborted) throw new DOMException('Aborted', 'AbortError');
     await _registerToCloud(lt, token);
   }
 }
