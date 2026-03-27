@@ -234,6 +234,7 @@ async function _downloadAndRegisterLocally(
       mediaType: 'audio',
       importedAt: Date.now(),
       artist: ct.artist || undefined,
+      thumbnailUri: ct.album_art_url || undefined,
       folderId: undefined,  // Will be set after folder matching
       analysisStatus: fullTrack ? 'done' : 'idle',
       analysis: fullTrack ? {
