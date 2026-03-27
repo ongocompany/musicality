@@ -10,7 +10,7 @@
  */
 
 import { AppState, AppStateStatus } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
+import * as Network from 'expo-network';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
 import { API_BASE_URL } from '../constants/config';
@@ -62,9 +62,9 @@ export async function startCloudSync(): Promise<void> {
   if (!settings.cloudSyncEnabled) return;
 
   // Network check
-  const netState = await NetInfo.fetch();
+  const netState = await Network.getNetworkStateAsync();
   if (!netState.isConnected) return;
-  if (settings.cloudSyncWifiOnly && netState.type !== 'wifi') return;
+  if (settings.cloudSyncWifiOnly && netState.type !== Network.NetworkStateType.WIFI) return;
 
   _isSyncing = true;
   _syncStatus = 'syncing';
