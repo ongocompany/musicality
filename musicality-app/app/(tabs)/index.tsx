@@ -10,7 +10,7 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useTutorialStore } from '../../stores/tutorialStore';
 import { DEMO_TRACK_ID } from '../../utils/demoTrack';
 import { pickMediaFiles, parseYouTubeUrl, createYouTubeTrack } from '../../services/fileImport';
-import { analyzeTrack, resumeAnalysisJob } from '../../services/analysisApi';
+import { analyzeTrack, resumeAnalysisJob, registerCloudTrack } from '../../services/analysisApi';
 // Cloud sync disabled — library is local-only
 import { Colors, Spacing, FontSize, NoteTypeColors } from '../../constants/theme';
 import { Track, MediaType, Folder, SortField } from '../../types/track';
@@ -554,6 +554,11 @@ export default function LibraryScreen() {
         (jobId) => setTrackPendingJobId(track.id, jobId),
       );
       applyAnalysisResult(track.id, result);
+      // Cloud Library: auto-register if cloud_track_id received
+      if (result.cloudTrackId) {
+        usePlayerStore.getState().updateTrackData(track.id, { cloudTrackId: result.cloudTrackId });
+        registerCloudTrack(result.cloudTrackId, track.title).catch(() => {});
+      }
     } catch (e: any) {
       const isBackgroundError = e.name === 'AbortError'
         || e.message?.includes('aborted')

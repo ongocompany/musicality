@@ -1,5 +1,6 @@
 import { API_BASE_URL, ANALYSIS_TIMEOUT_MS } from '../constants/config';
 import { AnalysisResult } from '../types/analysis';
+import { supabase } from '../lib/supabase';
 
 const POLL_INTERVAL_MS = 2000; // Poll every 2 seconds
 
@@ -48,6 +49,7 @@ function mapAnalysisResult(data: any): AnalysisResult {
       albumArtUrl: data.metadata.album_art_url,
       releaseId: data.metadata.release_id,
     } : undefined,
+    cloudTrackId: data.cloud_track_id ?? undefined,
   };
 }
 
@@ -241,5 +243,44 @@ export async function analyzeTrack(
     return result;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+/**
+ * Register a track to user's cloud library after analysis.
+ * Non-blocking, best-effort — failures are logged but don't affect the user.
+ */
+export async function registerCloudTrack(
+  cloudTrackId: string,
+  title?: string,
+  danceStyle: string = 'bachata',
+  folderName?: string,
+): Promise<void> {
+  try {
+    const session = (await supabase.auth.getSession()).data.session;
+    if (!session) return;  // Not logged in — skip
+
+    const resp = await fetch(`${API_BASE_URL}/cloud/register`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cloud_track_id: cloudTrackId,
+        custom_title: title,
+        dance_style: danceStyle,
+        folder_name: folderName,
+      }),
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      console.log(`[CloudLibrary] Registered: ${data.status}`);
+    } else {
+      console.warn(`[CloudLibrary] Register failed: ${resp.status}`);
+    }
+  } catch (e: any) {
+    console.warn(`[CloudLibrary] Register error: ${e.message}`);
   }
 }

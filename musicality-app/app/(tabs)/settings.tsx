@@ -26,6 +26,8 @@ export default function SettingsScreen() {
     language, setLanguage,
     showAlbumArt, setShowAlbumArt,
     autoHideMs, setAutoHideMs,
+    cloudSyncEnabled, setCloudSyncEnabled,
+    cloudSyncWifiOnly, setCloudSyncWifiOnly,
   } = useSettingsStore();
   const { user, guestMode, signOut } = useAuthStore();
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
@@ -83,6 +85,41 @@ export default function SettingsScreen() {
           </View>
         )}
       </View>
+
+      {/* Cloud Library (logged-in users only) */}
+      {user && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('settings.cloudLibrary', { defaultValue: 'Cloud Library' })}</Text>
+          <View style={styles.row}>
+            <Ionicons name="cloud-outline" size={20} color={Colors.textSecondary} />
+            <Text style={styles.label}>{t('settings.cloudSync', { defaultValue: '클라우드 동기화' })}</Text>
+            <TouchableOpacity
+              onPress={() => setCloudSyncEnabled(!cloudSyncEnabled)}
+              style={[styles.toggle, cloudSyncEnabled && styles.toggleActive]}
+            >
+              <Text style={styles.toggleText}>{cloudSyncEnabled ? 'ON' : 'OFF'}</Text>
+            </TouchableOpacity>
+          </View>
+          {cloudSyncEnabled && (
+            <View style={styles.row}>
+              <Ionicons name="wifi-outline" size={20} color={Colors.textSecondary} />
+              <Text style={styles.label}>{t('settings.wifiOnly', { defaultValue: 'Wi-Fi에서만 동기화' })}</Text>
+              <TouchableOpacity
+                onPress={() => setCloudSyncWifiOnly(!cloudSyncWifiOnly)}
+                style={[styles.toggle, cloudSyncWifiOnly && styles.toggleActive]}
+              >
+                <Text style={styles.toggleText}>{cloudSyncWifiOnly ? 'ON' : 'OFF'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <View style={styles.row}>
+            <Ionicons name="information-circle-outline" size={16} color={Colors.textMuted} />
+            <Text style={[styles.label, { color: Colors.textMuted, fontSize: FontSize.xs }]}>
+              {t('settings.cloudNote', { defaultValue: '서버 저장 시 192kbps로 변환됩니다' })}
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* Server Status */}
       <View style={styles.section}>
@@ -554,6 +591,23 @@ const styles = StyleSheet.create({
   },
   langLabelActive: {
     color: Colors.primary,
+    fontWeight: '700',
+  },
+  toggle: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: Colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  toggleActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  toggleText: {
+    color: Colors.text,
+    fontSize: FontSize.sm,
     fontWeight: '700',
   },
 });

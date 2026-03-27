@@ -31,4 +31,5 @@ export interface Track {
   fileBookmark?: string; // iOS: security-scoped bookmark (base64), Android: content:// URI
   pendingJobId?: string; // server job_id while analysis is in progress
   remoteId?: string; // Supabase player_tracks.id (set after cloud sync)
+  cloudTrackId?: string; // Cloud Library track ID
 }

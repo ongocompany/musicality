@@ -49,6 +49,7 @@ export interface AnalysisResult {
   waveformPeaks?: number[];    // normalized amplitude peaks (0-1) for waveform visualization
   fingerprint?: string;        // Chromaprint audio fingerprint for track identification
   metadata?: TrackMetadata;    // auto-tagged track info (AcoustID + MusicBrainz)
+  cloudTrackId?: string;       // Cloud Library track ID (from server response)
 }
 
 export type AnalysisStatus = 'idle' | 'analyzing' | 'done' | 'error';

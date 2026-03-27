@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 // Cloud sync disabled — library is local-only with export/import
 // import { startSyncManager, stopSyncManager } from '../services/syncManager';
+import { initCloudSync, teardownCloudSync } from '../services/cloudSyncManager';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -85,6 +86,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // On login: sync OAuth metadata → profile (name, avatar)
         if (session?.user && !prevUser) {
           syncProfileFromMetadata(session.user);
+          initCloudSync();  // Start cloud library sync
+        }
+        // On logout: stop cloud sync
+        if (!session?.user && prevUser) {
+          teardownCloudSync();
         }
       });
 

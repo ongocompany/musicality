@@ -129,6 +129,12 @@ interface SettingsState {
   autoHideMs: number;
   setAutoHideMs: (ms: number) => void;
 
+  // Cloud Library sync
+  cloudSyncEnabled: boolean;
+  setCloudSyncEnabled: (enabled: boolean) => void;
+  cloudSyncWifiOnly: boolean;
+  setCloudSyncWifiOnly: (wifiOnly: boolean) => void;
+
   // Onboarding tutorial
   hasSeenOnboarding: boolean;
   setHasSeenOnboarding: (seen: boolean) => void;
@@ -584,6 +590,12 @@ export const useSettingsStore = create<SettingsState>()(
       autoHideMs: 3000,
       setAutoHideMs: (ms) => set({ autoHideMs: Math.max(0, ms) }),
 
+      // ─── Cloud Library ─────────────────────────────────
+      cloudSyncEnabled: true,  // 베타: 기본 활성화
+      setCloudSyncEnabled: (enabled) => set({ cloudSyncEnabled: enabled }),
+      cloudSyncWifiOnly: true,  // 기본: Wi-Fi만
+      setCloudSyncWifiOnly: (wifiOnly) => set({ cloudSyncWifiOnly: wifiOnly }),
+
       // ─── Onboarding ──────────────────────────────────
       hasSeenOnboarding: false,
       setHasSeenOnboarding: (seen) => set({ hasSeenOnboarding: seen }),
@@ -730,6 +742,8 @@ export const useSettingsStore = create<SettingsState>()(
         stageConfig: state.stageConfig,
         showAlbumArt: state.showAlbumArt,
         autoHideMs: state.autoHideMs,
+        cloudSyncEnabled: state.cloudSyncEnabled,
+        cloudSyncWifiOnly: state.cloudSyncWifiOnly,
       }),
     },
   ),
