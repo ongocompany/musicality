@@ -259,6 +259,16 @@ async def register_by_fingerprint(body: RegisterByFingerprintRequest, request: R
 
         cloud_track_id = track.data[0]["id"]
 
+        # cloud_tracks title이 Track-xxx이면 custom_title로 업데이트
+        if body.custom_title:
+            ct_data = (client.table("cloud_tracks")
+                       .select("title")
+                       .eq("id", cloud_track_id)
+                       .limit(1)
+                       .execute())
+            if ct_data.data and ct_data.data[0].get("title", "").startswith("Track-"):
+                client.table("cloud_tracks").update({"title": body.custom_title}).eq("id", cloud_track_id).execute()
+
         # 이미 등록됐는지 확인
         existing = (client.table("user_library")
                     .select("id, is_deleted")
