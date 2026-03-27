@@ -64,6 +64,10 @@ app.mount("/downloads", StaticFiles(directory=Path(__file__).parent / "labeling"
 # Static files — labeling web UI
 app.mount("/labeling", StaticFiles(directory=Path(__file__).parent / "labeling", html=True), name="labeling")
 
+# Static pages — privacy, account-deletion, etc.
+app.mount("/privacy", StaticFiles(directory=Path(__file__).parent / "static" / "privacy", html=True), name="privacy")
+app.mount("/account-deletion", StaticFiles(directory=Path(__file__).parent / "static" / "account-deletion", html=True), name="account-deletion")
+
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():

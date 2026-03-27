@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ritmo - Account Deletion</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, sans-serif; background: #121212; color: #E0E0E0; padding: 20px; line-height: 1.7; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { color: #BB86FC; margin-bottom: 8px; font-size: 24px; }
+    h2 { color: #BB86FC; margin-top: 32px; margin-bottom: 12px; font-size: 18px; }
+    p, li { font-size: 14px; color: #CCC; margin-bottom: 8px; }
+    ul, ol { padding-left: 20px; margin-bottom: 12px; }
+    .updated { color: #888; font-size: 13px; margin-bottom: 32px; }
+    .contact { background: #1E1E1E; border-radius: 8px; padding: 16px; margin-top: 24px; border: 1px solid #333; }
+    .contact a { color: #BB86FC; }
+    .steps { background: #1E1E1E; border-radius: 8px; padding: 20px; margin: 16px 0; border: 1px solid #333; }
+    .steps ol { padding-left: 24px; }
+    .steps li { margin-bottom: 12px; }
+    .lang-switch { display: flex; gap: 8px; margin-bottom: 20px; }
+    .lang-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid #333; background: #1E1E1E; color: #888; cursor: pointer; font-size: 13px; }
+    .lang-btn.active { background: #BB86FC; color: #121212; border-color: #BB86FC; }
+    .lang-section { display: none; }
+    .lang-section.active { display: block; }
+    .warning { background: #2D1B1B; border: 1px solid #5C2323; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    .warning p { color: #F5A0A0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Ritmo</h1>
+    <div class="lang-switch">
+      <button class="lang-btn active" onclick="switchLang('ko')">한국어</button>
+      <button class="lang-btn" onclick="switchLang('en')">English</button>
+    </div>
+
+    <!-- Korean -->
+    <div id="ko" class="lang-section active">
+      <h2>계정 삭제 안내</h2>
+      <p class="updated">최종 업데이트: 2026년 3월 27일</p>
+
+      <p>Ritmo 앱 내에서 직접 계정을 삭제할 수 있습니다.</p>
+
+      <h2>앱 내 삭제 방법</h2>
+      <div class="steps">
+        <ol>
+          <li>Ritmo 앱을 열고 <strong>설정</strong> 탭으로 이동합니다.</li>
+          <li>화면 하단의 <strong>"계정 삭제"</strong> 버튼을 탭합니다.</li>
+          <li>확인 팝업에서 <strong>"삭제"</strong>를 선택합니다.</li>
+          <li>계정과 모든 관련 데이터가 즉시 삭제됩니다.</li>
+        </ol>
+      </div>
+
+      <h2>삭제되는 데이터</h2>
+      <ul>
+        <li>계정 정보 (이메일, 프로필)</li>
+        <li>클라우드 라이브러리 (등록된 곡 목록)</li>
+        <li>에디션 데이터 (프레이즈 편집, 포메이션)</li>
+        <li>커뮤니티 활동 (게시글, 댓글)</li>
+      </ul>
+
+      <div class="warning">
+        <p><strong>주의:</strong> 계정 삭제는 되돌릴 수 없습니다. 삭제된 데이터는 복구할 수 없습니다.</p>
+      </div>
+
+      <h2>이메일로 삭제 요청</h2>
+      <p>앱에 접근할 수 없는 경우, 아래 이메일로 계정 삭제를 요청할 수 있습니다. 가입 시 사용한 이메일 주소를 포함해 주세요.</p>
+
+      <div class="contact">
+        <p>📧 <a href="mailto:support@ritmo.kr">support@ritmo.kr</a></p>
+        <p>요청 후 영업일 기준 3일 이내에 처리됩니다.</p>
+      </div>
+    </div>
+
+    <!-- English -->
+    <div id="en" class="lang-section">
+      <h2>Account Deletion</h2>
+      <p class="updated">Last updated: March 27, 2026</p>
+
+      <p>You can delete your account directly within the Ritmo app.</p>
+
+      <h2>How to Delete in the App</h2>
+      <div class="steps">
+        <ol>
+          <li>Open the Ritmo app and go to the <strong>Settings</strong> tab.</li>
+          <li>Tap the <strong>"Delete Account"</strong> button at the bottom of the screen.</li>
+          <li>Select <strong>"Delete"</strong> in the confirmation popup.</li>
+          <li>Your account and all associated data will be deleted immediately.</li>
+        </ol>
+      </div>
+
+      <h2>Data That Will Be Deleted</h2>
+      <ul>
+        <li>Account information (email, profile)</li>
+        <li>Cloud library (registered track list)</li>
+        <li>Edition data (phrase edits, formations)</li>
+        <li>Community activity (posts, comments)</li>
+      </ul>
+
+      <div class="warning">
+        <p><strong>Warning:</strong> Account deletion is irreversible. Deleted data cannot be recovered.</p>
+      </div>
+
+      <h2>Request Deletion via Email</h2>
+      <p>If you cannot access the app, you may request account deletion by email. Please include the email address used to sign up.</p>
+
+      <div class="contact">
+        <p>📧 <a href="mailto:support@ritmo.kr">support@ritmo.kr</a></p>
+        <p>Requests will be processed within 3 business days.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchLang(lang) {
+      document.querySelectorAll('.lang-section').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.lang-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(lang).classList.add('active');
+      event.target.classList.add('active');
+    }
+  </script>
+</body>
+</html>
