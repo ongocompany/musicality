@@ -10,7 +10,6 @@
  */
 
 import { AppState, AppStateStatus } from 'react-native';
-import * as Network from 'expo-network';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
 import { API_BASE_URL } from '../constants/config';
@@ -61,10 +60,15 @@ export async function startCloudSync(): Promise<void> {
   const settings = useSettingsStore.getState();
   if (!settings.cloudSyncEnabled) return;
 
-  // Network check
-  const netState = await Network.getNetworkStateAsync();
-  if (!netState.isConnected) return;
-  if (settings.cloudSyncWifiOnly && netState.type !== Network.NetworkStateType.WIFI) return;
+  // Network check — simple connectivity test (no native module needed)
+  try {
+    const probe = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+    if (!probe.ok) return;
+  } catch {
+    return; // offline
+  }
+  // Wi-Fi-only check is deferred to native build (expo-network)
+  // For now, sync runs on any connection
 
   _isSyncing = true;
   _syncStatus = 'syncing';
