@@ -1,7 +1,7 @@
 import { API_BASE_URL, ANALYSIS_TIMEOUT_MS } from '../constants/config';
 import { AnalysisResult } from '../types/analysis';
 import { supabase } from '../lib/supabase';
-import * as Crypto from 'expo-crypto';
+import CryptoJS from 'crypto-js';
 import * as FileSystem from 'expo-file-system/legacy';
 
 const POLL_INTERVAL_MS = 2000; // Poll every 2 seconds
@@ -192,7 +192,8 @@ export async function analyzeTrack(
   // ── Pre-check: compute file hash and check cache without uploading ──
   try {
     const fileBase64 = await FileSystem.readAsStringAsync(uploadUri, { encoding: FileSystem.EncodingType.Base64 });
-    const fileHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, fileBase64);
+    const wordArray = CryptoJS.enc.Base64.parse(fileBase64);
+    const fileHash = CryptoJS.SHA256(wordArray).toString(CryptoJS.enc.Hex);
     console.log(`[Analysis] Hash check: ${fileHash.slice(0, 12)}...`);
 
     const checkResp = await fetch(`${API_BASE_URL}/analyze/check/${fileHash}`, {
