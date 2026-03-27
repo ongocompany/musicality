@@ -15,6 +15,7 @@
 | 2026-03-26 | 0.9.0 | 8 | Android | Dancer long-press 1500ms, Spotify album art auto-fetch, fingerprint cache 500 |
 | 2026-03-26 | 0.9.0 | 9 | Android | Gold theme, custom icons, beat sync fix, audio focus DoNotMix, song thread delete |
 | 2026-03-27 | 0.9.0 | 10 | Android (APK+AAB) | Rainbow color restore, edit undo memory leak fix, library long-press custom modal, new package com.ongocompany.ritmo, release signing config plugin |
+| 2026-03-27 | 0.9.0 | 11 | Android (APK+AAB) | Cloud Library (dedup storage, auto-sync, cloud register, 192kbps conversion) |
 
 ## Notes
 
