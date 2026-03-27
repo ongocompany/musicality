@@ -122,6 +122,7 @@ export function VideoViewScreen({ playerCore, playerMode }: VideoViewScreenProps
           <View style={styles.videoSection}>
             <View style={styles.youtubeContainer}>
               <YoutubePlayer
+                key={currentTrack.uri}
                 ref={youtubePlayer.playerRef}
                 height={200}
                 videoId={currentTrack.uri}

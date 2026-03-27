@@ -160,10 +160,11 @@ export async function pullFromCloud(): Promise<void> {
   try {
     console.log(SYNC_LOG, 'Pulling from cloud...');
 
-    // 1. Pull tracks + analyses
+    // 1. Pull YouTube tracks + analyses only (audio handled by cloudSyncManager)
     const { data: remoteTracks, error } = await supabase
       .from('player_tracks')
       .select('*, track_analyses(*)')
+      .eq('media_type', 'youtube')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -225,52 +226,13 @@ export async function pushToCloud(): Promise<void> {
       return;
     }
 
-    console.log(SYNC_LOG, `Pushing ${tracksToPush.length} tracks, ${editionTrackIds.length} edition groups...`);
+    // Filter to YouTube-only (audio handled by cloudSyncManager)
+    const ytTracks = tracksToPush.filter(t => t.mediaType === 'youtube');
+    console.log(SYNC_LOG, `Pushing ${ytTracks.length} YouTube tracks, ${editionTrackIds.length} edition groups...`);
 
     let pushed = 0;
 
-    // Push tracks (with or without analysis)
-    for (const track of tracksToPush) {
-      if (track.mediaType === 'youtube') continue;
-
-      let fileHash: string | undefined;
-      try {
-        fileHash = await computeQuickHash(track.uri, track.fileSize);
-      } catch {}
-
-      const a = track.analysis;
-      const { data: remoteId, error } = await supabase.rpc('upsert_track_with_analysis', {
-        p_title: track.title,
-        p_media_type: track.mediaType,
-        p_fingerprint: a?.fingerprint ?? null,
-        p_file_hash: fileHash ?? null,
-        p_file_size: track.fileSize ?? null,
-        p_format: track.format ?? null,
-        p_duration: track.duration ? track.duration / 1000 : a?.duration ?? null,
-        p_youtube_url: null,
-        p_youtube_video_id: null,
-        p_dance_style: 'bachata',
-        p_folder_id: null,
-        p_bpm: a?.bpm ?? null,
-        p_beats: JSON.stringify(a?.beats ?? []),
-        p_downbeats: JSON.stringify(a?.downbeats ?? []),
-        p_beats_per_bar: a?.beatsPerBar ?? 4,
-        p_confidence: a?.confidence ?? 0,
-        p_sections: JSON.stringify(a?.sections ?? []),
-        p_phrase_boundaries: JSON.stringify(a?.phraseBoundaries ?? []),
-        p_waveform_peaks: JSON.stringify(a?.waveformPeaks ?? []),
-      });
-
-      if (!error) {
-        pushed++;
-        // Save local URI for same-device restore
-        if (remoteId && track.uri) {
-          await supabase.from('player_tracks').update({ local_uri: track.uri }).eq('id', remoteId);
-        }
-      }
-    }
-
-    // Push YouTube tracks (with or without analysis)
+    // Audio/video tracks are handled by cloudSyncManager — only push YouTube here
     for (const track of tracksToPush) {
       if (track.mediaType !== 'youtube') continue;
 

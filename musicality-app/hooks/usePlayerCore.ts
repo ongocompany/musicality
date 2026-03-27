@@ -258,8 +258,12 @@ export function usePlayerCore() {
     }
 
     // 새 곡 에디션 서버에서 복원
-    if (currentTrack?.id && currentTrack.analysis?.fingerprint) {
-      restoreEditionsFromServer(currentTrack.id, currentTrack.analysis.fingerprint).catch(() => {});
+    if (currentTrack?.id) {
+      if (currentTrack.mediaType === 'youtube' && currentTrack.uri) {
+        restoreEditionsFromServer(currentTrack.id, '', currentTrack.uri).catch(() => {});
+      } else if (currentTrack.analysis?.fingerprint) {
+        restoreEditionsFromServer(currentTrack.id, currentTrack.analysis.fingerprint).catch(() => {});
+      }
     }
   }, [currentTrack?.id]);
 

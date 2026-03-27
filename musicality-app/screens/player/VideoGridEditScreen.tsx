@@ -116,6 +116,7 @@ export function VideoGridEditScreen({ playerCore, playerMode }: VideoGridEditScr
           <View style={styles.videoSection}>
             <View style={styles.youtubeContainer}>
               <YoutubePlayer
+                key={currentTrack.uri}
                 ref={youtubePlayer.playerRef}
                 height={160}
                 videoId={currentTrack.uri}

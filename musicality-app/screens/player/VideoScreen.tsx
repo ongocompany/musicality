@@ -178,7 +178,7 @@ export function VideoScreen({ playerCore, playerMode }: VideoScreenProps) {
           <View style={styles.videoSection}>
             <View style={styles.youtubeContainer}>
               <YoutubePlayer
-                key={ytMountKey}
+                key={`${currentTrack.uri}-${ytMountKey}`}
                 ref={youtubePlayer.playerRef}
                 height={ytHeight}
                 videoId={currentTrack.uri}

@@ -6,8 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-// Cloud sync disabled — library is local-only with export/import
-// import { startSyncManager, stopSyncManager } from '../services/syncManager';
+import { startSyncManager, stopSyncManager } from '../services/syncManager';
 import { initCloudSync, teardownCloudSync } from '../services/cloudSyncManager';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -79,6 +78,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Already logged in → start cloud sync
       if (session?.user) {
         initCloudSync();
+        startSyncManager();  // YouTube track + edition sync
       }
 
       // Listen for auth state changes
@@ -91,11 +91,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // On login: sync OAuth metadata → profile (name, avatar)
         if (session?.user && !prevUser) {
           syncProfileFromMetadata(session.user);
-          initCloudSync();  // Start cloud library sync
+          initCloudSync();
+          startSyncManager();
         }
         // On logout: stop cloud sync
         if (!session?.user && prevUser) {
           teardownCloudSync();
+          stopSyncManager();
         }
       });
 
