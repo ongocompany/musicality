@@ -76,6 +76,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         loading: false,
       });
 
+      // Already logged in → start cloud sync
+      if (session?.user) {
+        initCloudSync();
+      }
+
       // Listen for auth state changes
       supabase.auth.onAuthStateChange((_event, session) => {
         const prevUser = get().user;

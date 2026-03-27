@@ -55,10 +55,10 @@ export async function startCloudSync(): Promise<void> {
   if (_isSyncing) return;
 
   const { user } = useAuthStore.getState();
-  if (!user) return;
+  if (!user) { console.log('[CloudSync] Skip: not logged in'); return; }
 
   const settings = useSettingsStore.getState();
-  if (!settings.cloudSyncEnabled) return;
+  if (!settings.cloudSyncEnabled) { console.log('[CloudSync] Skip: sync disabled'); return; }
 
   // Network check — simple connectivity test (no native module needed)
   try {
@@ -73,10 +73,12 @@ export async function startCloudSync(): Promise<void> {
   _isSyncing = true;
   _syncStatus = 'syncing';
   _abortController = new AbortController();
+  console.log('[CloudSync] ▶ Sync started');
 
   try {
     await _runSync(user.id);
     _syncStatus = 'idle';
+    console.log('[CloudSync] ✓ Sync completed');
   } catch (e: any) {
     if (e.name === 'AbortError') {
       _syncStatus = 'paused';
