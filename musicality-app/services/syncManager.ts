@@ -459,7 +459,7 @@ function mergeEditionsFromCloud(remoteEditions: any[]): void {
   for (const row of remoteEditions) {
     const trackId = fpToTrackId.get(row.fingerprint);
     if (!trackId) {
-      console.log(SYNC_LOG, `Edition skip: no track for fp=${row.fingerprint.slice(0, 12)}...`);
+      console.log(SYNC_LOG, `Edition skip: no track for fp=${row.fingerprint?.slice(0, 12) ?? 'null'}...`);
       continue;
     }
     // Validate boundaries against track's beat count

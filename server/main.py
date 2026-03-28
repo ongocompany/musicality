@@ -30,6 +30,7 @@ from routers.formations import router as formations_router
 from routers.labeling import router as labeling_router
 from routers.admin import router as admin_router
 from routers.labeler import router as labeler_router
+from routers.cloud import router as cloud_router
 from models.schemas import HealthResponse
 
 app = FastAPI(
@@ -54,6 +55,7 @@ app.include_router(labeling_router, prefix="/labels")
 
 app.include_router(admin_router, prefix="/admin")
 app.include_router(labeler_router)
+app.include_router(cloud_router)
 
 # Static files — admin UI
 app.mount("/admin-ui", StaticFiles(directory=Path(__file__).parent / "labeling" / "admin", html=True), name="admin-ui")
