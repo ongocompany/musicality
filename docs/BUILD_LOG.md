@@ -16,6 +16,9 @@
 | 2026-03-26 | 0.9.0 | 9 | Android | Gold theme, custom icons, beat sync fix, audio focus DoNotMix, song thread delete |
 | 2026-03-27 | 0.9.0 | 10 | Android (APK+AAB) | Rainbow color restore, edit undo memory leak fix, library long-press custom modal, new package com.ongocompany.ritmo, release signing config plugin |
 | 2026-03-27 | 0.9.0 | 11 | Android (APK+AAB) | Cloud Library (dedup storage, auto-sync, cloud register, 192kbps conversion) |
+| 2026-03-27 | 0.9.0 | 12 | Android (APK+AAB) | Cloud sync fixes (album art, Ⓟ badge, race condition), YouTube edition sync, YouTube player track switch fix, remove library management UI |
+| 2026-03-28 | 0.9.0 | 13 | Android (APK+AAB) | Remove CAMERA/RECORD_AUDIO permissions, account deletion page, static pages |
+| 2026-03-29 | 0.9.0 | 14 | Android (APK+AAB) | Fix grid ghost artifacts, beat counter freeze (analysis→file persist), crew thread duplicate prevention, safer thread deletion |
 
 ## Notes
 
