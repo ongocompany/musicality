@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track, Folder, SortField, SortOrder, MediaType } from '../types/track';
 import { AnalysisResult, AnalysisStatus } from '../types/analysis';
+import { saveAnalysisResult, loadAllAnalysisResults, migrateAnalysisToFiles } from '../services/analysisStorage';
 
 interface PlayerState {
   // Library
@@ -85,6 +86,10 @@ export const usePlayerStore = create<PlayerState>()(
           const { useSettingsStore } = require('./settingsStore');
           useSettingsStore.getState().removeTrackData(id);
         } catch {}
+        // Clean up analysis file
+        import('../services/analysisStorage').then(({ deleteAnalysisResult }) => {
+          deleteAnalysisResult(id).catch(() => {});
+        }).catch(() => {});
       },
       renameTrack: (id, newTitle) =>
         set((state) => ({
@@ -154,7 +159,9 @@ export const usePlayerStore = create<PlayerState>()(
               ? { ...state.currentTrack, analysisStatus: status }
               : state.currentTrack,
         })),
-      setTrackAnalysis: (trackId, analysis) =>
+      setTrackAnalysis: (trackId, analysis) => {
+        // Save to file (async, non-blocking) — persist no longer stores analysis
+        saveAnalysisResult(trackId, analysis).catch(() => {});
         set((state) => ({
           tracks: state.tracks.map((t) =>
             t.id === trackId ? { ...t, analysis, analysisStatus: 'done' as AnalysisStatus, pendingJobId: undefined } : t,
@@ -163,7 +170,8 @@ export const usePlayerStore = create<PlayerState>()(
             state.currentTrack?.id === trackId
               ? { ...state.currentTrack, analysis, analysisStatus: 'done' as AnalysisStatus, pendingJobId: undefined }
               : state.currentTrack,
-        })),
+        }));
+      },
       setTrackPendingJobId: (trackId, jobId) =>
         set((state) => ({
           tracks: state.tracks.map((t) =>
@@ -252,18 +260,18 @@ export const usePlayerStore = create<PlayerState>()(
     }),
     {
       name: 'musicality-tracks',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
-        tracks: state.tracks,
+        // Strip analysis from persisted tracks — stored in files instead
+        tracks: state.tracks.map(({ analysis, ...rest }) => rest),
         folders: state.folders,
         sortBy: state.sortBy,
         sortOrder: state.sortOrder,
       }),
-      migrate: (persistedState: any, version: number) => {
+      migrate: async (persistedState: any, version: number) => {
         let state = persistedState;
         if (version < 2) {
-          // v1 → v2: add folders, sortBy, sortOrder defaults
           state = {
             ...state,
             folders: state.folders ?? [],
@@ -272,7 +280,6 @@ export const usePlayerStore = create<PlayerState>()(
           };
         }
         if (version < 3) {
-          // v2 → v3: add mediaType to folders (default 'audio')
           state = {
             ...state,
             folders: (state.folders ?? []).map((f: any) => ({
@@ -281,11 +288,25 @@ export const usePlayerStore = create<PlayerState>()(
             })),
           };
         }
+        if (version < 4) {
+          // v3 → v4: migrate analysis data from AsyncStorage to files
+          if (state.tracks && Array.isArray(state.tracks)) {
+            const hasAnalysis = state.tracks.some((t: any) => t.analysis);
+            if (hasAnalysis) {
+              console.log('[PlayerStore] Migrating analysis data to files...');
+              state = {
+                ...state,
+                tracks: await migrateAnalysisToFiles(state.tracks),
+              };
+            }
+          }
+        }
         return state as PlayerState;
       },
-      // Reset stuck 'analyzing' status on rehydration
+      // Load analysis from files after rehydration
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        // Fix stuck analyzing status
         let changed = false;
         const fixed = state.tracks.map((t) => {
           if (t.analysisStatus === 'analyzing' && !t.pendingJobId) {
@@ -296,6 +317,27 @@ export const usePlayerStore = create<PlayerState>()(
         });
         if (changed) {
           usePlayerStore.setState({ tracks: fixed });
+        }
+
+        // Restore analysis from files (async, non-blocking)
+        const doneTracks = (fixed.length > 0 ? fixed : state.tracks)
+          .filter((t) => t.analysisStatus === 'done' && !t.analysis);
+        if (doneTracks.length > 0) {
+          loadAllAnalysisResults(doneTracks.map((t) => t.id)).then((results) => {
+            if (results.size === 0) return;
+            usePlayerStore.setState((s) => ({
+              tracks: s.tracks.map((t) => {
+                const analysis = results.get(t.id);
+                return analysis ? { ...t, analysis } : t;
+              }),
+              currentTrack: s.currentTrack && results.has(s.currentTrack.id)
+                ? { ...s.currentTrack, analysis: results.get(s.currentTrack.id) }
+                : s.currentTrack,
+            }));
+            console.log(`[PlayerStore] Restored ${results.size} analysis results from files`);
+          }).catch((err) => {
+            console.error('[PlayerStore] Failed to restore analysis from files:', err);
+          });
         }
       },
     },

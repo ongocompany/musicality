@@ -51,7 +51,7 @@ const DEFAULT_ROWS = 8;
 const ROW_LABEL_WIDTH = 18;
 const MIN_CELL_SIZE = 20;
 const SCROLL_ANCHOR_ROW = 2; // auto-scroll keeps current beat at 3rd visible row (0-indexed)
-const RENDER_BUFFER_ROWS = 4; // extra rows rendered above/below visible area
+const RENDER_BUFFER_ROWS = 6; // extra rows rendered above/below visible area
 
 export function PhraseGrid({
   countInfo, phraseMap, hasAnalysis, beats, isPlaying,
@@ -99,6 +99,7 @@ export function PhraseGrid({
 
   // ─── Phrase action animation ───
   const animGenRef = useRef(0); // generation counter to invalidate stale animation callbacks
+  const activeAnimValuesRef = useRef<Animated.Value[]>([]); // track for explicit cleanup
   const [cellTranslates, setCellTranslates] = useState<Map<number, { x: Animated.Value; y: Animated.Value }>>(new Map());
   const [colorOverrides, setColorOverrides] = useState<Map<number, string>>(new Map());
   const [showBeatNumbers, setShowBeatNumbers] = useState<Set<number>>(new Set());
@@ -134,7 +135,7 @@ export function PhraseGrid({
     snapshotRef.current = { beatPositions: positions, beatColors: colors, actionBeat };
   }, []);
 
-  // Cleanup timeouts
+  // Cleanup timeouts + animated values
   useEffect(() => {
     return () => {
       if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
@@ -143,6 +144,9 @@ export function PhraseGrid({
       if (colorTimerRef.current) clearTimeout(colorTimerRef.current);
       if (numberTimerRef.current) clearTimeout(numberTimerRef.current);
       if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+      // Stop and release all tracked Animated.Values
+      for (const v of activeAnimValuesRef.current) { v.stopAnimation(); }
+      activeAnimValuesRef.current = [];
     };
   }, []);
 
@@ -226,6 +230,20 @@ export function PhraseGrid({
   const totalVisualCells = visualCells.length > 0 ? visualCells.length : CELLS_PER_PAGE;
   const totalDataRows = Math.ceil(totalVisualCells / COLS);
 
+  // ─── Per-cell phrase color (declared before animation effect that depends on it) ───
+  const getCellPhraseColor = useCallback((cellIndex: number): string => {
+    const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
+    if (!phraseMap || globalBeat < 0) return Colors.textMuted;
+    for (let p = 0; p < phraseMap.phrases.length; p++) {
+      const phrase = phraseMap.phrases[p];
+      if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
+        return getPhraseColor(p);
+      }
+    }
+    return Colors.textMuted;
+  }, [phraseMap, visualCells]);
+  getCellPhraseColorRef.current = getCellPhraseColor;
+
   // ─── Phrase action animation trigger ───
   useEffect(() => {
     if (!snapshotRef.current || cellSize <= 0) return;
@@ -247,6 +265,10 @@ export function PhraseGrid({
     if (!hasChanges) return; // Layout hasn't changed yet — keep snapshot for next render
 
     snapshotRef.current = null;
+
+    // Stop and release previous animation values before creating new ones
+    for (const v of activeAnimValuesRef.current) { v.stopAnimation(); }
+    activeAnimValuesRef.current = [];
 
     const step = cellSize + CELL_GAP;
     const translates = new Map<number, { x: Animated.Value; y: Animated.Value }>();
@@ -271,6 +293,7 @@ export function PhraseGrid({
 
       const x = new Animated.Value(dx);
       const y = new Animated.Value(dy);
+      activeAnimValuesRef.current.push(x, y);
       translates.set(i, { x, y });
 
       // Keep old color during movement
@@ -330,7 +353,10 @@ export function PhraseGrid({
 
     const thisGen = animGenRef.current;
     Animated.stagger(20, posAnims).start(() => {
-      // Skip if a newer action has started while this animation was in-flight
+      // Always release animated values when animation completes
+      for (const v of activeAnimValuesRef.current) { v.stopAnimation(); }
+      activeAnimValuesRef.current = [];
+      // Skip state updates if a newer action has started
       if (animGenRef.current !== thisGen) return;
       setCellTranslates(new Map());
       setShowBeatNumbers(new Set());
@@ -426,9 +452,35 @@ export function PhraseGrid({
     setRenderStartRow(prev => prev !== newStartRow ? newStartRow : prev);
   }, [rowHeight]);
 
+  // Clear stale animation artifacts when render window shifts
+  const prevRenderStartRef = useRef(renderStartRow);
+  useEffect(() => {
+    if (prevRenderStartRef.current === renderStartRow) return;
+    prevRenderStartRef.current = renderStartRow;
+    // If animation state lingers during scroll, clear it to prevent ghost cells
+    if (cellTranslates.size > 0) {
+      for (const v of activeAnimValuesRef.current) { v.stopAnimation(); }
+      activeAnimValuesRef.current = [];
+      setCellTranslates(new Map());
+    }
+    if (colorOverrides.size > 0) {
+      if (colorTimerRef.current) clearTimeout(colorTimerRef.current);
+      setColorOverrides(new Map());
+    }
+    if (showBeatNumbers.size > 0) {
+      setShowBeatNumbers(new Set());
+    }
+  }, [renderStartRow, cellTranslates.size, colorOverrides.size, showBeatNumbers.size]);
+
   const handleScrollBeginDrag = useCallback(() => {
     userScrollingRef.current = true;
     if (autoScrollTimerRef.current) clearTimeout(autoScrollTimerRef.current);
+    // Clear any lingering animation state on drag start to prevent ghosts
+    for (const v of activeAnimValuesRef.current) { v.stopAnimation(); }
+    activeAnimValuesRef.current = [];
+    setCellTranslates(new Map());
+    setColorOverrides(new Map());
+    setShowBeatNumbers(new Set());
   }, []);
 
   const handleScrollEndDrag = useCallback(() => {
@@ -475,20 +527,6 @@ export function PhraseGrid({
     if (cellIndex < 0 || cellIndex >= visualCells.length) return -1;
     return visualCells[cellIndex];
   }, [visualCells]);
-
-  // ─── Per-cell phrase color ───
-  const getCellPhraseColor = useCallback((cellIndex: number): string => {
-    const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
-    if (!phraseMap || globalBeat < 0) return Colors.textMuted;
-    for (let p = 0; p < phraseMap.phrases.length; p++) {
-      const phrase = phraseMap.phrases[p];
-      if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
-        return getPhraseColor(p);
-      }
-    }
-    return Colors.textMuted;
-  }, [phraseMap, visualCells]);
-  getCellPhraseColorRef.current = getCellPhraseColor;
 
   // Per-cell row label: first column shows song-wide sequential row number
   const getCellRowLabel = useCallback((cellIndex: number): string | null => {
@@ -886,7 +924,7 @@ export function PhraseGrid({
               onScroll={handleScroll}
               onScrollBeginDrag={handleScrollBeginDrag}
               onScrollEndDrag={handleScrollEndDrag}
-              scrollEventThrottle={Platform.OS === 'android' ? 250 : 100}
+              scrollEventThrottle={Platform.OS === 'android' ? 50 : 16}
               nestedScrollEnabled={true}
               bounces={false}
               overScrollMode="never"

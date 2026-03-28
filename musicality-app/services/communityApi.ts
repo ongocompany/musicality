@@ -528,12 +528,35 @@ export async function createSongThread(crewId: string, input: CreateThreadInput)
   if (!user) throw new Error('Not authenticated');
 
   const title = input.title.trim();
+  const normalizedTitle = title.toLowerCase();
+
+  // Prevent same user from creating duplicate thread (same crew + title)
+  const { data: existing } = await supabase
+    .from('song_threads')
+    .select('id')
+    .eq('crew_id', crewId)
+    .eq('created_by', user.id)
+    .eq('normalized_title', normalizedTitle)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    // Return the existing thread instead of creating a duplicate
+    const { data: full, error: fetchErr } = await supabase
+      .from('song_threads')
+      .select('*')
+      .eq('id', existing.id)
+      .single();
+    if (fetchErr) throw new Error(fetchErr.message);
+    return mapSongThread(full);
+  }
+
   const { data, error } = await supabase
     .from('song_threads')
     .insert({
       crew_id: crewId,
       title,
-      normalized_title: title.toLowerCase(),
+      normalized_title: normalizedTitle,
       youtube_id: input.youtubeId ?? null,
       bpm: input.bpm ?? null,
       dance_style: input.danceStyle ?? 'bachata',
@@ -634,11 +657,14 @@ export async function deleteSongThread(threadId: string, crewId: string): Promis
   if (!user) throw new Error('Not authenticated');
 
   // Check: must be thread creator or crew captain
-  const { data: thread } = await supabase
+  const { data: thread, error: threadErr } = await supabase
     .from('song_threads')
     .select('created_by')
     .eq('id', threadId)
-    .single();
+    .maybeSingle();
+
+  if (threadErr) throw new Error(threadErr.message);
+  if (!thread) return; // Thread already deleted — nothing to do
 
   const { data: crew } = await supabase
     .from('crews')
@@ -646,20 +672,14 @@ export async function deleteSongThread(threadId: string, crewId: string): Promis
     .eq('id', crewId)
     .single();
 
-  const isCreator = thread?.created_by === user.id;
+  const isCreator = thread.created_by === user.id;
   const isCaptain = crew?.captain_id === user.id;
 
   if (!isCreator && !isCaptain) {
     throw new Error('Only the creator or crew captain can delete this thread');
   }
 
-  // Delete all notes in this thread first
-  await supabase
-    .from('thread_phrase_notes')
-    .delete()
-    .eq('thread_id', threadId);
-
-  // Delete the thread
+  // Delete the thread (notes cascade via ON DELETE CASCADE)
   const { error } = await supabase
     .from('song_threads')
     .delete()

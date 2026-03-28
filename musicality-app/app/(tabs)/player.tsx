@@ -565,6 +565,10 @@ export default function PlayerScreen() {
     prevPhraseMapRef.current = phraseMap;
   }
 
+  // Throttle position state updates (SeekBar) to avoid excessive re-renders
+  const lastPositionUpdateRef = useRef(0);
+  const POSITION_UPDATE_INTERVAL = 200; // ms — SeekBar doesn't need 50ms precision
+
   const computeCountInfo = useCallback(() => {
     const effBeats = effectiveBeats.length > 0 ? effectiveBeats : null;
     const effOffset = effectiveAnalysisData?.offsetBeatIndex ?? offsetBeatIndex;
@@ -573,13 +577,21 @@ export default function PlayerScreen() {
       ? getPhraseCountInfo(pos + lookAheadMs, effBeats, effectiveDownbeats, effOffset, danceStyle, phraseMap)
       : null;
     const prev = prevCountRef.current;
-    if (prev && raw && prev.beatIndex === raw.beatIndex && prev.phraseIndex === raw.phraseIndex) {
-      setPositionState(pos); // still sync position for SeekBar
-      return;
+    const beatChanged = !(prev && raw && prev.beatIndex === raw.beatIndex && prev.phraseIndex === raw.phraseIndex);
+    if (beatChanged) {
+      prevCountRef.current = raw;
+      setCountInfo(raw);
+      setPositionState(pos);
+      lastPositionUpdateRef.current = Date.now();
+    } else {
+      // Only update positionState at a throttled rate (for SeekBar/timeline)
+      const now = Date.now();
+      if (now - lastPositionUpdateRef.current >= POSITION_UPDATE_INTERVAL) {
+        setPositionState(pos);
+        lastPositionUpdateRef.current = now;
+      }
+      // No re-render triggered otherwise — saves massive render cycles
     }
-    prevCountRef.current = raw;
-    setCountInfo(raw);
-    setPositionState(pos);
   }, [lookAheadMs, effectiveBeats, effectiveDownbeats, offsetBeatIndex, effectiveAnalysisData, danceStyle, phraseMap]);
 
   computeCountInfoRef.current = computeCountInfo;

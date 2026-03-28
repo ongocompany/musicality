@@ -62,10 +62,13 @@ export default function SongThreadScreen() {
           onPress: async () => {
             try {
               await deleteSongThread(id, crewId);
-              router.back();
             } catch (err: any) {
               Alert.alert(t('common.error'), err.message);
+              return; // Don't navigate back on failure
             }
+            // Navigate back only after successful deletion
+            // Use setTimeout to let the store update settle before navigation
+            setTimeout(() => router.back(), 100);
           },
         },
       ],
