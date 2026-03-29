@@ -19,6 +19,7 @@
 | 2026-03-27 | 0.9.0 | 12 | Android (APK+AAB) | Cloud sync fixes (album art, Ⓟ badge, race condition), YouTube edition sync, YouTube player track switch fix, remove library management UI |
 | 2026-03-28 | 0.9.0 | 13 | Android (APK+AAB) | Remove CAMERA/RECORD_AUDIO permissions, account deletion page, static pages |
 | 2026-03-29 | 0.9.0 | 14 | Android (APK+AAB) | Fix grid ghost artifacts, beat counter freeze (analysis→file persist), crew thread duplicate prevention, safer thread deletion |
+| 2026-03-29 | 0.9.0 | 15 | Android (APK+AAB) | Fix cloud sync deleting audio library, cloud library 404, dedup improvements, eight-count grid labels |
 
 ## Notes
 
