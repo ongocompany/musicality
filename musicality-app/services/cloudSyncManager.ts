@@ -162,13 +162,22 @@ async function _runSync(userId: string): Promise<void> {
     if (lt.remoteId) localRemoteIds.add(lt.remoteId);
   }
 
+  // 3c. Title-based matching (catches video tracks whose audio is in cloud)
+  const localTitles = new Set<string>();
+  for (const lt of localTracks) {
+    localTitles.add(lt.title.toLowerCase().trim());
+  }
+
   // 4. Determine actions
   const toDownload: CloudTrackInfo[] = [];  // cloud에만 있는 곡
   const toRegister: Track[] = [];           // 로컬에만 있는 곡 (분석 완료된 것)
 
   for (const [fp, ct] of cloudByFp) {
-    // Skip if already downloaded (by fingerprint OR by cloud_track_id)
+    // Skip if already exists locally (by fingerprint, cloud_track_id, or title)
     if (localByFp.has(fp) || localRemoteIds.has(ct.cloud_track_id)) {
+      continue;
+    }
+    if (ct.title && localTitles.has(ct.title.toLowerCase().trim())) {
       continue;
     }
     toDownload.push(ct);
