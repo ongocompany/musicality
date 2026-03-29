@@ -139,7 +139,8 @@ async function _runSync(userId: string): Promise<void> {
   // 2. Get local tracks
   const localTracks = usePlayerStore.getState().tracks;
 
-  // 3. Build fingerprint maps (use first 64 chars for matching)
+  // 3. Build dedup maps
+  // 3a. Fingerprint-based matching (use first 64 chars)
   const cloudByFp = new Map<string, CloudTrackInfo>();
   for (const ct of cloudTracks) {
     if (ct.fingerprint) {
@@ -155,14 +156,22 @@ async function _runSync(userId: string): Promise<void> {
     }
   }
 
+  // 3b. remoteId-based matching (works even before analysis is loaded from files)
+  const localRemoteIds = new Set<string>();
+  for (const lt of localTracks) {
+    if (lt.remoteId) localRemoteIds.add(lt.remoteId);
+  }
+
   // 4. Determine actions
   const toDownload: CloudTrackInfo[] = [];  // cloud에만 있는 곡
   const toRegister: Track[] = [];           // 로컬에만 있는 곡 (분석 완료된 것)
 
   for (const [fp, ct] of cloudByFp) {
-    if (!localByFp.has(fp)) {
-      toDownload.push(ct);
+    // Skip if already downloaded (by fingerprint OR by cloud_track_id)
+    if (localByFp.has(fp) || localRemoteIds.has(ct.cloud_track_id)) {
+      continue;
     }
+    toDownload.push(ct);
   }
 
   for (const [fp, lt] of localByFp) {
@@ -262,6 +271,7 @@ async function _downloadAndRegisterLocally(
       importedAt: Date.now(),
       artist: ct.artist || undefined,
       thumbnailUri,
+      remoteId: ct.cloud_track_id,  // Link to cloud track for dedup
       folderId: undefined,  // Will be set after folder matching
       analysisStatus: fullTrack ? 'done' : 'idle',
       analysis: fullTrack ? {
