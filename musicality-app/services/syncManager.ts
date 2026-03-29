@@ -339,9 +339,10 @@ async function mergeTracksFromCloud(remoteTracks: any[]): Promise<void> {
   const remoteIds = new Set(remoteTracks.map((r: any) => r.id));
   const remoteTitles = new Set(remoteTracks.map((r: any) => `${r.title}|${r.format ?? ''}`));
 
-  // Remove local tracks that were deleted from server
-  // (has remoteId or cloud- prefix but no longer in server)
+  // Remove local YouTube tracks that were deleted from server
+  // Only check YouTube tracks — audio tracks are managed by cloudSyncManager
   for (const local of localTracks) {
+    if (local.mediaType !== 'youtube') continue;
     const isFromCloud = local.remoteId || local.id.startsWith('cloud-');
     if (isFromCloud) {
       const rid = local.remoteId || local.id.replace('cloud-', '');
