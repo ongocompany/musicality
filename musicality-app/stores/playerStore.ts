@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track, Folder, SortField, SortOrder, MediaType } from '../types/track';
 import { AnalysisResult, AnalysisStatus } from '../types/analysis';
-import { saveAnalysisResult, loadAllAnalysisResults, migrateAnalysisToFiles } from '../services/analysisStorage';
+import { saveAnalysisResult, loadAllAnalysisResults } from '../services/analysisStorage';
 
 interface PlayerState {
   // Library
@@ -275,7 +275,7 @@ export const usePlayerStore = create<PlayerState>()(
         sortBy: state.sortBy,
         sortOrder: state.sortOrder,
       }),
-      migrate: async (persistedState: any, version: number) => {
+      migrate: (persistedState: any, version: number) => {
         let state = persistedState;
         if (version < 2) {
           state = {
@@ -294,22 +294,11 @@ export const usePlayerStore = create<PlayerState>()(
             })),
           };
         }
-        if (version < 4) {
-          // v3 → v4: migrate analysis data from AsyncStorage to files
-          if (state.tracks && Array.isArray(state.tracks)) {
-            const hasAnalysis = state.tracks.some((t: any) => t.analysis);
-            if (hasAnalysis) {
-              console.log('[PlayerStore] Migrating analysis data to files...');
-              state = {
-                ...state,
-                tracks: await migrateAnalysisToFiles(state.tracks),
-              };
-            }
-          }
-        }
+        // v3 → v4: analysis stripped from persist by partialize.
+        // No async work here — file migration happens lazily in onRehydrateStorage.
         return state as PlayerState;
       },
-      // Load analysis from files after rehydration
+      // After rehydration: fix stuck status + migrate/restore analysis from files
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         // Fix stuck analyzing status
@@ -325,8 +314,18 @@ export const usePlayerStore = create<PlayerState>()(
           usePlayerStore.setState({ tracks: fixed });
         }
 
+        // Lazy migration: if tracks still have analysis in persist (v3→v4 first run),
+        // save them to files now. On next restart, partialize will strip them.
+        const tracksWithAnalysis = state.tracks.filter((t) => t.analysis);
+        if (tracksWithAnalysis.length > 0) {
+          console.log(`[PlayerStore] Lazy-migrating ${tracksWithAnalysis.length} analysis results to files...`);
+          for (const t of tracksWithAnalysis) {
+            saveAnalysisResult(t.id, t.analysis!).catch(() => {});
+          }
+        }
+
         // Restore analysis from files (async, non-blocking)
-        const doneTracks = (fixed.length > 0 ? fixed : state.tracks)
+        const doneTracks = (changed ? fixed : state.tracks)
           .filter((t) => t.analysisStatus === 'done' && !t.analysis);
         if (doneTracks.length > 0) {
           loadAllAnalysisResults(doneTracks.map((t) => t.id)).then((results) => {
