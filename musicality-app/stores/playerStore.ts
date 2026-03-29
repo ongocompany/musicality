@@ -266,7 +266,7 @@ export const usePlayerStore = create<PlayerState>()(
     }),
     {
       name: 'musicality-tracks',
-      version: 4,
+      version: 3,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         // Strip analysis from persisted tracks — stored in files instead
