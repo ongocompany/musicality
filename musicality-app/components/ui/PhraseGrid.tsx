@@ -552,11 +552,21 @@ export function PhraseGrid({
   }, [phraseMap, visualCells]);
 
   // Beat count inside each cell (1-8 within the row)
+  // First column: show eight-count number (dance convention: 1-8, 2-8, 3-8, 4-8)
   const getCellBeatCount = useCallback((cellIndex: number): number | undefined => {
     const globalBeat = cellIndex < visualCells.length ? visualCells[cellIndex] : -1;
     if (globalBeat < 0) return undefined;
-    return (cellIndex % COLS) + 1;
-  }, [visualCells]);
+    const col = cellIndex % COLS;
+    if (col === 0 && phraseMap) {
+      // First column: eight-count number within phrase
+      for (const phrase of phraseMap.phrases) {
+        if (globalBeat >= phrase.startBeatIndex && globalBeat < phrase.endBeatIndex) {
+          return Math.floor((globalBeat - phrase.startBeatIndex) / COLS) + 1;
+        }
+      }
+    }
+    return col + 1;
+  }, [visualCells, phraseMap]);
 
   // ─── Cell note helpers ───
   const getCellHasNote = useCallback((cellIndex: number): boolean => {

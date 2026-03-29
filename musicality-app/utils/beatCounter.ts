@@ -247,9 +247,9 @@ export function getPhraseCountInfo(
   // Count relative to phrase start → resets to 1 at each phrase boundary
   const localOffset = currentIdx - phrase.startBeatIndex;
   const mod = ((localOffset % 8) + 8) % 8;
-  const count = mod + 1; // 1-8
-
   const eightCountInPhrase = Math.floor(localOffset / 8);
+
+  const count = mod + 1; // 1-8
 
   // Transition hint: within last 4 beats of phrase
   const beatsRemaining = phrase.endBeatIndex - currentIdx;
