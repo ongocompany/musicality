@@ -70,16 +70,22 @@ export const usePlayerStore = create<PlayerState>()(
     (set, get) => ({
       // Library
       tracks: [],
-      addTrack: (track) => set((state) => {
-        // Duplicate: overwrite existing track with same id
-        const existing = state.tracks.findIndex((t) => t.id === track.id);
-        if (existing >= 0) {
-          const updated = [...state.tracks];
-          updated[existing] = track;
-          return { tracks: updated };
+      addTrack: (track) => {
+        // Save analysis to file if present (persist strips it)
+        if (track.analysis) {
+          saveAnalysisResult(track.id, track.analysis).catch(() => {});
         }
-        return { tracks: [...state.tracks, track] };
-      }),
+        set((state) => {
+          // Duplicate: overwrite existing track with same id
+          const existing = state.tracks.findIndex((t) => t.id === track.id);
+          if (existing >= 0) {
+            const updated = [...state.tracks];
+            updated[existing] = track;
+            return { tracks: updated };
+          }
+          return { tracks: [...state.tracks, track] };
+        });
+      },
       removeTrack: (id) => {
         set((state) => ({ tracks: state.tracks.filter((t) => t.id !== id) }));
         try {
