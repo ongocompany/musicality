@@ -51,7 +51,7 @@ const DEFAULT_ROWS = 8;
 const ROW_LABEL_WIDTH = 18;
 const MIN_CELL_SIZE = 20;
 const SCROLL_ANCHOR_ROW = 2; // auto-scroll keeps current beat at 3rd visible row (0-indexed)
-const RENDER_BUFFER_ROWS = 6; // extra rows rendered above/below visible area
+const RENDER_BUFFER_ROWS = 4; // extra rows rendered above/below visible area
 
 export function PhraseGrid({
   countInfo, phraseMap, hasAnalysis, beats, isPlaying,
@@ -453,11 +453,14 @@ export function PhraseGrid({
   }, [rowHeight]);
 
   // Clear stale animation artifacts when render window shifts
+  // (단, phrase action 직후에는 건너뜀 — 편집 애니메이션 보호)
   const prevRenderStartRef = useRef(renderStartRow);
   useEffect(() => {
     if (prevRenderStartRef.current === renderStartRow) return;
     prevRenderStartRef.current = renderStartRow;
-    // If animation state lingers during scroll, clear it to prevent ghost cells
+    // actionBeatRef > -1이면 phrase action 직후 → 애니메이션 보호
+    if (actionBeatRef.current >= 0) return;
+    // Scroll에 의한 render window 이동 → 잔상 정리
     if (cellTranslates.size > 0) {
       for (const v of activeAnimValuesRef.current) { v.stopAnimation(); }
       activeAnimValuesRef.current = [];
@@ -934,7 +937,7 @@ export function PhraseGrid({
               onScroll={handleScroll}
               onScrollBeginDrag={handleScrollBeginDrag}
               onScrollEndDrag={handleScrollEndDrag}
-              scrollEventThrottle={Platform.OS === 'android' ? 50 : 16}
+              scrollEventThrottle={Platform.OS === 'android' ? 250 : 100}
               nestedScrollEnabled={true}
               bounces={false}
               overScrollMode="never"

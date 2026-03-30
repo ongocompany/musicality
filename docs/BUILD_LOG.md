@@ -20,6 +20,7 @@
 | 2026-03-28 | 0.9.0 | 13 | Android (APK+AAB) | Remove CAMERA/RECORD_AUDIO permissions, account deletion page, static pages |
 | 2026-03-29 | 0.9.0 | 14 | Android (APK+AAB) | Fix grid ghost artifacts, beat counter freeze (analysis→file persist), crew thread duplicate prevention, safer thread deletion |
 | 2026-03-29 | 0.9.0 | 15 | Android (APK+AAB) | Fix cloud sync deleting audio library, cloud library 404, dedup improvements, eight-count grid labels |
+| 2026-03-30 | 0.9.0 | 16 | Android (APK+AAB) | Fix progressive performance degradation (RENDER_BUFFER_ROWS 6→4), protect edit animation from scroll cleanup, remove tab bar animation |
 
 ## Notes
 
