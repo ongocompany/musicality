@@ -129,6 +129,8 @@
     "reanalyzeConfirm": "기존 분석 데이터가 삭제되고 다시 분석됩니다. 계속하시겠습니까?",
     "reanalyze": "재분석",
     "analysisServerError": "분석 서버에 연결할 수 없습니다.",
+    "queueFull": "분석 대기열 초과",
+    "queueFullMsg": "한 번에 최대 3곡까지 분석할 수 있습니다. 현재 분석이 끝날 때까지 기다려주세요.",
     "deletePhraseEdition": "Ⓟ 에디션 {{id}} 삭제",
     "deletePhraseEditionConfirm": "이 PhraseNote 에디션을 삭제하시겠습니까?",
     "deleteChoreoEdition": "Ⓒ 에디션 {{id}} 삭제",

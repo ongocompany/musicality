@@ -572,9 +572,9 @@ export default function LibraryScreen() {
       }
     }
 
-    analysisRunningRef.current = false;
-    // Remove finished track and continue with next
+    // Remove finished track and continue with next — order matters: remove before unlock
     setAnalysisQueue(q => q.slice(1));
+    analysisRunningRef.current = false;
   }, [applyAnalysisResult, setTrackAnalysisStatus, setTrackPendingJobId, t]);
 
   // Auto-process queue when it changes
@@ -588,10 +588,13 @@ export default function LibraryScreen() {
     if (track.analysisStatus === 'analyzing' || track.analysisStatus === 'done') return;
     setAnalysisQueue(q => {
       if (q.includes(track.id)) return q;  // already queued
-      if (q.length >= 3) return q;          // queue full
+      if (q.length >= 3) {
+        Alert.alert(t('library.queueFull'), t('library.queueFullMsg'));
+        return q;
+      }
       return [...q, track.id];
     });
-  }, []);
+  }, [t]);
 
   const handleReanalyze = (track: Track) => {
     Alert.alert(t('library.reanalyzeTrack'), t('library.reanalyzeConfirm'), [

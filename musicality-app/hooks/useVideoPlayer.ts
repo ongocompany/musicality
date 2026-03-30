@@ -74,8 +74,10 @@ export function useVideoPlayer() {
       await videoRef.current.pauseAsync();
       setIsPlaying(false);
     } else {
-      await videoRef.current.playAsync();
+      // Pre-sync: update grid position BEFORE video starts
+      setPosition(status.positionMillis);
       setIsPlaying(true);
+      await videoRef.current.playAsync();
     }
   }, []);
 

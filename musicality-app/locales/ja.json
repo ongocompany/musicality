@@ -129,6 +129,8 @@
     "reanalyzeConfirm": "既存の分析データが削除され、再分析されます。続行しますか？",
     "reanalyze": "再分析",
     "analysisServerError": "分析サーバーに接続できませんでした。",
+    "queueFull": "分析キューがいっぱいです",
+    "queueFullMsg": "一度に分析できるのは最大3曲までです。現在の分析が完了するまでお待ちください。",
     "deletePhraseEdition": "Ⓟ エディション {{id}} を削除",
     "deletePhraseEditionConfirm": "このPhraseNoteエディションを削除しますか？",
     "deleteChoreoEdition": "Ⓒ エディション {{id}} を削除",

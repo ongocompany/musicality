@@ -130,10 +130,15 @@ export function useAudioPlayer() {
         await soundRef.current.setPositionAsync(0);
         positionRef.current = 0;
         setPosition(0);
+      } else {
+        // Pre-sync: update grid position BEFORE audio starts
+        // so the grid renders at the correct position from the first frame
+        positionRef.current = status.positionMillis;
+        setPosition(status.positionMillis);
       }
 
-      await soundRef.current.playAsync();
       setIsPlaying(true);
+      await soundRef.current.playAsync();
     }
   }, []);
 

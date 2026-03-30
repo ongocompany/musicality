@@ -129,6 +129,8 @@
     "reanalyzeConfirm": "現有的分析資料將被刪除並重新分析。確定要繼續嗎？",
     "reanalyze": "重新分析",
     "analysisServerError": "無法連線至分析伺服器。",
+    "queueFull": "分析佇列已滿",
+    "queueFullMsg": "一次最多可分析3首曲目。請等待當前分析完成。",
     "deletePhraseEdition": "刪除 Ⓟ 版本 {{id}}",
     "deletePhraseEditionConfirm": "確定要刪除此 PhraseNote 版本嗎？",
     "deleteChoreoEdition": "刪除 Ⓒ 版本 {{id}}",

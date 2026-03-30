@@ -129,6 +129,8 @@
     "reanalyzeConfirm": "Les données d'analyse existantes seront supprimées et réanalysées. Continuer ?",
     "reanalyze": "Réanalyser",
     "analysisServerError": "Impossible de se connecter au serveur d'analyse.",
+    "queueFull": "File d'analyse pleine",
+    "queueFullMsg": "Vous pouvez analyser jusqu'à 3 pistes à la fois. Veuillez attendre la fin de l'analyse en cours.",
     "deletePhraseEdition": "Supprimer l'édition Ⓟ {{id}}",
     "deletePhraseEditionConfirm": "Supprimer cette édition PhraseNote ?",
     "deleteChoreoEdition": "Supprimer l'édition Ⓒ {{id}}",

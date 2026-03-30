@@ -129,6 +129,8 @@
     "reanalyzeConfirm": "Existing analysis data will be deleted and re-analyzed. Continue?",
     "reanalyze": "Re-analyze",
     "analysisServerError": "Could not connect to analysis server.",
+    "queueFull": "Analysis Queue Full",
+    "queueFullMsg": "Up to 3 tracks can be analyzed at a time. Please wait for the current analysis to finish.",
     "deletePhraseEdition": "Delete Ⓟ Edition {{id}}",
     "deletePhraseEditionConfirm": "Delete this PhraseNote edition?",
     "deleteChoreoEdition": "Delete Ⓒ Edition {{id}}",

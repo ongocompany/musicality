@@ -129,6 +129,8 @@
     "reanalyzeConfirm": "Vorhandene Analysedaten werden gelöscht und neu analysiert. Fortfahren?",
     "reanalyze": "Erneut analysieren",
     "analysisServerError": "Verbindung zum Analyseserver nicht möglich.",
+    "queueFull": "Analyse-Warteschlange voll",
+    "queueFullMsg": "Es können maximal 3 Titel gleichzeitig analysiert werden. Bitte warten Sie, bis die aktuelle Analyse abgeschlossen ist.",
     "deletePhraseEdition": "Ⓟ Edition {{id}} löschen",
     "deletePhraseEditionConfirm": "Diese PhraseNote-Edition löschen?",
     "deleteChoreoEdition": "Ⓒ Edition {{id}} löschen",

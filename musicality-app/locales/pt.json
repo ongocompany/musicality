@@ -129,6 +129,8 @@
     "reanalyzeConfirm": "Os dados de análise existentes serão excluídos e re-analisados. Continuar?",
     "reanalyze": "Re-analisar",
     "analysisServerError": "Não foi possível conectar ao servidor de análise.",
+    "queueFull": "Fila de análise cheia",
+    "queueFullMsg": "É possível analisar até 3 faixas por vez. Aguarde a análise atual terminar.",
     "deletePhraseEdition": "Excluir Ⓟ Edição {{id}}",
     "deletePhraseEditionConfirm": "Excluir esta edição de PhraseNote?",
     "deleteChoreoEdition": "Excluir Ⓒ Edição {{id}}",
