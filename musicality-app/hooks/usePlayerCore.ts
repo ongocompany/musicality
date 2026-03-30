@@ -412,9 +412,11 @@ export function usePlayerCore() {
     setTrackAnalysisStatus(currentTrack.id, 'analyzing');
 
     try {
+      const engine = useSettingsStore.getState().analysisEngine;
       const result = await analyzeTrack(
         validUri, currentTrack.title, currentTrack.format,
         (jobId) => setTrackPendingJobId(currentTrack.id, jobId),
+        engine,
       );
       setTrackAnalysis(currentTrack.id, result);
 

@@ -518,6 +518,9 @@ export default function LibraryScreen() {
   // ─── Analysis queue (max 3, process one at a time) ───
   const [analysisQueue, setAnalysisQueue] = useState<string[]>([]);
   const analysisRunningRef = useRef(false);
+  const analysisQueueRef = useRef<string[]>([]);
+  const reanalyzeAlertRef = useRef(false);
+  useEffect(() => { analysisQueueRef.current = analysisQueue; }, [analysisQueue]);
 
   const applyAnalysisResult = useCallback((trackId: string, result: import('../../types/analysis').AnalysisResult) => {
     setTrackAnalysis(trackId, result);
@@ -549,9 +552,11 @@ export default function LibraryScreen() {
 
     setTrackAnalysisStatus(track.id, 'analyzing');
     try {
+      const engine = useSettingsStore.getState().analysisEngine;
       const result = await analyzeTrack(
         track.uri, track.title, track.format,
         (jobId) => setTrackPendingJobId(track.id, jobId),
+        engine,
       );
       applyAnalysisResult(track.id, result);
       // Cloud Library: auto-register audio tracks (video has no cloud restore)
@@ -584,30 +589,37 @@ export default function LibraryScreen() {
     }
   }, [analysisQueue, processQueue]);
 
-  const handleAnalyzePress = useCallback((track: Track) => {
-    if (track.analysisStatus === 'analyzing' || track.analysisStatus === 'done') return;
-    setAnalysisQueue(q => {
-      if (q.includes(track.id)) return q;  // already queued
-      if (q.length >= 3) {
-        Alert.alert(t('library.queueFull'), t('library.queueFullMsg'));
-        return q;
-      }
-      return [...q, track.id];
+  const enqueueAnalysis = useCallback((trackId: string) => {
+    const q = analysisQueueRef.current;
+    if (q.includes(trackId)) return;
+    if (q.length >= 3) {
+      Alert.alert(t('library.queueFull'), t('library.queueFullMsg'));
+      return;
+    }
+    setAnalysisQueue(prev => {
+      if (prev.includes(trackId)) return prev;
+      if (prev.length >= 3) return prev;
+      return [...prev, trackId];
     });
   }, [t]);
 
-  const handleReanalyze = (track: Track) => {
+  const handleAnalyzePress = useCallback((track: Track) => {
+    if (track.analysisStatus === 'analyzing' || analysisQueueRef.current.includes(track.id)) return;
+    enqueueAnalysis(track.id);
+  }, [enqueueAnalysis]);
+
+  const handleReanalyze = useCallback((track: Track) => {
+    if (reanalyzeAlertRef.current) return;  // prevent stacking
+    if (analysisQueueRef.current.includes(track.id)) return;
+    reanalyzeAlertRef.current = true;
     Alert.alert(t('library.reanalyzeTrack'), t('library.reanalyzeConfirm'), [
-      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.cancel'), style: 'cancel', onPress: () => { reanalyzeAlertRef.current = false; } },
       { text: t('library.reanalyze'), style: 'destructive', onPress: () => {
-        setAnalysisQueue(q => {
-          if (q.includes(track.id)) return q;
-          if (q.length >= 3) return q;
-          return [...q, track.id];
-        });
+        reanalyzeAlertRef.current = false;
+        enqueueAnalysis(track.id);
       }},
     ]);
-  };
+  }, [t, enqueueAnalysis]);
 
   // Resume pending analysis jobs when app returns to foreground
   useEffect(() => {

@@ -39,6 +39,10 @@ interface SettingsState {
   gridScrollMode: boolean;
   toggleGridScrollMode: () => void;
 
+  // Analysis engine: undefined = default (Madmom), 'bt' = Beat This!
+  analysisEngine: string | undefined;
+  setAnalysisEngine: (engine: string | undefined) => void;
+
   // Cue sound settings
   cueType: CueType;
   setCueType: (type: CueType) => void;
@@ -193,6 +197,9 @@ export const useSettingsStore = create<SettingsState>()(
 
       gridScrollMode: false,
       toggleGridScrollMode: () => set((state) => ({ gridScrollMode: !state.gridScrollMode })),
+
+      analysisEngine: undefined,
+      setAnalysisEngine: (engine) => set({ analysisEngine: engine }),
 
       cueType: 'off',
       setCueType: (type) => set({ cueType: type, cueEnabled: type !== 'off' }),

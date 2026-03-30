@@ -7,11 +7,12 @@ import time
 import traceback
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Query
 from fastapi.responses import JSONResponse
 
 from models.schemas import AnalysisResult
 from services.beat_analyzer import analyze_audio
+from services.beat_this_analyzer import analyze_audio_bt
 from services.analysis_cache import (
     compute_file_hash, compute_fingerprint,
     lookup_cache, lookup_cache_by_fingerprint, store_in_cache,
@@ -73,7 +74,8 @@ def _cleanup_old_jobs():
 
 
 def _run_analysis_background(job_id: str, file_path: Path,
-                             file_hash: str, file_size: int, filename: str):
+                             file_hash: str, file_size: int, filename: str,
+                             engine: str | None = None):
     """
     Background thread: waits for semaphore slot, then runs analysis.
     Semaphore limits concurrent analysis to MAX_CONCURRENT_ANALYSIS (default 3)
@@ -85,7 +87,10 @@ def _run_analysis_background(job_id: str, file_path: Path,
         _analysis_semaphore.acquire()
         logger.info(f"[Job {job_id[:8]}] Slot acquired, starting analysis for {filename}...")
 
-        result = analyze_audio(str(file_path))
+        if engine == "bt":
+            result = analyze_audio_bt(str(file_path))
+        else:
+            result = analyze_audio(str(file_path))
         result.file_hash = file_hash
 
         # Lookup album art via Spotify (non-blocking, best-effort)
@@ -146,7 +151,7 @@ def _has_active_job(client_ip: str) -> str | None:
 
 
 @router.post("/analyze")
-async def analyze_track(request: Request, file: UploadFile = File(...)):
+async def analyze_track(request: Request, file: UploadFile = File(...), engine: str | None = Query(default=None)):
     """
     Upload audio and analyze beats.
     - Cache HIT → 200 with AnalysisResult (instant)
@@ -199,8 +204,11 @@ async def analyze_track(request: Request, file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Empty file")
 
         # ── Tier 1: SHA-256 hash (exact file match, ~200ms) ──
+        # Skip cache for alternative engines (A/B testing)
         file_hash = compute_file_hash(str(file_path))
-        cached = lookup_cache(file_hash)
+        if engine:
+            logger.info(f"Engine override '{engine}' — skipping cache for {filename}")
+        cached = lookup_cache(file_hash) if not engine else None
         if cached is not None:
             # v2.3: re-run structure analysis if phrase_boundaries empty (stale cache)
             if not cached.phrase_boundaries and cached.beats and len(cached.beats) >= 8:
@@ -220,29 +228,30 @@ async def analyze_track(request: Request, file: UploadFile = File(...)):
             return cached  # 200 OK
 
         # ── Tier 2: Fingerprint (same song, different file, ~1-2s) ──
-        try:
-            fp_duration, fp_string = compute_fingerprint(str(file_path))
-            cached = lookup_cache_by_fingerprint(fp_string, fp_duration)
-            if cached is not None:
-                # v2.3: same stale phrase check
-                if not cached.phrase_boundaries and cached.beats and len(cached.beats) >= 8:
-                    logger.info(f"Cache HIT (fp) but stale phrases, re-analyzing for {filename}")
-                    try:
-                        from services.structure_analyzer import analyze_structure_with_phrases
-                        sections, phrase_boundaries = analyze_structure_with_phrases(
-                            str(file_path), cached.duration, cached.beats, cached.downbeats
-                        )
-                        cached.sections = sections
-                        cached.phrase_boundaries = phrase_boundaries
-                    except Exception as e:
-                        logger.warning(f"Structure re-analysis failed: {e}")
-                logger.info(f"Cache HIT (fingerprint) for {filename}")
-                cached.file_hash = file_hash
-                store_in_cache(file_hash, file_size, cached)
-                file_path.unlink()
-                return cached  # 200 OK
-        except Exception as e:
-            logger.warning(f"Fingerprint lookup failed: {e}")
+        if not engine:
+            try:
+                fp_duration, fp_string = compute_fingerprint(str(file_path))
+                cached = lookup_cache_by_fingerprint(fp_string, fp_duration)
+                if cached is not None:
+                    # v2.3: same stale phrase check
+                    if not cached.phrase_boundaries and cached.beats and len(cached.beats) >= 8:
+                        logger.info(f"Cache HIT (fp) but stale phrases, re-analyzing for {filename}")
+                        try:
+                            from services.structure_analyzer import analyze_structure_with_phrases
+                            sections, phrase_boundaries = analyze_structure_with_phrases(
+                                str(file_path), cached.duration, cached.beats, cached.downbeats
+                            )
+                            cached.sections = sections
+                            cached.phrase_boundaries = phrase_boundaries
+                        except Exception as e:
+                            logger.warning(f"Structure re-analysis failed: {e}")
+                    logger.info(f"Cache HIT (fingerprint) for {filename}")
+                    cached.file_hash = file_hash
+                    store_in_cache(file_hash, file_size, cached)
+                    file_path.unlink()
+                    return cached  # 200 OK
+            except Exception as e:
+                logger.warning(f"Fingerprint lookup failed: {e}")
 
         # ── Tier 3: Async analysis ──
         job_id = str(uuid.uuid4())
@@ -259,7 +268,7 @@ async def analyze_track(request: Request, file: UploadFile = File(...)):
 
         thread = threading.Thread(
             target=_run_analysis_background,
-            args=(job_id, file_path, file_hash, file_size, filename),
+            args=(job_id, file_path, file_hash, file_size, filename, engine),
             daemon=True,
         )
         thread.start()

@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "16",
+      "buildNumber": "17",
       "bundleIdentifier": "kr.ritmo.musicality",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -27,7 +27,7 @@
     },
     "android": {
       "package": "com.ongocompany.ritmo",
-      "versionCode": 16,
+      "versionCode": 17,
       "adaptiveIcon": {
         "backgroundColor": "#0D0D0F",
         "foregroundImage": "./assets/android-icon-foreground.png",

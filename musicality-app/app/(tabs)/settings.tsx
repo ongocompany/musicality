@@ -22,6 +22,7 @@ export default function SettingsScreen() {
     autoHideMs, setAutoHideMs,
     cloudSyncEnabled, setCloudSyncEnabled,
     cloudSyncWifiOnly, setCloudSyncWifiOnly,
+    analysisEngine, setAnalysisEngine,
   } = useSettingsStore();
   const { user, guestMode, signOut } = useAuthStore();
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
@@ -130,6 +131,30 @@ export default function SettingsScreen() {
           <Ionicons name="server-outline" size={20} color={Colors.textSecondary} />
           <Text style={styles.serverUrl}>{API_BASE_URL}</Text>
         </View>
+      </View>
+
+      {/* Analysis Engine (experimental) */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Analysis Engine</Text>
+        {([
+          { key: undefined, label: 'Madmom (default)' },
+          { key: 'bt', label: 'Beat This! small0' },
+        ] as const).map((opt) => (
+          <TouchableOpacity
+            key={opt.key ?? 'default'}
+            style={styles.row}
+            onPress={() => setAnalysisEngine(opt.key as string | undefined)}
+          >
+            <Ionicons
+              name={analysisEngine === opt.key ? 'radio-button-on' : 'radio-button-off'}
+              size={20}
+              color={analysisEngine === opt.key ? Colors.primary : Colors.textMuted}
+            />
+            <Text style={[styles.label, analysisEngine === opt.key && { color: Colors.primary }]}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* App Info */}

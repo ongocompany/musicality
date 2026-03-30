@@ -136,6 +136,7 @@ export async function analyzeTrack(
   fileName: string,
   format: string,
   onJobId?: (jobId: string) => void,
+  engine?: string,
 ): Promise<AnalysisResult> {
   // For video files, extract audio via native module; for audio files, send original
   let uploadUri = uri;
@@ -190,7 +191,11 @@ export async function analyzeTrack(
   const t0 = Date.now();
 
   // ── Pre-check: compute file hash and check cache without uploading ──
-  try {
+  // Skip pre-check for alternative engines (A/B testing, always run fresh)
+  if (engine) {
+    console.log(`[Analysis] Engine override '${engine}' — skipping hash pre-check`);
+  }
+  if (!engine) try {
     const fileBase64 = await FileSystem.readAsStringAsync(uploadUri, { encoding: FileSystem.EncodingType.Base64 });
     const wordArray = CryptoJS.enc.Base64.parse(fileBase64);
     const fileHash = CryptoJS.SHA256(wordArray).toString(CryptoJS.enc.Hex);
@@ -215,7 +220,10 @@ export async function analyzeTrack(
   console.log(`[Analysis] Uploading ${uploadFormat} to ${API_BASE_URL}/analyze (${uploadUri.slice(-50)})`);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/analyze`, {
+    // Always send engine param to skip server cache (testing period)
+    // TODO: revert to `engine ? ... : API_BASE_URL/analyze` when cache should be re-enabled
+    const analyzeUrl = `${API_BASE_URL}/analyze?engine=${engine || 'default'}`;
+    const response = await fetch(analyzeUrl, {
       method: 'POST',
       body: formData,
       signal: controller.signal,
